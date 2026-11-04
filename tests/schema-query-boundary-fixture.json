@@ -1,0 +1,370 @@
+{
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "local": {
+          "$ref": "#/$defs/settings"
+        },
+        "combined": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "right": {
+                  "type": "integer"
+                }
+              }
+            }
+          ]
+        },
+        "choice": {
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": {
+                "mode": {
+                  "const": "git"
+                },
+                "repo": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            {
+              "properties": {
+                "mode": {
+                  "const": "chart"
+                },
+                "chart": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            }
+          ]
+        },
+        "fixed": {
+          "type": "string",
+          "const": "stable",
+          "default": "stable",
+          "description": "Synthetic stable setting."
+        },
+        "conflict": {
+          "allOf": [
+            {
+              "enum": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "enum": [
+                "b",
+                "c"
+              ]
+            }
+          ]
+        },
+        "refChoice": {
+          "type": "object",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/gitBranch"
+            },
+            {
+              "$ref": "#/$defs/chartBranch"
+            }
+          ]
+        },
+        "allOfChoice": {
+          "type": "object",
+          "oneOf": [
+            {
+              "allOf": [
+                {
+                  "properties": {
+                    "mode": {
+                      "const": "git"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                {
+                  "properties": {
+                    "repo": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "properties": {
+                    "mode": {
+                      "const": "chart"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                {
+                  "properties": {
+                    "chart": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "nestedConjunction": {
+          "anyOf": [
+            {
+              "allOf": [
+                {
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                },
+                {
+                  "enum": [
+                    "b",
+                    "c"
+                  ]
+                }
+              ]
+            },
+            {
+              "const": "d"
+            }
+          ]
+        },
+        "viaArray": {
+          "$ref": "#/$defs/arraySource/allOf/0"
+        },
+        "baseAndAlternatives": {
+          "enum": [
+            "a",
+            "b",
+            "c"
+          ],
+          "anyOf": [
+            {
+              "const": "b"
+            },
+            {
+              "const": "d"
+            }
+          ]
+        },
+        "exclusiveChoice": {
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                }
+              },
+              "required": [
+                "value"
+              ]
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "b",
+                    "c"
+                  ]
+                }
+              },
+              "required": [
+                "value"
+              ]
+            }
+          ]
+        },
+        "inclusiveChoice": {
+          "type": "object",
+          "anyOf": [
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                }
+              },
+              "required": [
+                "value"
+              ]
+            },
+            {
+              "properties": {
+                "value": {
+                  "enum": [
+                    "b",
+                    "c"
+                  ]
+                }
+              },
+              "required": [
+                "value"
+              ]
+            }
+          ]
+        },
+        "duplicateExclusive": {
+          "type": "object",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/overlapLeft"
+            },
+            {
+              "$ref": "#/$defs/overlapLeft"
+            }
+          ]
+        },
+        "referencedExclusive": {
+          "type": "object",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/overlapLeft"
+            },
+            {
+              "$ref": "#/$defs/overlapRight"
+            }
+          ]
+        },
+        "duplicateInclusive": {
+          "type": "object",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/overlapLeft"
+            },
+            {
+              "$ref": "#/$defs/overlapLeft"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "settings": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Synthetic switch."
+        }
+      }
+    },
+    "gitBranch": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "git"
+        },
+        "repo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "chartBranch": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "chart"
+        },
+        "chart": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "arraySource": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "leaf": {
+              "type": "string",
+              "description": "Array pointer leaf."
+            }
+          }
+        }
+      ]
+    },
+    "overlapLeft": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "enum": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "required": [
+        "value"
+      ]
+    },
+    "overlapRight": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "enum": [
+            "b",
+            "c"
+          ]
+        }
+      },
+      "required": [
+        "value"
+      ]
+    }
+  }
+}

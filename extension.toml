@@ -1,0 +1,20 @@
+id = "argocd-lsp"
+name = "Argo CD (local development)"
+version = "0.1.0"
+schema_version = 1
+snippets = ["snippets/yaml.json"]
+authors = ["snail (lazysnail1024)"]
+repository = "https://github.com/lazysnail1024/zed-argocd"
+description = "Local development adapter for the Argo CD language server; release unavailable."
+
+[language_servers.argocd-ls]
+name = "Argo CD Language Server"
+languages = ["YAML"]
+
+[language_servers.argocd-ls.language_ids]
+YAML = "yaml"
+
+[[capabilities]]
+kind = "process:exec"
+command = "*"
+args = ["version", "--json"]

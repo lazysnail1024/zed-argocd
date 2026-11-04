@@ -1,0 +1,3120 @@
+{
+  "contract": "argocd-local-static-1",
+  "cases": [
+    {
+      "id": "resolved",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "unresolved-open",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": null,
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_UNRESOLVED",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "unresolved-closed",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": null,
+      "config": "referencePolicy: closed\n",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_UNRESOLVED",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "default-project-not-synthesized",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "default",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": null,
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_UNRESOLVED",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "namespace-not-inferred",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "controlPlaneNamespace: \"\"\n",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_AMBIGUOUS",
+          2
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "destination-conflict",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload",
+            "name": "cluster"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_DESTINATION_CONFLICT",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "destination-name-only",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "name": "cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "source-ignored",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "b"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_SOURCE_IGNORED",
+          2
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "empty-sources-fallback",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": []
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "options-conflict",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "helm": {},
+            "directory": {}
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_SOURCE_OPTIONS_CONFLICT",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "options-one",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "helm": {}
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "duplicate-ref",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values"
+            },
+            {
+              "repoURL": "b",
+              "ref": "values"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_SOURCE_REF_DUPLICATE",
+          1
+        ],
+        [
+          "CD_SOURCE_REF_DUPLICATE",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "missing-ref",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "$missing/v.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_MISSING",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "valid-ref",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "$values/v.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "invalid-ref-dot",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "bad.ref"
+            },
+            {
+              "repoURL": "b"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_INVALID",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "invalid-ref-tab",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "bad\tref"
+            },
+            {
+              "repoURL": "b"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_INVALID",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "valid-ref-dash-underscore",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values_A-9"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "$values_A-9/v.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "chart-ref",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values",
+              "chart": "chart"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "$values/v.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_INVALID",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "single-source-env-prefix",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "helm": {
+              "valueFiles": [
+                "$ARGOCD_APP_NAME/v.yaml"
+              ]
+            }
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "single-source-env-middle",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "helm": {
+              "valueFiles": [
+                "env/$ARGOCD_APP_NAME.yaml"
+              ]
+            }
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "multi-source-env-middle",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "env/$ARGOCD_APP_NAME.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "sole-source-ref-version",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values",
+              "helm": {
+                "valueFiles": [
+                  "$values/v.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VERSION_FEATURE",
+          1
+        ]
+      ],
+      "expected35": []
+    },
+    {
+      "id": "glob-ref-preserved",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "valueFiles": [
+                  "$values/**/*.yaml"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "file-parameter-ref-missing",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "fileParameters": [
+                  {
+                    "name": "secret",
+                    "path": "$missing/file"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_MISSING",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "file-parameter-ref-valid",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "a",
+              "ref": "values"
+            },
+            {
+              "repoURL": "b",
+              "helm": {
+                "fileParameters": [
+                  {
+                    "name": "secret",
+                    "path": "$values/file"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "repo-policy-denied",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "https://other/repo"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_POLICY_CONTRADICTION",
+          2
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "repo-policy-case-git",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "HTTPS://EXAMPLE.ORG/REPO.git"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "repo-policy-complex",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "https://example.org/{one,two}"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "repo-policy-deny",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*",
+            "!https://example.org/repo"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "destination-policy-denied",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "https://other",
+              "namespace": "workload"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_PROJECT_POLICY_CONTRADICTION",
+          2
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "destination-policy-complex",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "https://{one,two}",
+              "namespace": "workload"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "mapped-path-missing",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "targetRevision": "HEAD",
+            "path": "missing"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "repositories: [{repoURL: https://example.org/repo, targetRevision: HEAD, path: repo}]\n",
+      "files": {
+        "repo/keep.txt": "keep"
+      },
+      "expected": [
+        [
+          "CD_LOCAL_PATH_MISSING",
+          2
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "mapped-path-present",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "targetRevision": "HEAD",
+            "path": "charts"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "repositories: [{repoURL: https://example.org/repo, targetRevision: HEAD, path: repo}]\n",
+      "files": {
+        "repo/charts/keep.txt": "keep"
+      },
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "unmapped-path",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "path": "missing"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-static",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-dynamic-project-static-conflict",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "{{.project}}",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload",
+                "name": "cluster"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ],
+        [
+          "CD_APPSET_STATIC_FIELD",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-dynamic-ref-static-conflict",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload",
+                "name": "cluster"
+              },
+              "sources": [
+                {
+                  "repoURL": "a",
+                  "ref": "{{.ref}}"
+                },
+                {
+                  "repoURL": "b",
+                  "helm": {
+                    "valueFiles": [
+                      "$values/v.yaml"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ],
+        [
+          "CD_APPSET_STATIC_FIELD",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-dynamic-boolean",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              },
+              "syncPolicy": {
+                "automated": {
+                  "prune": "{{.prune}}"
+                }
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "SCHEMA_TYPE",
+          1
+        ],
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-go-syntax",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "{{ if .name }}"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ],
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-go-function-not-executed",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "{{ .name | normalize }}"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-fast-open-is-literal",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "name-{{unfinished"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-go-close-is-literal",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "name-}}"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-fast-dynamic",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "{{name}}"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-static-patch-malformed",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec: [broken"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-static-patch-object",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec:\n  destination:\n    namespace: work\n"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-patch-go-syntax",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "{{ if .x }}"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ],
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "appset-dynamic-repo-policy-unknown",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "set-app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "{{.repo}}"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "repo-policy-ssh-equivalence",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "git@example.org:team/repo.git"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "ssh://git@example.org/team/repo"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "appset-fast-leading-close-literal",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "name-}}-{{name}}"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "single-source-ignored-ref-grammar",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "source": {
+            "repoURL": "https://example.org/repo",
+            "ref": "bad.ref"
+          },
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          }
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "sole-sources-unused-ref-before-boundary",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "https://example.org/repo",
+              "ref": "bad.ref"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": [
+        [
+          "CD_VALUES_REF_INVALID",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "multi-sources-invalid-ref-control",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Application",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "project": "team",
+          "destination": {
+            "server": "https://cluster",
+            "namespace": "workload"
+          },
+          "sources": [
+            {
+              "repoURL": "https://example.org/repo",
+              "ref": "bad.ref"
+            },
+            {
+              "repoURL": "https://example.org/second"
+            }
+          ]
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_VALUES_REF_INVALID",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "fast-mode-static-malformed-patch",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec: [broken"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "fast-mode-dynamic-malformed-patch",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec:\n  destination:\n    namespace: '{{ value }} {{'\n"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_DYNAMIC_FIELD",
+          3
+        ],
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "go-mode-static-malformed-patch-control",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": true,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec: [broken"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "fast-mode-static-valid-patch-control",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec:\n  destination:\n    namespace: work\n"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "fast-patch-unclosed-literal-valid-yaml",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec:\n  destination:\n    namespace: '{{ literal'\n"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [],
+      "expected35": null
+    },
+    {
+      "id": "fast-patch-unclosed-literal-invalid-yaml",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec: [ '{{ literal'"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "fast-patch-static-scalar",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "goTemplate": false,
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "plain-text"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    },
+    {
+      "id": "default-mode-static-malformed-patch",
+      "application": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "ApplicationSet",
+        "metadata": {
+          "name": "app"
+        },
+        "spec": {
+          "generators": [],
+          "template": {
+            "metadata": {
+              "name": "app"
+            },
+            "spec": {
+              "project": "team",
+              "source": {
+                "repoURL": "https://example.org/repo"
+              },
+              "destination": {
+                "server": "https://cluster",
+                "namespace": "workload"
+              }
+            }
+          },
+          "templatePatch": "spec: [broken"
+        }
+      },
+      "project": {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "AppProject",
+        "metadata": {
+          "name": "team",
+          "namespace": "argocd"
+        },
+        "spec": {
+          "sourceRepos": [
+            "*"
+          ],
+          "destinations": [
+            {
+              "server": "*",
+              "namespace": "*"
+            }
+          ]
+        }
+      },
+      "config": "",
+      "files": {},
+      "expected": [
+        [
+          "CD_APPSET_TEMPLATE_SYNTAX",
+          1
+        ]
+      ],
+      "expected35": null
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+[
+  {
+    "id": "blank-mapping",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  |\n  destination: {server: local}\n",
+    "labels": [
+      "source",
+      "sources",
+      "syncPolicy"
+    ],
+    "forbidden": [
+      "project",
+      "destination"
+    ],
+    "apply": "source",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source: \n  destination: {server: local}\n",
+    "rangeText": ""
+  },
+  {
+    "id": "empty-mapping",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  |\n",
+    "labels": [
+      "destination",
+      "project"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  destination: \n",
+    "rangeText": ""
+  },
+  {
+    "id": "incomplete-key",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  dest|\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  destination: \n",
+    "rangeText": "dest"
+  },
+  {
+    "id": "partial-key-value-suffix",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  dest|: {server: local} # suffix\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  destination: {server: local} # suffix\n",
+    "rangeText": "dest"
+  },
+  {
+    "id": "quoted-key",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  \"dest|\": {server: local}\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  \"destination\": {server: local}\n",
+    "rangeText": "dest"
+  },
+  {
+    "id": "escaped-key-refused",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  \"de\\u0073t|\": {server: local}\n",
+    "empty": true
+  },
+  {
+    "id": "middle-key-refused",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  des|t: {server: local}\n",
+    "empty": true
+  },
+  {
+    "id": "crlf-quoted",
+    "text": "apiVersion: argoproj.io/v1alpha1\r\nkind: Application\r\nmetadata: {name: example}\r\nspec:\r\n  project: default\r\n  'dest|': {server: local} # keep\r\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\r\nkind: Application\r\nmetadata: {name: example}\r\nspec:\r\n  project: default\r\n  'destination': {server: local} # keep\r\n",
+    "rangeText": "dest"
+  },
+  {
+    "id": "utf16-flow",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec: {project: \"\ud83d\ude80\", dest|: {server: local}}\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec: {project: \"\ud83d\ude80\", destination: {server: local}}\n",
+    "rangeText": "dest"
+  },
+  {
+    "id": "array-existing",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  sources:\n    - repoURL: https://example.test/repo\n      helm: {}\n      |\n",
+    "labels": [
+      "path",
+      "chart"
+    ],
+    "forbidden": [
+      "repoURL",
+      "helm"
+    ],
+    "apply": "path",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  sources:\n    - repoURL: https://example.test/repo\n      helm: {}\n      path: \n",
+    "rangeText": ""
+  },
+  {
+    "id": "union",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source:\n    repoURL: https://example.test/repo\n    kustomize:\n      replicas:\n        - name: app\n          co|unt: 2\n",
+    "method": "hover",
+    "contains": [
+      "integer",
+      "string",
+      "Target: $TARGET",
+      "Source:"
+    ]
+  },
+  {
+    "id": "map-value",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source:\n    kustomize:\n      commonAnnotations:\n        team: de|v\n",
+    "method": "hover",
+    "contains": [
+      "string",
+      "Target: $TARGET",
+      "Source:"
+    ]
+  },
+  {
+    "id": "array-item",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source:\n    helm:\n      valueFiles: [val|ues.yaml]\n",
+    "method": "hover",
+    "contains": [
+      "string",
+      "Target: $TARGET"
+    ]
+  },
+  {
+    "id": "ordinary-description",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  destin|ation: {server: local}\n",
+    "method": "hover",
+    "contains": [
+      "Destination",
+      "object",
+      "Target: $TARGET"
+    ]
+  },
+  {
+    "id": "no-map-key-invention",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source:\n    kustomize:\n      commonAnnotations:\n        |\n",
+    "empty": true
+  },
+  {
+    "id": "foreign",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nmetadata: {name: example}\nspec:\n  dest|\n",
+    "empty": true
+  },
+  {
+    "id": "ambiguous-duplicate",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  project: other\n  dest|\n",
+    "empty": true
+  },
+  {
+    "id": "alias-exact-sibling-recovery",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source: &base {path: app}\n  other: *base\n  dest|\n",
+    "labels": [
+      "destination"
+    ],
+    "apply": "destination",
+    "rangeText": "dest",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source: &base {path: app}\n  other: *base\n  destination: \n"
+  },
+  {
+    "id": "custom-tag-guard",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  other: !thing value\n  dest|\n",
+    "empty": true
+  },
+  {
+    "id": "unrelated-damage",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source: [\n  dest|\n",
+    "empty": true
+  },
+  {
+    "id": "comment-refused",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  # dest|\n",
+    "empty": true
+  },
+  {
+    "id": "scalar-refused",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source:\n    path: dest|\n",
+    "empty": true
+  },
+  {
+    "id": "enum",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: cre|\n",
+    "labels": [
+      "create-only",
+      "create-update",
+      "create-delete",
+      "sync"
+    ],
+    "apply": "create-only",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: \"create-only\"\n",
+    "rangeText": "cre"
+  },
+  {
+    "id": "source-provenance",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  destin|ation: {server: local}\n",
+    "method": "hover",
+    "contains": [
+      "https://raw.githubusercontent.com/argoproj/argo-cd/$COMMIT/manifests/crds/application-crd.yaml"
+    ]
+  }
+]

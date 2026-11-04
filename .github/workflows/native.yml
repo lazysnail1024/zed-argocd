@@ -1,0 +1,67 @@
+name: Native candidate build and behavior
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            artifact: linux-amd64
+            cc: gcc-13
+            compiler: '13.3.0'
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            artifact: linux-arm64
+            cc: gcc-13
+            compiler: '13.3.0'
+          - runner: macos-15-intel
+            platform: darwin/amd64
+            artifact: macos-amd64
+            cc: clang
+            compiler: 'Apple clang version 17.0.0'
+          - runner: macos-15
+            platform: darwin/arm64
+            artifact: macos-arm64
+            cc: clang
+            compiler: 'Apple clang version 17.0.0'
+          - runner: windows-2025
+            platform: windows/amd64
+            artifact: windows-amd64
+            cc: gcc
+            compiler: '15.2.0'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      CC: ${{ matrix.cc }}
+      CGO_ENABLED: '1'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+          cache: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14.0'
+      - name: Build, package and execute actual native consumers
+        run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}"
+      - name: Retain successful and failed native evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: argocd-native-${{ matrix.artifact }}
+          path: artifacts/native-ci/
+          if-no-files-found: error
+          retention-days: 30

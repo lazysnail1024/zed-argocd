@@ -1,0 +1,53 @@
+[
+  {
+    "id": "unknown-target",
+    "args": [
+      "check",
+      "--target-version",
+      "99.0.0",
+      "--format",
+      "json"
+    ],
+    "exit": 2,
+    "targets": [],
+    "complete": false,
+    "configurationCodes": [
+      "TARGET_UNKNOWN"
+    ]
+  },
+  {
+    "id": "release-candidate",
+    "args": [
+      "check",
+      "--target-version",
+      "3.6.0-rc4",
+      "--format",
+      "json"
+    ],
+    "exit": 2,
+    "targets": [],
+    "complete": false,
+    "configurationCodes": [
+      "TARGET_UNKNOWN"
+    ]
+  },
+  {
+    "id": "verified-stable",
+    "args": [
+      "check",
+      "--target-version",
+      "3.0.0",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "complete": true,
+    "configurationCodes": [],
+    "target": {
+      "version": "3.0.0",
+      "source": "override",
+      "scope": "root",
+      "complete": true
+    }
+  }
+]

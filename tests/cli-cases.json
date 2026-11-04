@@ -1,0 +1,78 @@
+[
+  {
+    "id": "identity",
+    "args": [
+      "version",
+      "--json"
+    ],
+    "exit": 0,
+    "json": {
+      "product": "argo-cd",
+      "adapterContractVersion": 1,
+      "analysisReady": true
+    },
+    "sha256Fields": [
+      "catalogHash"
+    ],
+    "nonEmptyFields": [
+      "toolkitVersion"
+    ]
+  },
+  {
+    "id": "help",
+    "args": [
+      "help"
+    ],
+    "exit": 0,
+    "contains": "argocd-ls"
+  },
+  {
+    "id": "incomplete-check",
+    "args": [
+      "check",
+      "--root",
+      "missing",
+      "--format",
+      "json"
+    ],
+    "exit": 2,
+    "json": {
+      "analysisComplete": false,
+      "filesAnalyzed": 0,
+      "targets": []
+    }
+  },
+  {
+    "id": "unsupported-command",
+    "args": [
+      "lint-official"
+    ],
+    "exit": 2
+  },
+  {
+    "id": "invalid-format",
+    "args": [
+      "check",
+      "--format",
+      "xml"
+    ],
+    "exit": 2
+  },
+  {
+    "id": "positional-version",
+    "args": [
+      "version",
+      "extra"
+    ],
+    "exit": 2
+  },
+  {
+    "id": "missing-stdio",
+    "args": [
+      "serve"
+    ],
+    "exit": 2,
+    "stdout": "",
+    "stderrContains": "stdio"
+  }
+]

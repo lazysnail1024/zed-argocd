@@ -1,0 +1,67 @@
+{
+  "Argo CD Application": {
+    "prefix": "argo-cd-application",
+    "description": "Argo CD 3.0.0 Application schema example; configure the exact target in .argocd-ls.yaml.",
+    "body": [
+      "apiVersion: argoproj.io/v1alpha1",
+      "kind: Application",
+      "metadata:",
+      "  name: ${1:example}",
+      "  namespace: argocd",
+      "spec:",
+      "  project: default",
+      "  source:",
+      "    repoURL: ${2:https://example.org/repository.git}",
+      "    targetRevision: HEAD",
+      "    path: ${3:manifests}",
+      "  destination:",
+      "    server: https://kubernetes.default.svc",
+      "    namespace: ${4:default}"
+    ]
+  },
+  "Argo CD AppProject": {
+    "prefix": "argo-cd-project",
+    "description": "Argo CD 3.0.0 AppProject schema example; review policy for your workspace.",
+    "body": [
+      "apiVersion: argoproj.io/v1alpha1",
+      "kind: AppProject",
+      "metadata:",
+      "  name: ${1:default}",
+      "  namespace: argocd",
+      "spec:",
+      "  sourceRepos: [\"*\"]",
+      "  destinations:",
+      "    - server: \"*\"",
+      "      namespace: \"*\""
+    ]
+  },
+  "Argo CD ApplicationSet": {
+    "prefix": "argo-cd-applicationset",
+    "description": "Argo CD 3.0.0 ApplicationSet using a static List generator; no generator execution by the language server.",
+    "body": [
+      "apiVersion: argoproj.io/v1alpha1",
+      "kind: ApplicationSet",
+      "metadata:",
+      "  name: ${1:example-set}",
+      "  namespace: argocd",
+      "spec:",
+      "  generators:",
+      "    - list:",
+      "        elements:",
+      "          - cluster: example",
+      "            url: https://kubernetes.default.svc",
+      "  template:",
+      "    metadata:",
+      "      name: '{{cluster}}'",
+      "    spec:",
+      "      project: default",
+      "      source:",
+      "        repoURL: ${2:https://example.org/repository.git}",
+      "        targetRevision: HEAD",
+      "        path: ${3:manifests}",
+      "      destination:",
+      "        server: '{{url}}'",
+      "        namespace: default"
+    ]
+  }
+}

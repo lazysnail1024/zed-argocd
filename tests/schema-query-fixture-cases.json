@@ -1,0 +1,86 @@
+[
+  {
+    "id": "local-ref",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  local:\n    en|: false\n",
+    "labels": [
+      "enabled"
+    ],
+    "apply": "enabled",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  local:\n    enabled: false\n",
+    "rangeText": "en"
+  },
+  {
+    "id": "local-hover-default",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  local:\n    enab|led: false\n",
+    "method": "hover",
+    "contains": [
+      "boolean",
+      "Default: false",
+      "Target: $TARGET",
+      "Synthetic switch."
+    ]
+  },
+  {
+    "id": "allof",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  combined:\n    |\n",
+    "labels": [
+      "left",
+      "right"
+    ]
+  },
+  {
+    "id": "branch-selected",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  choice:\n    mode: git\n    |\n",
+    "labels": [
+      "repo"
+    ],
+    "forbidden": [
+      "chart",
+      "mode"
+    ]
+  },
+  {
+    "id": "branch-ambiguous",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  choice:\n    |\n",
+    "labels": [
+      "repo",
+      "chart",
+      "mode"
+    ],
+    "candidateLabels": [
+      "repo",
+      "chart"
+    ]
+  },
+  {
+    "id": "const",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  fixed: st|\n",
+    "labels": [
+      "stable"
+    ],
+    "apply": "stable",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  fixed: \"stable\"\n",
+    "rangeText": "st"
+  },
+  {
+    "id": "conjunction-enum",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  conflict: x|\n",
+    "labels": [
+      "b"
+    ],
+    "forbidden": [
+      "a",
+      "c"
+    ]
+  },
+  {
+    "id": "validation-kept",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: fixture}\nspec:\n  fixed: invalid|\n",
+    "labels": [
+      "stable"
+    ],
+    "diagnosticCodes": [
+      "SCHEMA_CONSTRAINT"
+    ]
+  }
+]

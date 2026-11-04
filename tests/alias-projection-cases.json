@@ -1,0 +1,485 @@
+{
+  "sources": [
+    "https://yaml.org/type/merge.html",
+    "https://yaml.org/spec/1.2.2/"
+  ],
+  "scope": "consumer projection fixtures, not upstream Argo semantic acceptance",
+  "cases": [
+    {
+      "id": "plain-control",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "scalar-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: &p team}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "mapping-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: &destination {server: here}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: *destination\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "merge-map",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: &defaults {project: team}\nspec:\n  <<: *defaults\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "explicit-override-before",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: &defaults {project: absent}\nspec:\n  project: team\n  <<: *defaults\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "explicit-override-after",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: &defaults {project: absent}\nspec:\n  <<: *defaults\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "merge-sequence-first-wins",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  labels: &first {project: team}\n  annotations: &second {project: absent}\nspec:\n  <<: [*first, *second]\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "merge-sequence-reversed",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  labels: &first {project: team}\n  annotations: &second {project: absent}\nspec:\n  <<: [*second, *first]\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "nested-merge",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  labels: &first {project: team}\n  annotations: &second {<<: *first}\nspec:\n  <<: *second\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "repeated-alias-not-recursion",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: &p team\n  labels: {a: *p, b: *p}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "derived-domain-error-exact-sibling",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: &p absent}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here, name: conflict}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED",
+        "CD_DESTINATION_CONFLICT"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "derived-schema-error",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: &defaults {project: 42}\nspec:\n  <<: *defaults\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "SCHEMA_TYPE"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "plain-yaml11-bool-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: &p on}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "SCHEMA_TYPE"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "quoted-yaml11-string-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: &p \"on\"}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "duplicate",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  project: absent\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "decoded-duplicate",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  \"project\": absent\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "non-string-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  true: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "legacy-bool-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  on: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "complex-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  ? [a,b]\n  : team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "recursive",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: &p [*p]\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "unknown-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: *missing\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "invalid-merge-scalar",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  <<: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "invalid-merge-sequence",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  <<: [42]\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "duplicate-merge",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  <<: {project: team}\n  <<: {project: absent}\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "custom-tag",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: !custom team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "sequence-alias",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata: {name: other, namespace: argocd}\nspec:\n  sourceRepos: &repos [\"*\"]\n  sourceNamespaces: *repos\n  destinations: [{server: \"*\", namespace: \"*\"}]\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "aliased-owned-gvk",
+      "text": "metadata:\n  name: app\n  annotations:\n    api: &api argoproj.io/v1alpha1\n    kind: &kind Application\napiVersion: *api\nkind: *kind\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "foreign-recursive-filter",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec: &a {loop: *a}\n",
+      "expectedCodes": [],
+      "resources": 0,
+      "projectionComplete": true
+    },
+    {
+      "id": "quoted-merge-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {\"<<\": literal}}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "unsafe-owned-and-exact-sibling",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: &p [*p]\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n---\napiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 1,
+      "projectionComplete": false
+    },
+    {
+      "id": "expanded-boundary--1",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations:\n    base: &base [x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\n    expanded: [*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "expanded-boundary-0",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations:\n    base: &base [x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\n    expanded: [*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "expanded-boundary-1",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations:\n    base: &base [x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\n    expanded: [*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,*base,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x]\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "INPUT_BUDGET_EXCEEDED"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "anchor-redefinition-preceding-binding",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: {a: &p absent, b: &p team}\nspec:\n  project: *p\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "alias-string-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: {key: &key project}\nspec:\n  *key : team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "alias-decoded-key-collision",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations: {key: &key project}\nspec:\n  *key : team\n  project: absent\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "cross-document-anchor-refused",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: &name app}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n---\napiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: *name\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 1,
+      "projectionComplete": false
+    },
+    {
+      "id": "explicit-string",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value !!str on}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "explicit-integer",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value !!int \"42\"}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "SCHEMA_TYPE"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "binary-string",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value !!binary dGVhbQ==}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "timestamp-string",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value 2026-11-04}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "non-json-number",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value .inf}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "scalar-boundary--1",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value SCALAR_BOUNDARY_VALUE}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true,
+      "scalarBytes": 1048575
+    },
+    {
+      "id": "scalar-boundary-0",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value SCALAR_BOUNDARY_VALUE}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "CD_PROJECT_UNRESOLVED"
+      ],
+      "resources": 1,
+      "projectionComplete": true,
+      "scalarBytes": 1048576
+    },
+    {
+      "id": "scalar-boundary-1",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app, annotations: {value: &value SCALAR_BOUNDARY_VALUE}}\nspec:\n  project: *value\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "INPUT_BUDGET_EXCEEDED"
+      ],
+      "resources": 0,
+      "projectionComplete": false,
+      "scalarBytes": 1048577
+    },
+    {
+      "id": "expanded-depth-10",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations:\n    first: &n0 {value: x}\n    node1: &n1 {value: *n0}\n    node2: &n2 {value: *n1}\n    node3: &n3 {value: *n2}\n    node4: &n4 {value: *n3}\n    node5: &n5 {value: *n4}\n    node6: &n6 {value: *n5}\n    node7: &n7 {value: *n6}\n    node8: &n8 {value: *n7}\n    node9: &n9 {value: *n8}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "expanded-depth-260",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: app\n  annotations:\n    first: &n0 {value: x}\n    node1: &n1 {value: *n0}\n    node2: &n2 {value: *n1}\n    node3: &n3 {value: *n2}\n    node4: &n4 {value: *n3}\n    node5: &n5 {value: *n4}\n    node6: &n6 {value: *n5}\n    node7: &n7 {value: *n6}\n    node8: &n8 {value: *n7}\n    node9: &n9 {value: *n8}\n    node10: &n10 {value: *n9}\n    node11: &n11 {value: *n10}\n    node12: &n12 {value: *n11}\n    node13: &n13 {value: *n12}\n    node14: &n14 {value: *n13}\n    node15: &n15 {value: *n14}\n    node16: &n16 {value: *n15}\n    node17: &n17 {value: *n16}\n    node18: &n18 {value: *n17}\n    node19: &n19 {value: *n18}\n    node20: &n20 {value: *n19}\n    node21: &n21 {value: *n20}\n    node22: &n22 {value: *n21}\n    node23: &n23 {value: *n22}\n    node24: &n24 {value: *n23}\n    node25: &n25 {value: *n24}\n    node26: &n26 {value: *n25}\n    node27: &n27 {value: *n26}\n    node28: &n28 {value: *n27}\n    node29: &n29 {value: *n28}\n    node30: &n30 {value: *n29}\n    node31: &n31 {value: *n30}\n    node32: &n32 {value: *n31}\n    node33: &n33 {value: *n32}\n    node34: &n34 {value: *n33}\n    node35: &n35 {value: *n34}\n    node36: &n36 {value: *n35}\n    node37: &n37 {value: *n36}\n    node38: &n38 {value: *n37}\n    node39: &n39 {value: *n38}\n    node40: &n40 {value: *n39}\n    node41: &n41 {value: *n40}\n    node42: &n42 {value: *n41}\n    node43: &n43 {value: *n42}\n    node44: &n44 {value: *n43}\n    node45: &n45 {value: *n44}\n    node46: &n46 {value: *n45}\n    node47: &n47 {value: *n46}\n    node48: &n48 {value: *n47}\n    node49: &n49 {value: *n48}\n    node50: &n50 {value: *n49}\n    node51: &n51 {value: *n50}\n    node52: &n52 {value: *n51}\n    node53: &n53 {value: *n52}\n    node54: &n54 {value: *n53}\n    node55: &n55 {value: *n54}\n    node56: &n56 {value: *n55}\n    node57: &n57 {value: *n56}\n    node58: &n58 {value: *n57}\n    node59: &n59 {value: *n58}\n    node60: &n60 {value: *n59}\n    node61: &n61 {value: *n60}\n    node62: &n62 {value: *n61}\n    node63: &n63 {value: *n62}\n    node64: &n64 {value: *n63}\n    node65: &n65 {value: *n64}\n    node66: &n66 {value: *n65}\n    node67: &n67 {value: *n66}\n    node68: &n68 {value: *n67}\n    node69: &n69 {value: *n68}\n    node70: &n70 {value: *n69}\n    node71: &n71 {value: *n70}\n    node72: &n72 {value: *n71}\n    node73: &n73 {value: *n72}\n    node74: &n74 {value: *n73}\n    node75: &n75 {value: *n74}\n    node76: &n76 {value: *n75}\n    node77: &n77 {value: *n76}\n    node78: &n78 {value: *n77}\n    node79: &n79 {value: *n78}\n    node80: &n80 {value: *n79}\n    node81: &n81 {value: *n80}\n    node82: &n82 {value: *n81}\n    node83: &n83 {value: *n82}\n    node84: &n84 {value: *n83}\n    node85: &n85 {value: *n84}\n    node86: &n86 {value: *n85}\n    node87: &n87 {value: *n86}\n    node88: &n88 {value: *n87}\n    node89: &n89 {value: *n88}\n    node90: &n90 {value: *n89}\n    node91: &n91 {value: *n90}\n    node92: &n92 {value: *n91}\n    node93: &n93 {value: *n92}\n    node94: &n94 {value: *n93}\n    node95: &n95 {value: *n94}\n    node96: &n96 {value: *n95}\n    node97: &n97 {value: *n96}\n    node98: &n98 {value: *n97}\n    node99: &n99 {value: *n98}\n    node100: &n100 {value: *n99}\n    node101: &n101 {value: *n100}\n    node102: &n102 {value: *n101}\n    node103: &n103 {value: *n102}\n    node104: &n104 {value: *n103}\n    node105: &n105 {value: *n104}\n    node106: &n106 {value: *n105}\n    node107: &n107 {value: *n106}\n    node108: &n108 {value: *n107}\n    node109: &n109 {value: *n108}\n    node110: &n110 {value: *n109}\n    node111: &n111 {value: *n110}\n    node112: &n112 {value: *n111}\n    node113: &n113 {value: *n112}\n    node114: &n114 {value: *n113}\n    node115: &n115 {value: *n114}\n    node116: &n116 {value: *n115}\n    node117: &n117 {value: *n116}\n    node118: &n118 {value: *n117}\n    node119: &n119 {value: *n118}\n    node120: &n120 {value: *n119}\n    node121: &n121 {value: *n120}\n    node122: &n122 {value: *n121}\n    node123: &n123 {value: *n122}\n    node124: &n124 {value: *n123}\n    node125: &n125 {value: *n124}\n    node126: &n126 {value: *n125}\n    node127: &n127 {value: *n126}\n    node128: &n128 {value: *n127}\n    node129: &n129 {value: *n128}\n    node130: &n130 {value: *n129}\n    node131: &n131 {value: *n130}\n    node132: &n132 {value: *n131}\n    node133: &n133 {value: *n132}\n    node134: &n134 {value: *n133}\n    node135: &n135 {value: *n134}\n    node136: &n136 {value: *n135}\n    node137: &n137 {value: *n136}\n    node138: &n138 {value: *n137}\n    node139: &n139 {value: *n138}\n    node140: &n140 {value: *n139}\n    node141: &n141 {value: *n140}\n    node142: &n142 {value: *n141}\n    node143: &n143 {value: *n142}\n    node144: &n144 {value: *n143}\n    node145: &n145 {value: *n144}\n    node146: &n146 {value: *n145}\n    node147: &n147 {value: *n146}\n    node148: &n148 {value: *n147}\n    node149: &n149 {value: *n148}\n    node150: &n150 {value: *n149}\n    node151: &n151 {value: *n150}\n    node152: &n152 {value: *n151}\n    node153: &n153 {value: *n152}\n    node154: &n154 {value: *n153}\n    node155: &n155 {value: *n154}\n    node156: &n156 {value: *n155}\n    node157: &n157 {value: *n156}\n    node158: &n158 {value: *n157}\n    node159: &n159 {value: *n158}\n    node160: &n160 {value: *n159}\n    node161: &n161 {value: *n160}\n    node162: &n162 {value: *n161}\n    node163: &n163 {value: *n162}\n    node164: &n164 {value: *n163}\n    node165: &n165 {value: *n164}\n    node166: &n166 {value: *n165}\n    node167: &n167 {value: *n166}\n    node168: &n168 {value: *n167}\n    node169: &n169 {value: *n168}\n    node170: &n170 {value: *n169}\n    node171: &n171 {value: *n170}\n    node172: &n172 {value: *n171}\n    node173: &n173 {value: *n172}\n    node174: &n174 {value: *n173}\n    node175: &n175 {value: *n174}\n    node176: &n176 {value: *n175}\n    node177: &n177 {value: *n176}\n    node178: &n178 {value: *n177}\n    node179: &n179 {value: *n178}\n    node180: &n180 {value: *n179}\n    node181: &n181 {value: *n180}\n    node182: &n182 {value: *n181}\n    node183: &n183 {value: *n182}\n    node184: &n184 {value: *n183}\n    node185: &n185 {value: *n184}\n    node186: &n186 {value: *n185}\n    node187: &n187 {value: *n186}\n    node188: &n188 {value: *n187}\n    node189: &n189 {value: *n188}\n    node190: &n190 {value: *n189}\n    node191: &n191 {value: *n190}\n    node192: &n192 {value: *n191}\n    node193: &n193 {value: *n192}\n    node194: &n194 {value: *n193}\n    node195: &n195 {value: *n194}\n    node196: &n196 {value: *n195}\n    node197: &n197 {value: *n196}\n    node198: &n198 {value: *n197}\n    node199: &n199 {value: *n198}\n    node200: &n200 {value: *n199}\n    node201: &n201 {value: *n200}\n    node202: &n202 {value: *n201}\n    node203: &n203 {value: *n202}\n    node204: &n204 {value: *n203}\n    node205: &n205 {value: *n204}\n    node206: &n206 {value: *n205}\n    node207: &n207 {value: *n206}\n    node208: &n208 {value: *n207}\n    node209: &n209 {value: *n208}\n    node210: &n210 {value: *n209}\n    node211: &n211 {value: *n210}\n    node212: &n212 {value: *n211}\n    node213: &n213 {value: *n212}\n    node214: &n214 {value: *n213}\n    node215: &n215 {value: *n214}\n    node216: &n216 {value: *n215}\n    node217: &n217 {value: *n216}\n    node218: &n218 {value: *n217}\n    node219: &n219 {value: *n218}\n    node220: &n220 {value: *n219}\n    node221: &n221 {value: *n220}\n    node222: &n222 {value: *n221}\n    node223: &n223 {value: *n222}\n    node224: &n224 {value: *n223}\n    node225: &n225 {value: *n224}\n    node226: &n226 {value: *n225}\n    node227: &n227 {value: *n226}\n    node228: &n228 {value: *n227}\n    node229: &n229 {value: *n228}\n    node230: &n230 {value: *n229}\n    node231: &n231 {value: *n230}\n    node232: &n232 {value: *n231}\n    node233: &n233 {value: *n232}\n    node234: &n234 {value: *n233}\n    node235: &n235 {value: *n234}\n    node236: &n236 {value: *n235}\n    node237: &n237 {value: *n236}\n    node238: &n238 {value: *n237}\n    node239: &n239 {value: *n238}\n    node240: &n240 {value: *n239}\n    node241: &n241 {value: *n240}\n    node242: &n242 {value: *n241}\n    node243: &n243 {value: *n242}\n    node244: &n244 {value: *n243}\n    node245: &n245 {value: *n244}\n    node246: &n246 {value: *n245}\n    node247: &n247 {value: *n246}\n    node248: &n248 {value: *n247}\n    node249: &n249 {value: *n248}\n    node250: &n250 {value: *n249}\n    node251: &n251 {value: *n250}\n    node252: &n252 {value: *n251}\n    node253: &n253 {value: *n252}\n    node254: &n254 {value: *n253}\n    node255: &n255 {value: *n254}\n    node256: &n256 {value: *n255}\n    node257: &n257 {value: *n256}\n    node258: &n258 {value: *n257}\n    node259: &n259 {value: *n258}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n",
+      "expectedCodes": [
+        "INPUT_BUDGET_EXCEEDED"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "appset-derived-static-fields",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata:\n  name: apps\n  annotations: &defaults {project: absent}\nspec:\n  generators: []\n  template:\n    metadata: {name: app}\n    spec:\n      <<: *defaults\n      source: {repoURL: https://example.org/repo}\n      destination: {server: here, name: conflict}\n",
+      "expectedCodes": [
+        "CD_APPSET_STATIC_FIELD",
+        "CD_APPSET_STATIC_FIELD"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    },
+    {
+      "id": "aliased-owned-gvk-unsafe",
+      "text": "metadata: {name: app, annotations: {api: &api argoproj.io/v1alpha1, kind: &kind Application}}\napiVersion: *api\nkind: *kind\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "aliased-foreign-gvk-unsafe",
+      "text": "metadata: {name: app, annotations: {api: &api v1, kind: &kind ConfigMap}}\napiVersion: *api\nkind: *kind\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [],
+      "resources": 0,
+      "projectionComplete": true
+    },
+    {
+      "id": "merged-owned-gvk-unsafe",
+      "text": "metadata: {name: app, annotations: &identity {apiVersion: argoproj.io/v1alpha1, kind: Application}}\n<<: *identity\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "merged-foreign-gvk-unsafe",
+      "text": "metadata: {name: app, annotations: &identity {apiVersion: v1, kind: ConfigMap}}\n<<: *identity\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [],
+      "resources": 0,
+      "projectionComplete": true
+    },
+    {
+      "id": "aliased-owned-gvk-budget",
+      "text": "metadata: {name: app, annotations: {api: &api argoproj.io/v1alpha1, kind: &kind Application, text: SCALAR_BOUNDARY_VALUE}}\napiVersion: *api\nkind: *kind\nspec: {}\n",
+      "scalarBytes": 1048577,
+      "expectedCodes": [
+        "INPUT_BUDGET_EXCEEDED"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "aliased-foreign-gvk-budget",
+      "text": "metadata: {name: app, annotations: {api: &api v1, kind: &kind ConfigMap, text: SCALAR_BOUNDARY_VALUE}}\napiVersion: *api\nkind: *kind\nspec: {}\n",
+      "scalarBytes": 1048577,
+      "expectedCodes": [],
+      "resources": 0,
+      "projectionComplete": true
+    },
+    {
+      "id": "aliased-identity-key-unsafe",
+      "text": "metadata: {name: app, annotations: {key: &key apiVersion}}\n*key : argoproj.io/v1alpha1\nkind: Application\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [
+        "YAML_PROJECTION_INCOMPLETE"
+      ],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "aliased-merge-key-not-identity",
+      "text": "metadata: {name: app, annotations: {key: &key !!merge \"<<\"}}\n*key : {apiVersion: argoproj.io/v1alpha1, kind: Application}\nspec: {project: &loop [*loop]}\n",
+      "expectedCodes": [],
+      "resources": 0,
+      "projectionComplete": false
+    },
+    {
+      "id": "nonmarker-merge-tag-key",
+      "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  !!merge bogus: {project: team, source: {repoURL: https://example.org/repo}, destination: {server: here}}\n",
+      "expectedCodes": [
+        "SCHEMA_REQUIRED",
+        "SCHEMA_REQUIRED",
+        "SCHEMA_UNKNOWN_FIELD"
+      ],
+      "resources": 1,
+      "projectionComplete": true
+    }
+  ]
+}

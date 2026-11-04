@@ -1,0 +1,59 @@
+[
+  {
+    "id": "empty-before-comment",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: |# keep\n",
+    "exactLabels": [
+      "create-delete",
+      "create-only",
+      "create-update",
+      "sync"
+    ],
+    "apply": "create-only",
+    "rangeText": "",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: \"create-only\" # keep\n"
+  },
+  {
+    "id": "empty-before-spaced-comment",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: | # keep\n",
+    "exactLabels": [
+      "create-delete",
+      "create-only",
+      "create-update",
+      "sync"
+    ],
+    "apply": "create-only",
+    "rangeText": "",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: \"create-only\" # keep\n"
+  },
+  {
+    "id": "empty-crlf",
+    "text": "apiVersion: argoproj.io/v1alpha1\r\nkind: ApplicationSet\r\nmetadata: {name: example}\r\nspec:\r\n  generators: []\r\n  syncPolicy:\r\n    applicationsSync: |\r\n",
+    "exactLabels": [
+      "create-delete",
+      "create-only",
+      "create-update",
+      "sync"
+    ],
+    "apply": "create-only",
+    "rangeText": "",
+    "expected": "apiVersion: argoproj.io/v1alpha1\r\nkind: ApplicationSet\r\nmetadata: {name: example}\r\nspec:\r\n  generators: []\r\n  syncPolicy:\r\n    applicationsSync: \"create-only\"\r\n"
+  },
+  {
+    "id": "empty-value-comment-cursor-refused",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy:\n    applicationsSync: # comm|ent\n",
+    "empty": true
+  },
+  {
+    "id": "empty-flow-value",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy: {applicationsSync: |}\n",
+    "exactLabels": [
+      "create-delete",
+      "create-only",
+      "create-update",
+      "sync"
+    ],
+    "apply": "create-only",
+    "rangeText": "",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: example}\nspec:\n  generators: []\n  syncPolicy: {applicationsSync: \"create-only\"}\n"
+  }
+]

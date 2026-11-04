@@ -1,0 +1,32 @@
+{
+  "module": "github.com/lazysnail1024/k8s-crd-toolkit",
+  "version": "v0.0.0-20261103033718-ae52b82ec6c9",
+  "origin": "published-go-module",
+  "published": true,
+  "sourceSHA256": "c64fa890cbc68c09410fb3708e61311ea7d2f7c0aa8048223847b3c5bffc7a13",
+  "contractSHA256": "0756edab7c705c224eb4071d943fcb2ba7fd20701b1b534e4d7f82a3d5f4e5e3",
+  "zipSHA256": "62432eb94133630ed0acf93d1b1ef4d3ae49a5404285fe0aced7e6cd9f2ba772",
+  "files": {
+    "CONTRACT.md": "0756edab7c705c224eb4071d943fcb2ba7fd20701b1b534e4d7f82a3d5f4e5e3",
+    "LICENSE": "265ef4492c50a2720eb5897c1f8a196f6170396115c90517ec40cd89c1549a26",
+    "edit/plan.go": "92636f55c083e0ab62a1f76a75e279e204dee41793ca0706fd506cc021c40564",
+    "go.mod": "128671175d053b411bba1da50bdc2d818a19a91bcae51836bee4dc84dac8fbac",
+    "go.sum": "389719ce6ae31542443726bfd9ebda42d4628b0eefd092bf03d3ed060a87db9e",
+    "source/snapshot.go": "abb78d4cf33b3ed74f493204e7b7303c4fb0e26d63e28e97a8a626b6ee1199dd",
+    "yamlview/internal/parser/grammar/LICENSE": "2d181298822a124f6d106118dcc69c8d4d26ac668559be29682c452e712b0947",
+    "yamlview/internal/parser/grammar/PATCH.diff": "7e81ed4371812a4623ed96ce83f3cbdf9c78147438fe6a5dfb6d2869db22c2a9",
+    "yamlview/internal/parser/grammar/README.md": "6d773f730e5178f3ef71b02dd5ee95dfbd66cb9be11daf4b416bdb2ccecd4710",
+    "yamlview/internal/parser/grammar/UPSTREAM.json": "d1187486e8564469067b5295f0f36c7bbf696372635813befff8e0e684f72607",
+    "yamlview/internal/parser/grammar/binding.go": "58863f719323b5966f7b3ad5977807c0a74a2230fa1b393701279ae603aa4c32",
+    "yamlview/internal/parser/grammar/parser.c.inc": "02c5d32e95fa018a3c3ba7d7134d84bb7d5595c8874aa7ae6582745d9b40dede",
+    "yamlview/internal/parser/grammar/scanner.c.inc": "3d45f6973c346a78a7dc3953ee7840a409cbea6abc03612a07b543eaddd80651",
+    "yamlview/internal/parser/grammar/schema.core.c.inc": "91e56c3f3ae6fad1803b739ce4eb4568a782a9aec710f733db2f3e38d407a4d5",
+    "yamlview/internal/parser/grammar/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
+    "yamlview/internal/parser/grammar/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
+    "yamlview/internal/parser/grammar/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
+    "yamlview/internal/parser/parser.go": "7408f0a822df4438d8cc827c53ff54c452552d984f7da67ba8dd09451f2c661c",
+    "yamlview/view.go": "d57068d263c5136e1c512f81b34124350717a64efaa8f30caeb00a25183ad1b3"
+  },
+  "commit": "ae52b82ec6c93244787ec40c87e4171616c0fb73",
+  "sourceSHA256Scope": "listed runtime and contract files"
+}

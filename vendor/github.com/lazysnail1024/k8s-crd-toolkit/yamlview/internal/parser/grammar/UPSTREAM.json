@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/tree-sitter-grammars/tree-sitter-yaml",
+  "commit": "a1c4812a73ec",
+  "moduleVersion": "v0.7.3-0.20260522055615-a1c4812a73ec",
+  "originalSHA256": {
+    "src/parser.c": "02c5d32e95fa018a3c3ba7d7134d84bb7d5595c8874aa7ae6582745d9b40dede",
+    "src/scanner.c": "a510c0ca699cf3853bd2192bf103e11132414bc002fe952a88a7106ffb5d44e9",
+    "src/schema.core.c": "91e56c3f3ae6fad1803b739ce4eb4568a782a9aec710f733db2f3e38d407a4d5",
+    "src/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
+    "src/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
+    "src/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
+    "LICENSE": "2d181298822a124f6d106118dcc69c8d4d26ac668559be29682c452e712b0947"
+  }
+}

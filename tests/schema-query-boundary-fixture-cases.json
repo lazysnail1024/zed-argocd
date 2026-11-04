@@ -1,0 +1,46 @@
+[
+  {
+    "id": "exclusiveChoice",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  exclusiveChoice:\n    value: x|\n",
+    "exactLabels": [
+      "a",
+      "c"
+    ],
+    "apply": "a",
+    "rangeText": "x",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  exclusiveChoice:\n    value: \"a\"\n"
+  },
+  {
+    "id": "inclusiveChoice",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  inclusiveChoice:\n    value: x|\n",
+    "exactLabels": [
+      "a",
+      "b",
+      "c"
+    ],
+    "apply": "a",
+    "rangeText": "x",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  inclusiveChoice:\n    value: \"a\"\n"
+  },
+  {
+    "id": "duplicateExclusive",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  duplicateExclusive:\n    value: x|\n",
+    "exactLabels": []
+  },
+  {
+    "id": "referencedExclusive",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  referencedExclusive:\n    value: x|\n",
+    "exactLabels": [
+      "a",
+      "c"
+    ]
+  },
+  {
+    "id": "duplicateInclusive",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  duplicateInclusive:\n    value: x|\n",
+    "exactLabels": [
+      "a",
+      "b"
+    ]
+  }
+]

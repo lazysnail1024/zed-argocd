@@ -1,0 +1,107 @@
+{
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "local": {
+          "$ref": "#/$defs/settings"
+        },
+        "combined": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "right": {
+                  "type": "integer"
+                }
+              }
+            }
+          ]
+        },
+        "choice": {
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": {
+                "mode": {
+                  "const": "git"
+                },
+                "repo": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            {
+              "properties": {
+                "mode": {
+                  "const": "chart"
+                },
+                "chart": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            }
+          ]
+        },
+        "fixed": {
+          "type": "string",
+          "const": "stable",
+          "default": "stable",
+          "description": "Synthetic stable setting."
+        },
+        "conflict": {
+          "allOf": [
+            {
+              "enum": [
+                "a",
+                "b"
+              ]
+            },
+            {
+              "enum": [
+                "b",
+                "c"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "settings": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Synthetic switch."
+        }
+      }
+    }
+  }
+}

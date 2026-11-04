@@ -1,0 +1,94 @@
+[
+  {
+    "id": "direct-branch-discriminator-value-repair",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  choice:\n    mode: g|\n",
+    "exactLabels": [
+      "chart",
+      "git"
+    ],
+    "apply": "git",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  choice:\n    mode: \"git\"\n",
+    "rangeText": "g"
+  },
+  {
+    "id": "local-ref-branch-selection",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  refChoice:\n    mode: git\n    |\n",
+    "exactLabels": [
+      "repo"
+    ]
+  },
+  {
+    "id": "allof-branch-selection",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  allOfChoice:\n    mode: git\n    |\n",
+    "exactLabels": [
+      "repo"
+    ]
+  },
+  {
+    "id": "conjunction-inside-alternative",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  nestedConjunction: x|\n",
+    "exactLabels": [
+      "b",
+      "d"
+    ],
+    "forbidden": [
+      "a",
+      "c"
+    ],
+    "apply": "b",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  nestedConjunction: \"b\"\n",
+    "rangeText": "x"
+  },
+  {
+    "id": "local-pointer-array-traversal",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  viaArray:\n    le|: value\n",
+    "exactLabels": [
+      "leaf"
+    ],
+    "apply": "leaf",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  viaArray:\n    leaf: value\n",
+    "rangeText": "le"
+  },
+  {
+    "id": "local-pointer-array-hover",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  viaArray:\n    lea|f: value\n",
+    "method": "hover",
+    "contains": [
+      "Array pointer leaf.",
+      "Type: string",
+      "Target: $TARGET"
+    ]
+  },
+  {
+    "id": "conjunction-with-disjunction-membership",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  baseAndAlternatives: x|\n",
+    "exactLabels": [
+      "b"
+    ],
+    "forbidden": [
+      "a",
+      "c",
+      "d"
+    ]
+  },
+  {
+    "id": "synthetic-const-control",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  fixed: st|\n",
+    "exactLabels": [
+      "stable"
+    ],
+    "apply": "stable",
+    "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  fixed: \"stable\"\n",
+    "rangeText": "st"
+  },
+  {
+    "id": "synthetic-default-control",
+    "text": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  local:\n    enab|led: false\n",
+    "method": "hover",
+    "contains": [
+      "Type: boolean",
+      "Default: false",
+      "Synthetic switch."
+    ]
+  }
+]
