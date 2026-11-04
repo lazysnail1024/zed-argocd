@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
@@ -317,16 +318,16 @@ func sourceReferences(doc Document, p Position) (string, map[string][]Location, 
 				}
 			}
 		}
-		for j, value := range objectSlice(object(source["helm"])["valueFiles"]) {
-			file := literal(value)
+		for _, use := range helmValuePaths(object(source["helm"])) {
+			file := literal(use.value)
 			if !strings.HasPrefix(file, "$") {
 				continue
 			}
 			name := strings.SplitN(file[1:], "/", 2)[0]
-			if !doc.exact(appendPath(prefix, "helm", "valueFiles", fmt.Sprint(j))) {
+			if !doc.exact(appendPath(prefix, append([]string{"helm"}, use.path...)...)) {
 				continue
 			}
-			node := locate(doc.Root, appendPath(prefix, "helm", "valueFiles", fmt.Sprint(j)))
+			node := locate(doc.Root, appendPath(prefix, append([]string{"helm"}, use.path...)...))
 			uses[name] = append(uses[name], Location{string(doc.Snapshot.URI()), nodeRange(doc, node)})
 			if contains(doc, node, p) {
 				selected = name
@@ -341,4 +342,51 @@ func sourceReferences(doc Document, p Position) (string, map[string][]Location, 
 		}
 	}
 	return selected, definitions, uses, selected != ""
+}
+
+// RecoverProjectUse recovers a read-only use from a complete physical prefix.
+// It never contributes declarations, symbols, diagnostics or edit plans.
+func RecoverProjectUse(ctx context.Context, snapshot source.Snapshot, target string, p Position) *Document {
+	offset, err := snapshot.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})
+	if err != nil {
+		return nil
+	}
+	original, err := yamlview.Parse(ctx, snapshot)
+	if err != nil {
+		return nil
+	}
+	damaged := false
+	for _, d := range original.Documents() {
+		if !d.Complete() && offset >= d.Span().Start && offset <= d.Span().End {
+			damaged = true
+		}
+	}
+	if !damaged {
+		return nil
+	}
+	end := strings.IndexByte(snapshot.Text()[offset:], '\n')
+	if end < 0 {
+		end = len(snapshot.Text())
+	} else {
+		end += offset + 1
+	}
+	prefix, err := source.New(snapshot.URI(), snapshot.Revision(), snapshot.Text()[:end])
+	if err != nil {
+		return nil
+	}
+	checked, err := Analyze(ctx, prefix, target)
+	if err != nil {
+		return nil
+	}
+	for _, doc := range checked.Documents {
+		if doc.Kind != "Application" || !doc.exact([]string{"spec", "project"}) || !exactReferencePath(doc.Root, []string{"spec", "project"}) {
+			continue
+		}
+		node := doc.location([]string{"spec", "project"})
+		if _, ok := referenceLiteral(node); ok && contains(doc, node, p) {
+			doc.Snapshot = snapshot
+			return &doc
+		}
+	}
+	return nil
 }

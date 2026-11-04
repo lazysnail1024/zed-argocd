@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	yamlv3 "gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
 	"net/url"
@@ -58,13 +59,22 @@ type File struct {
 	Target   Target
 	Output   bool
 }
+type repositoryReference struct{ URL, Revision, Path string }
+type repositoryFile struct {
+	Snapshot   source.Snapshot
+	References []repositoryReference
+}
 type Input struct {
-	LocalPaths map[string]map[string]bool
-	Root       string
-	Config     Config
-	Targets    []Target
-	Files      []File
-	Complete   bool
+	RepositoryDecodes int
+	repositoryFiles   map[source.URI]repositoryFile
+	AcquisitionReads  int
+	Skipped           []source.Snapshot
+	LocalPaths        map[string]map[string]bool
+	Root              string
+	Config            Config
+	Targets           []Target
+	Files             []File
+	Complete          bool
 }
 type Error struct {
 	Code    string
@@ -235,34 +245,10 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		if _, exists := input.LocalPaths[key]; exists {
 			return input, failure("CONFIG_INVALID", "repository mapping must be unique for URL and revision")
 		}
-		entries := map[string]bool{}
-		count := 0
-		e = filepath.WalkDir(canonical, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			count++
-			if count > 50000 {
-				return failure("INPUT_INCOMPLETE", "repository path budget exceeded")
-			}
-			if d.Type()&os.ModeSymlink != 0 {
-				resolved, e := filepath.EvalSymlinks(p)
-				if e != nil || !inside(canonical, resolved) {
-					input.Complete = false
-					return nil
-				}
-			}
-			relative, _ := filepath.Rel(canonical, p)
-			entries[filepath.ToSlash(relative)] = true
-			return nil
-		})
-		if e != nil {
-			return input, e
-		}
-		input.LocalPaths[key] = entries
+		// Resolve only paths actually referenced by acquired YAML below. Excluding
+		// YAML analysis must not exclude repository resources from existence checks.
+		input.LocalPaths[key] = map[string]bool{}
+
 	}
 	paths := []string{}
 	count := 0
@@ -272,6 +258,12 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		}
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if d.IsDir() && p != root {
+			rel, _ := filepath.Rel(root, p)
+			if excludedDir(d.Name()) || excludedSubtree(cfg.Exclude, filepath.ToSlash(rel)) {
+				return filepath.SkipDir
+			}
 		}
 		count++
 		if count > 50000 {
@@ -366,9 +358,6 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		if excluded && resolved != selected && !opened {
 			continue
 		}
-		if helmTemplate(root, resolved) {
-			continue
-		}
 		if selectedScope != "" && owner != selectedScope {
 			continue
 		}
@@ -378,6 +367,7 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		}
 		snap, opened := buffers[resolved]
 		if !opened {
+			input.AcquisitionReads++
 			b, e := readStable(ctx, resolved, *remaining)
 			if e != nil {
 				if ctx.Err() != nil {
@@ -394,6 +384,10 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 				return input, e
 			}
 		}
+		if helmTemplate(root, resolved) && strings.Contains(snap.Text(), "{{") {
+			input.Skipped = append(input.Skipped, snap)
+			continue
+		}
 		if excluded && opened {
 			t.Scope = owner
 			t.ID += ":" + owner
@@ -401,6 +395,10 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 
 		input.Files = append(input.Files, File{Snapshot: snap, Target: t, Output: selected == "" || selected == resolved})
 	}
+	if err := resolveLocalPaths(ctx, &input); err != nil {
+		return input, err
+	}
+
 	if selected != "" && selectedOwner == "" {
 		return input, failure("INPUT_INCOMPLETE", "selected file was not indexed")
 	}
@@ -614,4 +612,140 @@ func FileURI(path string) string {
 		p = "/" + p
 	}
 	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+// A trailing /** excludes every descendant; arbitrary leaf globs cannot prune.
+func excludedSubtree(globs []string, relative string) bool {
+	for _, glob := range globs {
+		if strings.HasSuffix(glob, "/**") && match(strings.TrimSuffix(glob, "/**"), relative) {
+			return true
+		}
+	}
+	return false
+}
+
+// RefreshBuffers reuses acquired disk membership for buffer-only changes. Any
+// configuration/new-file/ownership transition falls back to full acquisition.
+func RefreshBuffers(ctx context.Context, prior Input, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, bool) {
+	input := prior
+	input.Files = append([]File(nil), prior.Files...)
+	input.LocalPaths = map[string]map[string]bool{}
+	for key, value := range prior.LocalPaths {
+		input.LocalPaths[key] = value
+	}
+	members := map[string]int{}
+	for i, f := range input.Files {
+		p, err := url.Parse(string(f.Snapshot.URI()))
+		if err != nil {
+			return Input{}, false
+		}
+		members[filepath.FromSlash(p.Path)] = i
+	}
+	for p, snapshot := range buffers {
+		if Owner(roots, p) != prior.Root {
+			continue
+		}
+		if filepath.Base(p) == ".argocd-ls.yaml" {
+			continue
+		}
+		i, ok := members[p]
+		if !ok {
+			return Input{}, false
+		}
+		input.Files[i].Snapshot = snapshot
+	}
+	for p, i := range members {
+		if _, open := buffers[p]; !open {
+			*remaining -= len(input.Files[i].Snapshot.Text())
+			if *remaining < 0 {
+				return Input{}, false
+			}
+		}
+	}
+	if err := resolveLocalPaths(ctx, &input); err != nil {
+		return Input{}, false
+	}
+	return input, true
+}
+
+// resolveLocalPaths retains only current file facts. Immutable unchanged inputs
+// share extraction results; filesystem existence is freshly sampled on rescan.
+func resolveLocalPaths(ctx context.Context, input *Input) error {
+	if len(input.Config.Repositories) == 0 {
+		input.repositoryFiles = nil
+		return nil
+	}
+	next := make(map[source.URI]repositoryFile, len(input.Files))
+	for _, f := range input.Files {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		prior, ok := input.repositoryFiles[f.Snapshot.URI()]
+		if ok && prior.Snapshot.Text() == f.Snapshot.Text() {
+			prior.Snapshot = f.Snapshot
+			next[f.Snapshot.URI()] = prior
+			continue
+		}
+		facts := repositoryFile{Snapshot: f.Snapshot}
+		var visit func(any)
+		visit = func(v any) {
+			if ctx.Err() != nil {
+				return
+			}
+			switch x := v.(type) {
+			case map[string]any:
+				url, _ := x["repoURL"].(string)
+				revision, _ := x["targetRevision"].(string)
+				local, _ := x["path"].(string)
+				if url != "" && local != "" && !strings.Contains(local, "{{") {
+					facts.References = append(facts.References, repositoryReference{url, revision, local})
+				}
+				for _, child := range x {
+					visit(child)
+				}
+			case []any:
+				for _, child := range x {
+					visit(child)
+				}
+			}
+		}
+		input.RepositoryDecodes++
+		decoder := yamlv3.NewDecoder(strings.NewReader(f.Snapshot.Text()))
+		for {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			var value any
+			if err := decoder.Decode(&value); err != nil {
+				break
+			}
+			visit(value)
+		}
+		next[f.Snapshot.URI()] = facts
+	}
+	input.repositoryFiles = next
+	for _, repo := range input.Config.Repositories {
+		base, _ := filepath.EvalSymlinks(filepath.Join(input.Root, repo.Path))
+		entries := map[string]bool{}
+		input.LocalPaths[repo.RepoURL+"\x00"+repo.TargetRevision] = entries
+		for _, facts := range next {
+			for _, ref := range facts.References {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				if ref.URL != repo.RepoURL || ref.Revision != repo.TargetRevision {
+					continue
+				}
+				clean := path.Clean(ref.Path)
+				if _, tested := entries[clean]; tested {
+					continue
+				}
+				if !filepath.IsAbs(ref.Path) && inside(base, filepath.Join(base, ref.Path)) {
+					resolved, e := filepath.EvalSymlinks(filepath.Join(base, ref.Path))
+					entries[clean] = e == nil && inside(base, resolved)
+				}
+			}
+		}
+	}
+	return nil
 }

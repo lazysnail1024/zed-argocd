@@ -177,9 +177,12 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 					location := nodeRange(candidate, origin.Node)
 					detail = fmt.Sprintf("AppProject %s/%s; %s:%d", ns, name, candidate.Snapshot.URI(), location.Start.Line+1)
 				}
+				if options.ControlPlaneNamespace == "" {
+					detail += "; candidate only: configure controlPlaneNamespace in .argocd-ls.yaml for navigation"
+				}
 				add(name, detail, source.Span{Start: start, End: start + len(raw)})
 			}
-		} else if len(parts) == 6 && parts[0] == "spec" && parts[1] == "sources" && parts[3] == "helm" && parts[4] == "valueFiles" && strings.HasPrefix(prefix, "$") {
+		} else if sourceRefUsePath(parts) && strings.HasPrefix(prefix, "$") {
 			slash := strings.IndexByte(raw, '/')
 			if slash < 0 {
 				slash = len(raw)
@@ -286,4 +289,9 @@ func emptyProjectAt(root yamlview.Node, snapshot source.Snapshot, offset int) bo
 		return !strings.ContainsAny(between, "\r\n") && strings.TrimSpace(between) == ":"
 	}
 	return false
+}
+
+// Both supported Helm path shapes share the same reference token semantics.
+func sourceRefUsePath(parts []string) bool {
+	return len(parts) >= 6 && parts[0] == "spec" && parts[1] == "sources" && parts[3] == "helm" && ((len(parts) == 6 && parts[4] == "valueFiles") || (len(parts) == 7 && parts[4] == "fileParameters" && parts[6] == "path"))
 }

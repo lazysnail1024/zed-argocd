@@ -132,6 +132,9 @@ func check(args []string, out, errOut io.Writer) int {
 		scopeCounts := map[string][2]int{}
 		outputs := map[string]bool{}
 		analyzer := new(analysis.Analyzer)
+		if len(input.Skipped) > 0 {
+			r.NotEvaluated = append(r.NotEvaluated, "unrendered-helm-templates")
+		}
 		sort.SliceStable(input.Files, func(i, j int) bool {
 			if input.Files[i].Target.Scope != input.Files[j].Target.Scope {
 				return input.Files[i].Target.Scope < input.Files[j].Target.Scope

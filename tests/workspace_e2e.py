@@ -13,11 +13,11 @@ for name,cfg,args,versions,paths,error in cases:
  cmd=[str(binary),'check','--root',str(folder),'--format','json',*args];p=subprocess.run(cmd,capture_output=True,timeout=15);(folder/'stdout').write_bytes(p.stdout);(folder/'stderr').write_bytes(p.stderr);errors=[]
  try:
   r=json.loads(p.stdout)
-  if p.returncode!=2 or r['analysisComplete']:errors.append('domain stage remains incomplete')
+  if (error and (p.returncode!=2 or r['analysisComplete'])) or (not error and (p.returncode!=(1 if paths else 0) or not r['analysisComplete'])):errors.append('local contract status mismatch')
   if error:
    if not any(x['code']==error for x in r['configurationErrors']):errors.append('missing '+error)
   else:
-   assert all(re.fullmatch('[0-9a-f]{64}',x['schemaHash']) and x['rulesetId'] and x['complete']==False for x in r['targets'])
+   assert all(re.fullmatch('[0-9a-f]{64}',x['schemaHash']) and x['rulesetId'] and x['complete']==True for x in r['targets'])
    assert all(x['targetId'] in {t['id'] for t in r['targets']} for x in r['diagnostics'])
    actual=sorted(set(x['version'] for x in r['targets']))
    if actual!=versions:errors.append('target mismatch '+str(actual))
@@ -27,7 +27,7 @@ for name,cfg,args,versions,paths,error in cases:
  rows.append({'id':name,'command':cmd,'expected':{'versions':versions,'paths':paths,'error':error},'exit':p.returncode,'errors':errors,'passed':not errors})
 cmd=[str(binary),'explain-config','--root',str(out/'scope')];p=subprocess.run(cmd,capture_output=True,timeout=15);(out/'explain.stdout').write_bytes(p.stdout);(out/'explain.stderr').write_bytes(p.stderr)
 try:
- explained=json.loads(p.stdout);passed=p.returncode==0 and explained['config']['referencePolicy']=='open' and {x['scope']:x['version'] for x in explained['targets']}=={'dev':'3.5.6','prod':'3.0.0','unassigned':'3.0.0'} and explained['analysisReady']==False
+ explained=json.loads(p.stdout);passed=p.returncode==0 and explained['config']['referencePolicy']=='open' and {x['scope']:x['version'] for x in explained['targets']}=={'dev':'3.5.6','prod':'3.0.0','unassigned':'3.0.0'} and explained['analysisReady']==True
 except Exception:passed=False
 rows.append({'id':'explain-effective-config','command':cmd,'exit':p.returncode,'passed':passed})
 (out/'results.json').write_text(json.dumps(rows,indent=2)+'\n');(out/'manifest.json').write_text(json.dumps({'command':sys.argv,'binarySHA256':hashlib.sha256(binary.read_bytes()).hexdigest(),'testSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'inputSHA256':{str(p.relative_to(out)):hashlib.sha256(p.read_bytes()).hexdigest() for p in out.rglob('*') if p.is_file() and p.suffix=='.yaml'}},indent=2)+'\n');print(json.dumps(rows));sys.exit(0 if all(r['passed'] for r in rows) else 1)

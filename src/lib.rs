@@ -30,7 +30,13 @@ impl zed::Extension for ArgoCD {
         };
         let args=vec!["serve".to_string(),"--stdio".to_string()];
         let env = Vec::<(String, String)>::new();
-        let output = zed::process::Command::new(&path).args(["version","--json"]).envs(env.clone()).output()?;
+        let output = zed::process::Command::new(&path).args(["version","--json"]).envs(env.clone()).output().map_err(|error| {
+            if override_path.is_some() {
+                format!("Could not start settings.serverPath {:?}: {}. Correct this absolute path or remove settings.serverPath to use the bundled server.", path, error)
+            } else {
+                format!("Could not start bundled server payload {:?}: {}. Reinstall the verified development bundle.", path, error)
+            }
+        })?;
         if output.status != Some(0) { return Err("Server identity command failed".into()); }
         identity::validate(&output.stdout)?;
         Ok(zed::Command { command: path, args, env })

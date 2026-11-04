@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	"io"
 	"net/url"
 	"path"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 )
 
 type DomainOptions struct {
+	Trace                 io.Writer
 	Context               context.Context
 	LocalPaths            map[string]map[string]bool
 	ControlPlaneNamespace string
@@ -47,9 +49,9 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 			return diagnostics
 		}
 		if doc.Kind == "ApplicationSet" {
-			embedded, templateDiagnostics := appSet(doc)
+			variants, templateDiagnostics := appSetVariants(doc)
 			diagnostics = append(diagnostics, templateDiagnostics...)
-			related := []Document{embedded}
+			related := append([]Document{}, variants...)
 			related = append(related, projectDocuments...)
 			for _, d := range Domain(related, options) {
 				d.Message = d.Code + ": " + d.Message
@@ -69,7 +71,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 		if project != "" {
 			candidates := projects[project]
 			if len(candidates) > 1 || (len(candidates) > 0 && options.ControlPlaneNamespace == "") {
-				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project resolution requires an unambiguous control-plane namespace")
+				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project navigation and references require an unambiguous control-plane namespace. Set controlPlaneNamespace in .argocd-ls.yaml (for example, controlPlaneNamespace: argocd); use the namespace containing AppProject, not the Application namespace")
 			} else if len(candidates) == 0 {
 				severity := 3
 				if options.ReferencePolicy == "closed" && options.Complete {

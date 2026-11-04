@@ -10,7 +10,7 @@ def create(name):
 def ready(c,path,timeout=6):
  end=time.monotonic()+timeout;responses=[]
  while time.monotonic()<end:
-  r=c.request('textDocument/documentSymbol',{'textDocument':{'uri':path.as_uri()}});responses.append(r)
+  r=c.request('textDocument/codeAction',{'textDocument':{'uri':path.as_uri()},'range':{'start':{'line':5,'character':0},'end':{'line':6,'character':0}},'context':{'diagnostics':[]}});responses.append(r)
   if 'result' in r:return responses
   if r.get('error',{}).get('code')!=-32801:raise AssertionError(r)
   time.sleep(.02)
@@ -40,7 +40,7 @@ try:
   # Observe the actual natural timer causing a pending query, then its completed replacement.
   pending=False;observed=[];end=c.start+36
   while time.monotonic()<end:
-   r=c.request('textDocument/documentSymbol',{'textDocument':{'uri':app.as_uri()}})
+   r=c.request('textDocument/codeAction',{'textDocument':{'uri':app.as_uri()},'range':{'start':{'line':5,'character':0},'end':{'line':6,'character':0}},'context':{'diagnostics':[]}})
    if r.get('error',{}).get('code')==-32801:pending=True;observed.append(r)
    elif pending and 'result' in r:observed.append(r);break
    time.sleep(.02 if time.monotonic()>c.start+29 else .2)

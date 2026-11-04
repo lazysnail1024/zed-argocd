@@ -162,7 +162,7 @@ def helm_case():
     bad=APP.replace('project: team','project: 42')
     app=write(root,'chart/templates/app.yaml',bad)
     c=LSP(out,[root]);c.open(app,bad);ds=c.diag(app,1)
-    record(name,{'diagnostics':[]},{'diagnostics':ds},ds==[],root,c)
+    record(name,{'diagnostics':'pure YAML schema error'},{'diagnostics':ds},any(d['code']=='SCHEMA_TYPE' for d in ds),root,c)
 
 def disk_case():
     name='buffer-overrides-budgeted-disk';out,root=setup(name)

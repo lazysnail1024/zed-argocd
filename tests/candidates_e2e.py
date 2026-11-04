@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Independent reference candidates: visible identities, exact edits, dynamic and damage boundaries."""
-import pathlib,json,sys
+import pathlib,json,sys,os
 import audit_repair_e2e as e
-e.OUT=pathlib.Path(__file__).resolve().parents[1]/'artifacts/candidates';e.OUT.mkdir(parents=True,exist_ok=True)
+e.OUT=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(pathlib.Path(__file__).resolve().parents[1]/'artifacts/candidates')));e.OUT.mkdir(parents=True,exist_ok=True)
 def at(text,needle,inside=None):
  offset=text.index(needle)+(len(needle) if inside is None else inside);before=text[:offset];return {'line':before.count('\n'),'character':len(before.rsplit('\n',1)[-1].encode('utf-16-le'))//2}
 def query(c,file,text,needle):return c.request('textDocument/completion',{'textDocument':{'uri':file.as_uri()},'position':at(text,needle)}).get('result',[])
@@ -42,7 +42,7 @@ def damage(out,root):
 run('damaged-reliable-project-and-foreign-recovery',damage)
 def scope_boundary(out,root):
  e.write(root,'.argocd-ls.yaml','schemaVersion: 1\ntargetVersion: "3.0.0"\ncontrolPlaneNamespace: argocd\nscopes:\n  - name: apps\n    include: ["apps/**"]\n  - name: other\n    include: ["other/**"]\n');e.write(root,'other/project.yaml',e.PROJECT);text=e.APP.replace('project: team','project: te');file=e.write(root,'apps/app.yaml',text);c=e.LSP(out,[root]);c.open(file,text);c.diag(file,1);assert query(c,file,text,'project: te')==[]
- e.write(root,'apps/broken.yaml',e.PROJECT+'spec: [broken\n');c.send('workspace/didChangeWatchedFiles',{'changes':[]});c.diag(file,1);assert query(c,file,text,'project: te')==[]
+ e.write(root,'apps/broken.yaml',e.PROJECT+'spec: [broken\n');c.send('workspace/didChangeWatchedFiles',{'changes':[]});c.change(file,text,2);c.diag(file,2);assert query(c,file,text,'project: te')==[]
  return c,{'noCrossScopeOrDamagedDeclaration':True}
 run('scope-and-damaged-declaration-isolation',scope_boundary)
 def duplicates(out,root):

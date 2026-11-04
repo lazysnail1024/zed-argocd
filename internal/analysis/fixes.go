@@ -11,6 +11,19 @@ import (
 )
 
 func FixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span) []Fix {
+	return fixesInRange(ctx, doc, scope, options, span, nil, false)
+}
+
+// FixCandidatesInRange defers Project replacement validation until selection.
+func FixCandidatesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span) []Fix {
+	return fixesInRange(ctx, doc, scope, options, span, nil, true)
+}
+
+func ResolveFix(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, code, text string) []Fix {
+	return fixesInRange(ctx, doc, scope, options, span, &Fix{Code: code, Plan: edit.Plan{Replacements: []edit.Replacement{{NewText: text}}}}, false)
+}
+
+func fixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, selected *Fix, deferred bool) []Fix {
 	options.Context = ctx
 	out := []Fix{}
 	if !options.Complete || ctx.Err() != nil || doc.Root.Span().Start > span.End || doc.Root.Span().End < span.Start {
@@ -32,7 +45,10 @@ func FixesInRange(ctx context.Context, doc Document, scope []Document, options D
 			return
 		}
 		plan := edit.Plan{BaseRevision: doc.Snapshot.Revision(), Replacements: []edit.Replacement{{Span: node.Span(), ExpectedText: node.Raw(), NewText: string(b)}}}
-		if safeScopePlan(ctx, doc, scope, options, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
+		if selected != nil && (selected.Code != code || selected.Plan.Replacements[0].NewText != string(b)) {
+			return
+		}
+		if (deferred && code == "FIX_REFERENCE_CANDIDATE") || safeScopePlan(ctx, doc, scope, options, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
 			out = append(out, Fix{code, title, plan})
 		}
 	}
@@ -41,16 +57,20 @@ func FixesInRange(ctx context.Context, doc Document, scope []Document, options D
 		if ctx.Err() != nil || r.Start > span.End || r.End < span.Start {
 			continue
 		}
+		if selected != nil && (selected.Code != fix.Code || selected.Plan.Replacements[0].NewText != fix.Plan.Replacements[0].NewText) {
+			continue
+		}
 		if safeScopePlan(ctx, doc, scope, options, fix.Plan, "SCHEMA_UNKNOWN_FIELD") {
 			out = append(out, fix)
 		}
 	}
 	if doc.Kind == "Application" && options.ControlPlaneNamespace != "" {
 		project := literal(object(doc.Value["spec"])["project"])
-		unresolved := false
-		for _, d := range Domain(scope, options) {
-			if d.URI == string(doc.Snapshot.URI()) && d.Code == "CD_PROJECT_UNRESOLVED" && d.Range == nodeRange(doc, doc.location([]string{"spec", "project"})) {
-				unresolved = true
+		unresolved := true
+		for _, candidate := range scope {
+			meta := object(candidate.Value["metadata"])
+			if candidate.Kind == "AppProject" && literal(meta["namespace"]) == options.ControlPlaneNamespace && literal(meta["name"]) == project {
+				unresolved = false
 			}
 		}
 		if project != "" && unresolved {
@@ -109,15 +129,28 @@ func safeScopePlan(ctx context.Context, doc Document, scope []Document, options 
 	if ctx.Err() != nil {
 		return false
 	}
+	documentsStarted, domainsStarted := 0, 0
+	defer func() {
+		if options.Trace != nil {
+			payload, _ := json.Marshal(map[string]any{"scope": "selected-fix-invocations", "safePlans": 1, "documentAnalyses": documentsStarted, "scopeDomainAnalyses": domainsStarted})
+			fmt.Fprintln(options.Trace, "argocd-fix", string(payload))
+		}
+	}()
 	next, e := edit.Apply(doc.Snapshot, doc.Snapshot.Revision()+1, plan)
 	if e != nil {
 		return false
 	}
-	before, e := Analyze(ctx, doc.Snapshot, doc.Target)
+	analyzer := new(Analyzer)
+	analyzer.ReuseSchemas(scope)
+	documentsStarted++
+	before, e := analyzer.Analyze(ctx, doc.Snapshot, doc.Target)
 	if e != nil {
 		return false
 	}
-	after, e := Analyze(ctx, next, doc.Target)
+	afterAnalyzer := new(Analyzer)
+	afterAnalyzer.ReuseSchemas(scope)
+	documentsStarted++
+	after, e := afterAnalyzer.Analyze(ctx, next, doc.Target)
 	if e != nil || after.Incomplete {
 		return false
 	}
@@ -128,7 +161,9 @@ func safeScopePlan(ctx context.Context, doc Document, scope []Document, options 
 		}
 	}
 	updated = append(updated, after.Documents...)
+	domainsStarted++
 	beforeDiagnostics := append(before.Diagnostics, Domain(scope, options)...)
+	domainsStarted++
 	afterDiagnostics := append(after.Diagnostics, Domain(updated, options)...)
 	errors := map[string]int{}
 	for _, d := range beforeDiagnostics {

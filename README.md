@@ -6,7 +6,7 @@ Offline YAML support for Argo CD `Application`, `AppProject`, and `ApplicationSe
 
 ## Install
 
-Use the supplied ZIP for your operating system and CPU architecture. The native language server is already compiled; no Go or C compiler and no `serverPath` setting are required.
+Download the development ZIP from a successful [Native candidate workflow run](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml), inside the matching `argocd-native-<platform>` artifact under `dev-bundle/`. Only runs containing that directory provide the new bundle; older native-only artifacts do not. GitHub may require sign-in for workflow artifacts. Use the ZIP for your operating system and CPU architecture. The native language server is already compiled; no Go or C compiler and no `serverPath` setting are required.
 
 1. Unzip the bundle into a permanent directory.
 2. Install Rust through **rustup** and make it available to Zed. The bundle pins Rust **1.99.1** and `wasm32-wasip2`; initial toolchain and locked Cargo dependency downloads require network access.
@@ -14,6 +14,16 @@ Use the supplied ZIP for your operating system and CPU architecture. The native 
 4. Keep that folder in place and open a YAML project. Zed compiles the small Rust adapter automatically, then the adapter installs and verifies its embedded native server in Zed's extension work directory.
 
 Keep Zed's YAML language support enabled. Remove any old `lsp.argocd-ls.settings.serverPath` override to use the bundle: an explicit override takes priority and an invalid override fails startup. Choose the bundle matching your operating system and CPU architecture. The native server needs no runtime downloads.
+
+To upgrade, obtain a newer verified bundle for the same platform, extract it into a
+new directory, and select that directory with **Install Dev Extension**. Restart
+Zed, then check the server identity and a YAML diagnostic. Keep the previous
+verified ZIP and extracted directory: to roll back, select the previous directory
+with the same command and restart. The adapter checks cached native bytes against
+the selected bundle and restores its exact payload. Remove obsolete `serverPath`
+overrides when using bundled delivery; an invalid override intentionally blocks
+startup instead of falling back. This procedure still needs real Zed acceptance
+on each claimed consumer platform.
 
 Source-checkout installation and contributor overrides are described in [Development](DEVELOPMENT.md). See also [Zed's development-extension instructions](https://zed.dev/docs/extensions/developing-extensions).
 
@@ -73,7 +83,7 @@ Checks exit **0** when complete without errors, **1** for diagnostic errors (als
 
 ## Limits
 
-Analysis is local and static. Controller behavior, generator/template execution, patch final effects, hydration, value-file expansion, and complex policy/RBAC evaluation are outside its scope. Ambiguous or derived YAML locations do not receive guessed edits. Analysis has a five-second budget, fixed text budgets, and bounded alias expansion; refused input is incomplete rather than silently accepted.
+Analysis is local and static. Controller behavior, generator/template execution, dynamic or controller-specific patch effects, hydration, value-file expansion, and complex policy/RBAC evaluation are outside its scope. Ambiguous or derived YAML locations do not receive guessed edits. Analysis has a five-second budget, fixed text budgets, and bounded alias expansion; refused input is incomplete rather than silently accepted.
 
 Development installation is the available delivery mode. Native CLI/LSP CI covers Linux amd64/arm64, macOS amd64/arm64, and Windows amd64; this does not establish real Zed GUI acceptance on all platforms or minimum supported OS versions. Signed release artifacts and registry delivery remain unavailable. Contributor builds, packaging, tests, and provenance are in [Development](DEVELOPMENT.md).
 
@@ -88,3 +98,34 @@ Thanks to [k8s-crd-toolkit](https://github.com/lazysnail1024/k8s-crd-toolkit) (M
 The vendored Go text tables use equivalent Unicode escapes for CJK character data; the digit example comment uses Unicode notation. Character values and third-party license files are unchanged.
 
 Configuration presentation was informed by [helm.zed](https://github.com/cabrinha/helm.zed) and [zed-ansible](https://github.com/kartikvashistha/zed-ansible), both MIT licensed; their code was not copied.
+
+## Project navigation configuration
+
+Set `controlPlaneNamespace: argocd` in the root `.argocd-ls.yaml` when your local
+AppProject resources belong to `argocd`. This is independent of `targetVersion`:
+it identifies the Project namespace, not the namespace of each Application.
+Cross-namespace Applications still use that configured Project namespace. Without
+it, completion shows qualified candidates but cannot establish a navigation target.
+Configuration changes refresh automatically; no cluster access is needed.
+
+## Helm editing
+
+Pure YAML in a chart's `templates` directory receives ordinary Argo CD checks.
+Files containing Helm expressions show `HELM_UNRENDERED` in YAML mode. They need
+an explicit render before final resource checks. Ordinary typing never runs Helm.
+The extension currently registers only YAML; Helm language mode integration has
+not been accepted in real Zed.
+
+Copy [the example task](examples/zed-tasks.json) into your project's `.zed/tasks.json`
+and merge it with existing tasks. Configure `ARGOCD_LS_BINARY`, `ARGOCD_CHART`,
+`ARGOCD_HELM_BINARY` (absolute paths), and `ARGOCD_RENDER_OUTPUT` (a new output
+directory) in the task's `env`. Run **task: spawn**, then select the Argo CD task.
+Add `--values` and a local values path to `args` when needed. The terminal reports
+missing tools, rendering failures and resource errors. Diagnostics refer to the
+retained generated YAML; they do not guess source-template line numbers. Install
+Helm 3 only for this explicit workflow; static YAML editing does not require it.
+
+Clients supporting dynamic file watching receive a workspace watcher registration.
+Other clients, including failed registrations, retain the 30-second reconciliation
+scan; editing or saving also refreshes analysis. GUI event delivery remains a
+separate acceptance step from the native protocol tests.

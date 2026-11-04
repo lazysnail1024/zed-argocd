@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"fmt"
+	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
 	"regexp"
 	"sigs.k8s.io/yaml"
 	"strings"
@@ -69,6 +70,7 @@ func appSet(doc Document) (Document, []Diagnostic) {
 		}
 	}
 	transformed := object(walk(template, []string{"spec", "template"}))
+	origins := map[string]yamlview.Node{}
 	if patch, ok := spec["templatePatch"].(string); ok {
 		patchValue := walk(patch, []string{"spec", "templatePatch"})
 		if _, static := patchValue.(string); static {
@@ -77,10 +79,133 @@ func appSet(doc Document) (Document, []Diagnostic) {
 			_, mapping := value.(map[string]any)
 			if err != nil || !mapping {
 				diagnostics = append(diagnostics, diagnostic(doc, []string{"spec", "templatePatch"}, "CD_APPSET_TEMPLATE_SYNTAX", 1, "Static templatePatch must be a valid YAML object"))
+			} else {
+				originalProject := object(transformed["spec"])["project"]
+				if patchUnsupported(value) {
+					transformed["spec"] = map[string]any{"project": originalProject}
+					unknown["spec"] = true
+					diagnostics = append(diagnostics, diagnostic(doc, []string{"spec", "templatePatch"}, "CD_APPSET_DYNAMIC_FIELD", 3, "Patch directives or merged list effects are not evaluated"))
+				} else {
+					mergeTemplate(transformed, object(value), nil, origins, locate(doc.Root, []string{"spec", "templatePatch"}), true)
+					effectiveSpec := object(transformed["spec"])
+					effectiveSpec["project"] = originalProject
+					transformed["spec"] = effectiveSpec
+					delete(origins, "spec/project")
+				}
 			}
+		} else {
+			// A dynamic patch can replace any spec field except protected project.
+			project := object(transformed["spec"])["project"]
+			transformed["spec"] = map[string]any{"project": project}
+			unknown["spec"] = true
 		}
 	}
-	return Document{Origin: doc.originBelow([]string{"spec", "template"}), UnknownPaths: unknown, Snapshot: doc.Snapshot, Root: locate(doc.Root, []string{"spec", "template"}), Value: transformed, Kind: "Application", Target: doc.Target}, diagnostics
+	return Document{OverrideOrigins: origins, Origin: doc.originBelow([]string{"spec", "template"}), UnknownPaths: unknown, Snapshot: doc.Snapshot, Root: locate(doc.Root, []string{"spec", "template"}), Value: transformed, Kind: "Application", Target: doc.Target}, diagnostics
 }
 
 var fastTemplateMarker = regexp.MustCompile(`.*{{.*}}.*`)
+
+// mergeTemplate handles the statically decidable object/scalar subset. Lists
+// replace as units; controller-specific list merge directives remain unknown.
+func mergeTemplate(dst, patch map[string]any, prefix []string, origins map[string]yamlview.Node, site yamlview.Node, deletion bool) {
+	for key, value := range patch {
+		parts := appendPath(prefix, key)
+		if items, ok := value.([]any); !deletion && ok && len(items) == 0 {
+			continue
+		}
+		if !deletion && (value == nil || value == "" || value == false) {
+			continue
+		}
+		if strings.HasPrefix(key, "$") {
+			continue
+		}
+		if value == nil && deletion {
+			delete(dst, key)
+			origins[strings.Join(parts, "/")] = site
+			continue
+		}
+		if nested, ok := value.(map[string]any); ok {
+			prior, ok := dst[key].(map[string]any)
+			if !ok {
+				prior = map[string]any{}
+				dst[key] = prior
+			}
+			mergeTemplate(prior, nested, parts, origins, site, deletion)
+		} else {
+			dst[key] = value
+			origins[strings.Join(parts, "/")] = site
+		}
+	}
+}
+
+func appSetVariants(doc Document) ([]Document, []Diagnostic) {
+	spec := object(doc.Value["spec"])
+	variants := []Document{}
+	diagnostics := []Diagnostic{}
+	for i, generator := range objectSlice(spec["generators"]) {
+		for kind, body := range object(generator) {
+			override := object(object(body)["template"])
+			if kind == "selector" {
+				continue
+			}
+			if len(override) == 0 {
+				embedded, ds := appSet(doc)
+				variants = append(variants, embedded)
+				diagnostics = append(diagnostics, ds...)
+				continue
+			}
+			// Clone values before merging; shared completed documents are immutable.
+			clone := cloneObject(doc.Value)
+			template := object(object(clone["spec"])["template"])
+			site := locate(doc.Root, []string{"spec", "generators", fmt.Sprint(i), kind, "template"})
+			origins := map[string]yamlview.Node{}
+			mergeTemplate(template, override, nil, origins, site, false)
+			candidate := doc
+			candidate.Value = clone
+			embedded, ds := appSet(candidate)
+			for path, node := range origins {
+				if _, replaced := embedded.OverrideOrigins[path]; !replaced {
+					embedded.OverrideOrigins[path] = node
+				}
+			}
+			variants = append(variants, embedded)
+			diagnostics = append(diagnostics, ds...)
+		}
+	}
+	if len(variants) == 0 {
+		embedded, ds := appSet(doc)
+		return []Document{embedded}, ds
+	}
+	return variants, diagnostics
+}
+func cloneObject(value map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, v := range value {
+		switch x := v.(type) {
+		case map[string]any:
+			out[key] = cloneObject(x)
+		default:
+			out[key] = v
+		}
+	}
+	return out
+}
+
+func patchUnsupported(value any) bool {
+	switch x := value.(type) {
+	case map[string]any:
+		for key, v := range x {
+			if strings.HasPrefix(key, "$") || patchUnsupported(v) {
+				return true
+			}
+		}
+	case []any:
+		// Kubernetes strategic list merge keys are controller type metadata.
+		for _, v := range x {
+			if _, object := v.(map[string]any); object {
+				return true
+			}
+		}
+	}
+	return false
+}

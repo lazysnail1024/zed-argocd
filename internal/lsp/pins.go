@@ -78,7 +78,7 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 			copied[uri] = value
 		}
 		copied[uri] = buffer{snapshot: next, version: b.version, revision: next.Revision()}
-		after := analyze(ctx, epoch, roots, copied, override, completed{})
+		after := analyze(ctx, epoch, roots, copied, override, completed{}, true)
 		if ctx.Err() != nil || after.err != nil || !pinSafe(latest, after, uri, pin) {
 			continue
 		}

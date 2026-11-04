@@ -55,3 +55,34 @@ The producer reuses `native.py package` to verify native SHA, actual product/rea
 For source-checkout development, first build the native server using the commands above. Set `lsp.argocd-ls.settings.serverPath` to its absolute path, then select the checkout root in Zed Install Dev Extension. Windows paths may use `C:/src/zed-argocd/build/native/argocd-ls.exe`. This explicit override always wins over an embedded server and must pass the same identity/readiness handshake. Zed's generic `binary.path` bypasses the adapter and its checks.
 
 The bundled adapter checks the host platform before extraction and compares cached executable bytes with its embedded payload. It repairs missing or altered regular cache files, refuses unsafe cache entry kinds, and returns an absolute executable path before applying the existing identity/readiness handshake.
+
+## Interaction and delivery acceptance
+
+The interaction remediation consumers exercise real framed stdio and CLI processes:
+
+```sh
+python3 tests/interaction_remediation_e2e.py build/argocd-ls artifacts/interaction --large
+python3 tests/host_capabilities_e2e.py build/argocd-ls artifacts/host-capabilities
+python3 tests/appset_overrides_e2e.py build/argocd-ls artifacts/appset-overrides --all-targets
+python3 tests/quickfix_scaling_e2e.py build/argocd-ls artifacts/quickfix-scaling
+python3 tests/incremental_performance_e2e.py build/argocd-ls artifacts/performance --require-incremental
+```
+
+Each output directory must be new. `ARGOCD_LS_TRACE=1` writes bounded per-analysis
+disk-read, analyzer-parse, repository-decode and domain counts, plus selected fix validation counts to stderr. The
+performance runner enables this trace and records 30 comment edits per size,
+raw timings, p50/p95 and Linux RSS samples when available. Full reconciliation
+is reported separately. Diagnostic-pass traces exclude on-demand read-query work; they report analyzed file counts, not every internal parser invocation. Fix traces count actual started analysis/domain calls, including failed or cancelled calls. Traces do not include document text or candidate names.
+
+Buffer-only changes reuse acquired membership and unchanged immutable file
+results. Configuration, open/close, watched events and periodic reconciliation
+perform fresh acquisition. Application changes check the changed resource
+against Projects; Project changes invalidate their scope's domain checks. Repository mappings reuse unchanged per-file reference extraction; the separately reported `repositoryDecodes` counter covers that YAML decoding work.
+Resolve validates only the selected Project replacement while retaining the
+current revision, target, complete-scope and no-new-Error requirements.
+
+The native workflow also builds the actual bundled WASM adapter and retains a
+platform development ZIP. Workflow preparation is not evidence of an uploaded
+artifact: a run must complete on the exact source before its bundle is available.
+The local native, bundle and WASM layers do not replace a real Zed installation
+record or establish acceptance on platforms that have not run.

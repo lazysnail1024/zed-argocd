@@ -32,6 +32,7 @@ type Diagnostic struct {
 	Message  string `json:"message"`
 }
 type Document struct {
+	OverrideOrigins map[string]yamlview.Node
 	ProjectionNodes int
 	Origin          *valueOrigin
 	UnknownPaths    map[string]bool

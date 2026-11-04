@@ -329,6 +329,18 @@ func projectValuesWithin(ctx context.Context, raw string, syntax yamlview.Node, 
 }
 
 func (doc Document) origin(parts []string) valueOrigin {
+	for length := len(parts); length >= 0; length-- {
+		if node, ok := doc.OverrideOrigins[strings.Join(parts[:length], "/")]; ok {
+			return valueOrigin{Node: node, Kind: "derived"}
+		}
+	}
+	// Container diagnostics may depend on a replaced descendant.
+	for path, node := range doc.OverrideOrigins {
+		if strings.HasPrefix(path, strings.Join(parts, "/")+"/") {
+			return valueOrigin{Node: node, Kind: "derived"}
+		}
+	}
+
 	if doc.Origin == nil {
 		return valueOrigin{Node: locate(doc.Root, parts), Kind: "exact"}
 	}

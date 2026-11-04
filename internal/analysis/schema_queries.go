@@ -271,6 +271,27 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 	if err != nil {
 		return nil
 	}
+	// Later damage cannot invalidate the completed prefix containing this key.
+	// Keep original prefix offsets; this transient tree never contributes symbols.
+	damaged := false
+	for _, d := range view.Documents() {
+		if start+indent >= d.Span().Start && start+indent <= d.Span().End && !d.Complete() {
+			damaged = true
+		}
+	}
+	if damaged {
+		cutoff := strings.IndexByte(patched[start+indent:], '\n')
+		if cutoff >= 0 {
+			snapshot, err = source.New(s.URI(), s.Revision(), patched[:start+indent+cutoff+1])
+			if err != nil {
+				return nil
+			}
+			view, err = yamlview.Parse(ctx, snapshot)
+			if err != nil {
+				return nil
+			}
+		}
+	}
 	for _, d := range view.Documents() {
 		if !d.Complete() || start+indent < d.Span().Start || start+indent > d.Span().End {
 			continue

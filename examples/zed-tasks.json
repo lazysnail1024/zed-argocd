@@ -1,0 +1,11 @@
+[
+  {
+    "label": "Argo CD: render and check local Helm chart",
+    "command": "${ARGOCD_LS_BINARY}",
+    "args": ["render-check", "--root", "$ZED_WORKTREE_ROOT", "--chart", "${ARGOCD_CHART}", "--helm-binary", "${ARGOCD_HELM_BINARY}", "--output", "${ARGOCD_RENDER_OUTPUT}"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]

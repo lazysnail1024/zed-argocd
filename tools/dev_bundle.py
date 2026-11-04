@@ -21,7 +21,7 @@ def main():
    else:
     with tarfile.open(archive) as t:legal={n.name[len(package['root'])+1:]:t.extractfile(n).read() for n in t.getmembers() if n.isfile()}
    files={name:content(ROOT/name) for name in ['Cargo.toml','Cargo.lock','rust-toolchain.toml','extension.toml','LICENSE','README.md','DEVELOPMENT.md']}
-   for directory in ['src','snippets']:
+   for directory in ['src','snippets','examples']:
     for path in sorted((ROOT/directory).rglob('*')):
      if path.is_file():files[path.relative_to(ROOT).as_posix()]=content(path)
    cargo=files['Cargo.toml'].decode()
