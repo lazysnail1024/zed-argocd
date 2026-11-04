@@ -1,39 +1,117 @@
 #!/usr/bin/env python3
 """Native CI entry: retain each real-process outcome, including failures."""
-import argparse,hashlib,json,os,pathlib,subprocess,sys
-ROOT=pathlib.Path(__file__).resolve().parents[1];ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+import argparse,hashlib,json,os,pathlib,subprocess,sys,signal,time
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+def configure(argv=None):
+ global a,out,rows,expected,cache,modules,env,go,active,completed
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+def start_command(command,child_env):
+ # Own this CI command and its descendants before any helper code executes.
+ if os.name!='nt':
+  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+  def close():
+   try:os.killpg(p.pid,signal.SIGKILL)
+   except ProcessLookupError:pass
+  return p,close
+ import ctypes
+ from ctypes import wintypes as w
+ k=ctypes.WinDLL('kernel32',use_last_error=True);nt=ctypes.WinDLL('ntdll')
+ for name,args,result in [('CreateJobObjectW',[w.LPVOID,w.LPCWSTR],w.HANDLE),('SetInformationJobObject',[w.HANDLE,ctypes.c_int,w.LPVOID,w.DWORD],w.BOOL),('AssignProcessToJobObject',[w.HANDLE,w.HANDLE],w.BOOL),('OpenProcess',[w.DWORD,w.BOOL,w.DWORD],w.HANDLE),('CloseHandle',[w.HANDLE],w.BOOL)]:
+  f=getattr(k,name);f.argtypes=args;f.restype=result
+ nt.NtResumeProcess.argtypes=[w.HANDLE];nt.NtResumeProcess.restype=w.LONG
+ class Basic(ctypes.Structure):
+  _fields_=[('processTime',ctypes.c_longlong),('jobTime',ctypes.c_longlong),('flags',w.DWORD),('min',ctypes.c_size_t),('max',ctypes.c_size_t),('active',w.DWORD),('affinity',ctypes.c_size_t),('priority',w.DWORD),('scheduling',w.DWORD)]
+ class Extended(ctypes.Structure):
+  _fields_=[('basic',Basic),('io',ctypes.c_ulonglong*6),('processMemory',ctypes.c_size_t),('jobMemory',ctypes.c_size_t),('peakProcessMemory',ctypes.c_size_t),('peakJobMemory',ctypes.c_size_t)]
+ job=k.CreateJobObjectW(None,None)
+ if not job:raise ctypes.WinError(ctypes.get_last_error())
+ def close():
+  nonlocal job
+  if job:
+   handle=job;job=None
+   if not k.CloseHandle(handle):raise ctypes.WinError(ctypes.get_last_error())
+ p=None
+ try:
+  limits=Extended();limits.basic.flags=0x2000 # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+  if not k.SetInformationJobObject(job,9,ctypes.byref(limits),ctypes.sizeof(limits)):raise ctypes.WinError(ctypes.get_last_error())
+  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,creationflags=0x00000004) # CREATE_SUSPENDED
+  process=k.OpenProcess(0x0100|0x0001|0x0800,False,p.pid) # SET_QUOTA, TERMINATE, SUSPEND_RESUME
+  if not process:raise ctypes.WinError(ctypes.get_last_error())
+  try:
+   if not k.AssignProcessToJobObject(job,process):raise ctypes.WinError(ctypes.get_last_error())
+   status=nt.NtResumeProcess(process)
+   if status:raise OSError('NtResumeProcess failed: NTSTATUS '+hex(status & 0xffffffff))
+  finally:
+   if not k.CloseHandle(process):raise ctypes.WinError(ctypes.get_last_error())
+  return p,close
+ except BaseException:
+  close()
+  if p is not None:
+   if p.poll() is None:p.kill()
+   p.communicate(timeout=3)
+  raise
+
 def run(name,command,extra=None,timeout=180):
- try:p=subprocess.run(command,cwd=ROOT,env=dict(env,**(extra or {})),capture_output=True,timeout=timeout);stdout,stderr,status=p.stdout,p.stderr,p.returncode
- except subprocess.TimeoutExpired as e:stdout,stderr,status=e.stdout or b'',e.stderr or b'','timeout'
- except OSError as e:stdout,stderr,status=b'',str(e).encode(),'launch-failed'
- (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'passed':status==0});save();return status==0
+ global active
+ active={'id':name,'command':command,'timeoutSeconds':timeout};save();started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
+ try:
+  p,close=start_command(command,dict(env,**(extra or {})))
+  try:stdout,stderr=p.communicate(timeout=timeout);status=p.returncode
+  except subprocess.TimeoutExpired as e:
+   stdout,stderr,status=e.stdout or b'',e.stderr or b'','timeout'
+   close();close=None
+   stdout,stderr=p.communicate(timeout=3)
+ except (OSError,subprocess.TimeoutExpired) as e:
+  if status!='timeout':status='launch-failed'
+  stderr+=('\n'+repr(e)).encode()
+ finally:
+  if close:
+   try:close()
+   except OSError as e:cleanupError=repr(e)
+  if p is not None:
+   try:
+    if p.poll() is None:p.kill()
+    p.wait(timeout=3)
+   except (OSError,subprocess.TimeoutExpired) as e:cleanupError=repr(e)
+   if p.stdout:p.stdout.close()
+   if p.stderr:p.stderr.close()
+   if os.name=='nt':p._handle.Close()
+  (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'elapsedSeconds':time.monotonic()-started,'cleanupError':cleanupError,'passed':status==0 and cleanupError is None});active=None;save()
+ return rows[-1]['passed']
 
 def save():
- report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'rows':rows,'passed':len(rows)==14 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
-try:
- head=subprocess.run(['git','rev-parse','--verify','HEAD'],cwd=ROOT,capture_output=True);commit=head.stdout.decode().strip() if head.returncode==0 else None
- status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT,capture_output=True)
- if status.returncode!=0:raise RuntimeError('Cannot independently observe Git status')
- (out/'git-head.stdout').write_bytes(head.stdout);(out/'git-head.stderr').write_bytes(head.stderr);(out/'git-status.stdout').write_bytes(status.stdout);(out/'git-status.stderr').write_bytes(status.stderr)
- expected={'sourceCommit':commit,'dirty':commit is None or bool(status.stdout),'buildMode':'development'}
- args=[sys.executable,str(ROOT/'tools/native.py'),'build','--output',str(out/'build'),'--platform',a.platform]
- if a.source_commit:args+=['--source-commit',a.source_commit]
- if not run('build',args):raise RuntimeError('native build failed')
- manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
- if a.compiler_version and a.compiler_version not in manifest['compiler']:raise RuntimeError('Actual compiler differs from pinned CI version')
- run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
- run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420)
- run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900)
- run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
- run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
- run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode','development'])
- run('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')])
- run('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'])
- run('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')])
- run('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')])
- run('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')])
- helper=out/('native-helper.exe' if a.platform.startswith('windows/') else 'native-helper')
- if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
-except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
-finally:save()
-sys.exit(0 if len(rows)==14 and all(r['passed'] for r in rows) else 1)
+ report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'rows':rows,'activeCommand':active,'completed':completed,'passed':completed and len(rows)==15 and all(r['passed'] for r in rows)};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');pending.replace(out/'report.json')
+def main():
+ global expected,completed
+ configure()
+ try:
+  head=subprocess.run(['git','rev-parse','--verify','HEAD'],cwd=ROOT,capture_output=True);commit=head.stdout.decode().strip() if head.returncode==0 else None
+  status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT,capture_output=True)
+  if status.returncode!=0:raise RuntimeError('Cannot independently observe Git status')
+  (out/'git-head.stdout').write_bytes(head.stdout);(out/'git-head.stderr').write_bytes(head.stderr);(out/'git-status.stdout').write_bytes(status.stdout);(out/'git-status.stderr').write_bytes(status.stderr)
+  expected={'sourceCommit':commit,'dirty':commit is None or bool(status.stdout),'buildMode':'development'}
+  args=[sys.executable,str(ROOT/'tools/native.py'),'build','--output',str(out/'build'),'--platform',a.platform]
+  if a.source_commit:args+=['--source-commit',a.source_commit]
+  if not run('build',args):raise RuntimeError('native build failed')
+  manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
+  if a.compiler_version and a.compiler_version not in manifest['compiler']:raise RuntimeError('Actual compiler differs from pinned CI version')
+  run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
+  run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
+  run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420)
+  run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900)
+  run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
+  run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
+  run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode','development'])
+  run('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')])
+  run('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'])
+  run('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')])
+  run('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')])
+  run('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')])
+  helper=out/('native-helper.exe' if a.platform.startswith('windows/') else 'native-helper')
+  if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
+  completed=True
+ except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
+ finally:save()
+ return 0 if completed and len(rows)==15 and all(r['passed'] for r in rows) else 1
+
+if __name__=='__main__':sys.exit(main())
