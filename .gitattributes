@@ -1,0 +1,2 @@
+# Keep checked-out text identical to committed source on every native CI host.
+* text=auto eol=lf
