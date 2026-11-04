@@ -1,22 +1,46 @@
 # Zed Argo CD
 
-An experimental Zed extension and offline Go language server for Argo CD Application, AppProject, and ApplicationSet YAML. No cluster access, deployment, sync, or generator execution is performed.
+Offline YAML support for Argo CD `Application`, `AppProject`, and `ApplicationSet`: schema diagnostics, field completion and hover, local navigation and references, and limited safe edits. It does not connect to a cluster or deploy, sync, or execute generators.
 
-## Build and run
+**Install a precompiled development bundle with Zed's Install Dev Extension command.** There is no registry installation or hosted release download yet.
 
-The native server requires Go 1.27.3 and a C compiler. The checked-in vendor tree includes the pinned toolkit and native parser sources; no sibling checkout is required.
+## Install
 
-```sh
-GOWORK=off go build -mod=vendor -buildvcs=false -trimpath -o build/argocd-ls ./cmd/argocd-ls
-./build/argocd-ls version --json
-./build/argocd-ls check --root ./examples --target-version 3.0.0 --format json
-./build/argocd-ls serve --stdio
-cargo build --locked --release --target wasm32-wasip2
+Use the supplied ZIP for your operating system and CPU architecture. The native language server is already compiled; no Go or C compiler and no `serverPath` setting are required.
+
+1. Unzip the bundle into a permanent directory.
+2. Install Rust through **rustup** and make it available to Zed. The bundle pins Rust **1.99.1** and `wasm32-wasip2`; initial toolchain and locked Cargo dependency downloads require network access.
+3. Open Zed's Extensions page, choose **Install Dev Extension** (or run `zed: install dev extension`), and select the extracted `zed-argocd-dev-<platform>` folder containing `extension.toml`.
+4. Keep that folder in place and open a YAML project. Zed compiles the small Rust adapter automatically, then the adapter installs and verifies its embedded native server in Zed's extension work directory.
+
+Keep Zed's YAML language support enabled. Remove any old `lsp.argocd-ls.settings.serverPath` override to use the bundle: an explicit override takes priority and an invalid override fails startup. Choose the bundle matching your operating system and CPU architecture. The native server needs no runtime downloads.
+
+Source-checkout installation and contributor overrides are described in [Development](DEVELOPMENT.md). See also [Zed's development-extension instructions](https://zed.dev/docs/extensions/developing-extensions).
+
+## First YAML file
+
+Open a project folder in Zed and save this as `application.yaml`:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: example
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    targetRevision: HEAD
+    path: guestbook
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: guestbook
 ```
 
-Cargo uses the version in `rust-toolchain.toml`; dependencies must be available before an offline build. The toolkit API and implementation identity are pinned in [contracts/toolkit-design-1.md](contracts/toolkit-design-1.md) and [contracts/toolkit.lock.json](contracts/toolkit.lock.json). The toolkit is pinned to public Go pseudo-version `v0.0.0-20261103033718-ae52b82ec6c9` (commit `ae52b82ec6c93244787ec40c87e4171616c0fb73`), with vendored sources for independent builds. Dependency availability does not imply product readiness.
+Hover a schema field such as `project`, or request completion inside `spec`. As a diagnostic check, temporarily change `spec.project` to `123`: a string-type schema error should appear. Restore `default` afterward. The server does not fetch the example repository; external references may be reported as unresolved informational diagnostics.
 
-Use `.argocd-ls.yaml` in the workspace root to select a target and namespace:
+To pin the Argo CD version, add `.argocd-ls.yaml` to the project root:
 
 ```yaml
 schemaVersion: 1
@@ -24,36 +48,34 @@ targetVersion: "3.0.0"
 controlPlaneNamespace: argocd
 ```
 
-`explain-config --root PATH` shows effective configuration. `check --help` lists CLI options. The experimental stdio server provides schema diagnostics, static local references, field queries, reference candidates, and versioned edits. Tests launch real CLI and LSP processes; for example, after building:
+Without a pin, the current catalog defaults to **3.5.6**. It contains 88 verified exact targets. An unsupported version is an error, not a fallback. Optional `lsp.argocd-ls.settings.targetVersion` overrides file pins; removing it restores the file pin or default. CLI commands do not read Zed settings.
+
+## Verify and troubleshoot
+
+- If startup fails, run the bundled native server or your configured override executable with `version --json` and check its identity, readiness, execution permissions, and absolute path.
+- For extension compilation or startup errors, run `zed: open log`. Check that rustup and the pinned toolchain are available to Zed. [Zed documents additional logging](https://zed.dev/docs/extensions/developing-extensions).
+- If no Argo features appear, confirm the file is in YAML mode and the `argocd-ls` server has not been disabled in language settings. Keep the general YAML server enabled as well.
+- If configuration is rejected, use `explain-config` below and remove unsupported target overrides. Existing YAML schema associations can cause duplicate diagnostics; this extension does not modify them.
+
+## CLI
+
+Run from the extracted bundle folder, replacing `/path/to/project` with your YAML project:
 
 ```sh
-python3 tests/candidates_e2e.py
-python3 tests/candidate_review_e2e.py
-python3 tests/candidate_concurrency_e2e.py
-python3 tests/domain_matrix_e2e.py build/argocd-ls
-python3 tests/domain_matrix_lsp_e2e.py
-python3 tests/schema_queries_e2e.py build/argocd-ls artifacts/schema-queries
+./native/server.bin explain-config --root /path/to/project
+./native/server.bin check --root /path/to/project --target-version 3.0.0 --format json
+./native/server.bin check --help
 ```
 
-Reports and protocol transcripts are written under `artifacts/`. Analysis has a five-second budget. Explicit Helm commands have a thirty-second deadline and a combined stdout/stderr limit of 10 MiB; failures retain command output and status. Unix commands use a separate process group; Windows uses a suspended process assigned to a kill-on-close Job Object before resuming. Windows process lifetime behavior still requires native acceptance.
+On Windows, copy `native/server.bin` to a path ending in `.exe` before invoking it directly.
 
-Each analysis and the open-buffer collection have a fixed 128 MiB text limit. Configuration buffers count toward the limit. A refused buffer revision remains unavailable until a fitting full replacement or close/reopen; stale buffer or disk text cannot substitute for it. These limits are not a process RSS cap.
+Checks exit **0** when complete without errors, **1** for diagnostic errors (also warnings with `--warnings-as-errors`), **2** for configuration/input/analysis incompleteness, and **3** for cancellation or deadline. `analysisComplete` describes the particular check; `analysisReady` describes the server's local editing contract.
 
-Cached code actions remain valid after a completed unchanged save or reconciliation. Actual input or document-version changes invalidate them, including changes later restored. Pending analysis must finish before an edit can resolve. Supported localhost file URIs select the same configuration path while replies and edits retain the client URI.
+## Limits
 
-## Current limits
+Analysis is local and static. Controller behavior, generator/template execution, patch final effects, hydration, value-file expansion, and complex policy/RBAC evaluation are outside its scope. Ambiguous or derived YAML locations do not receive guessed edits. Analysis has a five-second budget, fixed text budgets, and bounded alias expansion; refused input is incomplete rather than silently accepted.
 
-The local editing contract uses the 88 verified catalog targets; an omitted target selects 3.5.6. Complete checks exit 0, diagnostic errors exit 1, and `--warnings-as-errors` also makes warnings exit 1 without changing their severity. Configuration, input or projection incompleteness exits 2; a deadline or interrupt exits 3. `analysisReady` describes the local contract, independently of development build provenance and platform/editor/distribution acceptance. Completed counts exclude skipped projections and cancelled work. 
-
-The local static rule subset is checked against all 88 catalog patches using [fixed upstream source provenance](compat/local-rules-sources.json). Controller operations, generator or template-function execution, patch final effects, hydration evaluation, value-file expansion, and complex policy/RBAC are outside the local-editing contract. 
-
-Field queries cover reliable blank/partial mapping and first-sequence keys, empty enum values, exact plain-text edits, typed maps/arrays and integer-or-string unions, with target and immutable upstream provenance in Hover. Escaped keys and ambiguous recovery receive no guessed edits. Local refs, allOf, const/default and discriminator branches have separate synthetic consumer coverage because the embedded CRDs do not use them. 
-
-Bounded acyclic aliases and YAML merges project values with explicit-key and earlier-merge precedence. Derived or shared-anchor locations do not receive inferred navigation or text edits; exact unrelated siblings remain usable. Ref ambiguity includes every effective declaration, including declarations without exact locations. Failed input with unresolved identity keeps its scope incomplete; proven foreign kinds remain silent. Duplicate GVK keys remain incomplete regardless of key order. Alias/merge graph documents share a fixed 100,000 expanded-node allowance per logical analysis result across roots/scopes. Refused graphs are explicitly incomplete and excluded from completed counts; plain documents retain their existing input budgets. This limit is not a whole-process RSS cap. 
-
-Native platform resource behavior, real Zed editor acceptance, and release delivery remain separate gates. Local readiness has passed scoped review and integration; native delivery and full editor acceptance remain separate gates. The adapter rejects an unready server. Building the WASM extension does not make this a supported or publishable extension. No release download manifest is available.
-
-For development installation, use Zed's **Install Dev Extension** with this directory. The adapter reads an absolute executable path from `lsp.argocd-ls.settings.serverPath` and verifies server identity and readiness. `lsp.argocd-ls.settings.targetVersion` explicitly overrides workspace/scope target pins. Effective worktree settings are forwarded initially and on changes; removing the override restores the file pin or product default. An unsupported target remains an explicit analysis error. This uses workspace configuration, separately from initialization options. Zed's standard `binary.path` bypasses the adapter handshake. Keep the YAML language server enabled for general YAML support.
+Development installation is the available delivery mode. Native CLI/LSP CI covers Linux amd64/arm64, macOS amd64/arm64, and Windows amd64; this does not establish real Zed GUI acceptance on all platforms or minimum supported OS versions. Signed release artifacts and registry delivery remain unavailable. Contributor builds, packaging, tests, and provenance are in [Development](DEVELOPMENT.md).
 
 ## License and acknowledgments
 
@@ -66,13 +88,3 @@ Thanks to [k8s-crd-toolkit](https://github.com/lazysnail1024/k8s-crd-toolkit) (M
 The vendored Go text tables use equivalent Unicode escapes for CJK character data; the digit example comment uses Unicode notation. Character values and third-party license files are unchanged.
 
 Configuration presentation was informed by [helm.zed](https://github.com/cabrinha/helm.zed) and [zed-ansible](https://github.com/kartikvashistha/zed-ansible), both MIT licensed; their code was not copied.
-
-## Native build and packaging candidates
-
-`python3 tools/native.py build --platform linux/amd64 --output build/native` records actual native toolchain, source hashes, identity, runtime-library inspection and legal inputs. It uses the pinned Go version, C compiler and offline vendor tree. Compilation runs from a temporary copy of the verified source inventory, so ignored checkout files cannot enter Go, embedded-asset or native C inputs. A required input absent from that inventory fails the build. Native subprocesses use fixed Go/CGO defaults and `GOENV=off`; inherited compiler flags, include/library search paths and persisted Go settings are excluded. The selected Go/C tool installations and system SDK remain trusted; this is not a security sandbox. Development builds retain actual dirty/unknown-source provenance. Release mode additionally requires `--mode release --version X.Y.Z --source-commit FULL_SHA`, exact committed bytes and a clean checkout; it does not publish anything.
-
-`python3 tools/native.py package --manifest build/native/manifest.json --output dist/native` packages that already built native without rebuilding. Copied Go legal text is checked against the selected pinned toolchain; copied CRD legal text is checked against the catalog source digest, independently of the build manifest. Output directories must be new. Archives have a fixed single-root layout, deterministic metadata, binary/archive SHA256, actual linked-module and CRD legal texts, and build provenance. The package has no hosted download URL. Windows builds use the fixed MinGW distribution recorded in `tools/windows-runtime.json`, validate its compiler/static runtime and complete notice bytes, and link the runtime statically. Packages retain the MinGW, winpthreads and GCC runtime notices. Non-system DLL imports remain rejected; the original linker map is retained in build artifacts.
-
-Run `python3 tests/native_ci.py --platform linux/amd64 --output artifacts/native-ci-local` for the grouped native build, packaging and current CLI/LSP consumers. The output directory must be new. The runner observes Git provenance independently before building; it also runs finite save/watch action controls, without claiming periodic-timer acceptance on every platform.
-
-The native workflow defines five platform jobs: Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. It retains native build/package, query/projection/lifecycle and bounded child-process evidence. Hosted runner execution does not prove the minimum supported OS or real Zed behavior. See the [native workflow](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml) for each commit's actual platform outcomes; a successful job on another commit is not acceptance of the current bytes. Signed release artifacts and registry delivery are not available.
