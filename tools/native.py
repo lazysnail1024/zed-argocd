@@ -41,6 +41,15 @@ def main():
    ge=json.loads(run([go,'env','-json','GOHOSTOS','GOHOSTARCH','GOOS','GOARCH','GOVERSION','GOROOT','CC']).stdout)
    if ge['GOVERSION']!=expectedGo or args.platform!=ge['GOHOSTOS']+'/'+ge['GOHOSTARCH'] or args.platform!=ge['GOOS']+'/'+ge['GOARCH']:raise ValueError('Toolchain or actual native host platform mismatch')
    cc=env.get('CC') or ge['CC'];compiler=run([cc,'--version']).stdout.decode(errors='replace')
+   windows=None
+   if ge['GOOS']=='windows':
+    windows=json.loads(content(ROOT/'tools/windows-runtime.json'));ccPath=pathlib.Path(shutil.which(cc,path=env.get('PATH')) or cc).resolve();toolRoot=ccPath.parent.parent
+    if ccPath.name.lower()!='gcc.exe':raise ValueError('Windows static runtime requires the pinned gcc.exe installation')
+    for name,expected in windows['runtimeFiles'].items():
+     if digest(content(toolRoot/name))!=expected:raise ValueError('Windows runtime input differs from pinned distribution: '+name)
+    for name,expected in windows['legalFiles'].items():
+     if digest(content(toolRoot/'licenses'/name))!=expected:raise ValueError('Windows runtime notice differs from pinned distribution: '+name)
+    report['windowsCompilerPath']=str(ccPath)
    head=run(['git','rev-parse','--verify','HEAD'],False);commit=head.stdout.decode().strip() if head.returncode==0 else None
    status=run(['git','status','--porcelain','--untracked-files=all'],False);dirty=commit is None or status.returncode!=0 or bool(status.stdout)
    if args.source_commit and (not re.fullmatch('[0-9a-f]{40}',args.source_commit) or args.source_commit!=commit):raise ValueError('Requested source commit must equal exact HEAD')
@@ -58,6 +67,7 @@ def main():
    out.mkdir(parents=True);created=True;binary=out/('argocd-ls.exe' if ge['GOOS']=='windows' else 'argocd-ls')
    flags=f'-X {MODULE}/internal/buildinfo.ServerVersion={args.version} -X {MODULE}/internal/buildinfo.Dirty={str(dirty).lower()} -X {MODULE}/internal/buildinfo.BuildMode={args.mode}'
    if commit:flags+=' -X '+MODULE+'/internal/buildinfo.SourceCommit='+commit
+   if windows:flags+=' -linkmode=external -extldflags "-static -Wl,-Map,argocd-native-link.map"'
    # Compile only validated bytes, never ignored checkout inputs or adjacent repository files.
    with tempfile.TemporaryDirectory(prefix='argocd-native-source-') as temporary:
     snapshot=pathlib.Path(temporary)
@@ -66,10 +76,17 @@ def main():
      if digest(value)!=expected:raise ValueError('Source changed before snapshot: '+name)
      destination=snapshot/name;destination.parent.mkdir(parents=True,exist_ok=True);write(destination,value)
     run([go,'build','-mod=vendor','-buildvcs=false','-trimpath','-ldflags',flags,'-o',str(binary),'./cmd/argocd-ls'],cwd=snapshot)
+    if windows:
+     linkMap=content(snapshot/'argocd-native-link.map');write(out/'native-link.map',linkMap);report['linkMap']={'file':'native-link.map','sha256':digest(linkMap),'buildDirectory':str(snapshot)}
    if any(digest(content(ROOT/name))!=expected for name,expected in sources.items()):raise ValueError('Source changed during build')
    metadata=json.loads(run([go,'version','-m','-json',str(binary)]).stdout);identity=json.loads(run([str(binary),'version','--json']).stdout)
    if identity.get('sourceCommit')!=commit or identity.get('dirty')!=dirty or identity.get('buildMode')!=args.mode or identity.get('serverVersion')!=args.version:raise ValueError('Built identity does not match requested provenance')
    legal={'LICENSE':content(ROOT/'LICENSE'),'licenses/go/LICENSE':content(pathlib.Path(ge['GOROOT'])/'LICENSE'),'licenses/go/PATENTS':content(pathlib.Path(ge['GOROOT'])/'PATENTS')}
+   if windows:
+    for name,expected in windows['legalFiles'].items():
+     value=content(toolRoot/'licenses'/name)
+     if digest(value)!=expected:raise ValueError('Windows runtime notice changed during build: '+name)
+     legal['licenses/windows-runtime/'+name]=value
    for dep in metadata['Deps']:
     folder=ROOT/'vendor'/dep['Path'];found=False
     for source in sorted(folder.rglob('*')):
@@ -85,6 +102,7 @@ def main():
       legal['licenses/argo-cd/'+source['sha256']+'/'+source['path']]=data
    legal['NOTICE.txt']=b'Original server: MIT, Copyright (c) 2026 snail (lazysnail1024).\nArgo CD embedded schemas are normalized derivatives of the pinned Apache-2.0 CRDs.\nVendored golang.org/x/text CJK character data uses equivalent Unicode escapes; a comment uses Unicode notation.\nGo standard-library/runtime, linked modules and native parser legal texts are included unchanged.\nThis native package does not contain the Rust Zed adapter.\n'
    # Keep legal bytes bound to the build; packaging compares current source legal inputs below.
+   if windows:legal['NOTICE.txt']+=b'Windows runtime is statically linked from the fixed MinGW-Builds distribution; full MinGW, winpthreads and GCC runtime notices are included.\n'
    legalInputs={}
    for name,data in legal.items():
     path=out/'legal'/name;path.parent.mkdir(parents=True,exist_ok=True);write(path,data);legalInputs[name]=digest(data)
@@ -96,6 +114,7 @@ def main():
     allowed={'kernel32.dll','msvcrt.dll','ntdll.dll','ws2_32.dll','advapi32.dll','shell32.dll','user32.dll','iphlpapi.dll','bcrypt.dll','secur32.dll','crypt32.dll','ole32.dll','oleaut32.dll','combase.dll','ucrtbase.dll'}
     if not libraries or any(x.lower() not in allowed and not x.lower().startswith('api-ms-win-') for x in libraries):raise ValueError('Non-system Windows runtime dependency requires explicit reviewed redistribution')
    m={'formatVersion':1,'product':'argo-cd','platform':args.platform,'binary':binary.name,'binarySHA256':digest(content(binary)),'identity':identity,'goBuild':metadata,'goEnvironment':ge,'buildEnvironment':{k:env[k] for k in ['GOENV','GOWORK','GOTOOLCHAIN','GOFLAGS','CGO_ENABLED','CGO_CFLAGS','CGO_CPPFLAGS','CGO_CXXFLAGS','CGO_FFLAGS','CGO_LDFLAGS','MACOSX_DEPLOYMENT_TARGET']},'compiler':compiler,'toolSHA256':{'go':digest(content(pathlib.Path(shutil.which(go) or go).resolve())),'cc':digest(content(pathlib.Path(shutil.which(cc) or cc).resolve()))},'runtimeLibraries':re.sub(r'0x[0-9a-fA-F]+','ADDRESS',runtime),'sourceInputs':sources,'legalInputs':legalInputs,'catalogSHA256':digest(content(ROOT/'internal/assets/catalog.json'))}
+   if windows:m['windowsRuntime']=windows
    write(out/'manifest.json',canonical(m));report.update(manifest='manifest.json',binarySHA256=m['binarySHA256'],platform=args.platform)
   else:
    manifest=args.manifest.absolute();m=json.loads(content(manifest,4*1024*1024));folder=manifest.parent
@@ -116,6 +135,10 @@ def main():
    if actualGo['GOVERSION']!=expectedGo or metadata['GoVersion']!=expectedGo:raise ValueError('Legal source toolchain version differs from pinned build')
    crdLegal={}
    expectedLegal={'LICENSE','licenses/go/LICENSE','licenses/go/PATENTS','NOTICE.txt'}
+   windows=json.loads(content(ROOT/'tools/windows-runtime.json')) if platform.startswith('windows/') else None
+   if windows:
+    if m.get('windowsRuntime')!=windows:raise ValueError('Windows runtime provenance differs from fixed source')
+    expectedLegal.update('licenses/windows-runtime/'+name for name in windows['legalFiles'])
    for dep in metadata['Deps']:
     for source in sorted((ROOT/'vendor'/dep['Path']).rglob('*')):
      if source.is_file() and source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING']:expectedLegal.add('licenses/'+source.relative_to(ROOT/'vendor').as_posix())
@@ -134,9 +157,10 @@ def main():
     value=content(folder/'legal'/path,4*1024*1024)
     if digest(value)!=expected:raise ValueError('Build legal input hash mismatch')
     if path.startswith('licenses/go/') and content(pathlib.Path(actualGo['GOROOT'])/pure.name)!=value:raise ValueError('Go legal text differs from pinned toolchain source')
+    if path.startswith('licenses/windows-runtime/') and digest(value)!=windows['legalFiles'][path.removeprefix('licenses/windows-runtime/')]:raise ValueError('Windows runtime notice differs from fixed source')
     if path in crdLegal and digest(value)!=crdLegal[path]:raise ValueError('CRD legal text differs from pinned source')
     if path=='LICENSE' and content(ROOT/'LICENSE')!=value:raise ValueError('Current project license differs from build')
-    if path.startswith('licenses/') and not path.startswith(('licenses/go/','licenses/argo-cd/')) and content(ROOT/'vendor'/path.removeprefix('licenses/'))!=value:raise ValueError('Current dependency license differs from build')
+    if path.startswith('licenses/') and not path.startswith(('licenses/go/','licenses/argo-cd/','licenses/windows-runtime/')) and content(ROOT/'vendor'/path.removeprefix('licenses/'))!=value:raise ValueError('Current dependency license differs from build')
     files[path]=value
    if 'LICENSE' not in files or 'licenses/go/LICENSE' not in files or 'NOTICE.txt' not in files or not any(p.startswith('licenses/argo-cd/') for p in files):raise ValueError('Missing required legal inventory')
    files['provenance/build.json']=canonical(m)

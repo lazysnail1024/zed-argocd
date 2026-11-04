@@ -1,0 +1,29 @@
+{
+  "distribution": "MinGW-Builds 15.2.0-rt_v13-rev1 x86_64 posix SEH UCRT",
+  "archiveURL": "https://github.com/niXman/mingw-builds-binaries/releases/download/15.2.0-rt_v13-rev1/x86_64-15.2.0-release-posix-seh-ucrt-rt_v13-rev1.7z",
+  "archiveSHA256": "029bd02b5bce7c10fd9476165b3fe178239fe1838ad62516b5c3e0921bb283cf",
+  "runtimeFiles": {
+    "bin/gcc.exe": "0aeaac2ec1ba2fb290ad3a4bbe7b76d5baedd3743530e5da6d64fb57a2d71850",
+    "lib/gcc/x86_64-w64-mingw32/15.2.0/crtbegin.o": "e6001e03ffd44bb4b2fda556dbc1dc94e0f613254e40392c653e4aa13dcc084e",
+    "lib/gcc/x86_64-w64-mingw32/15.2.0/crtend.o": "bd0bff8dd9f1eb4a01d8d351fdad19f4ea56b9c8d609130af392326688d3cdf3",
+    "lib/gcc/x86_64-w64-mingw32/15.2.0/libgcc.a": "d1c99c6d6db6da92ffbef9f3405fd313875d6597b8ca83f5d0de5a51c41924bf",
+    "lib/gcc/x86_64-w64-mingw32/15.2.0/libgcc_eh.a": "7eaae2a184108d9dc61d53efc6d002d639106e4199c9fd3716013f7fdb1498a6",
+    "x86_64-w64-mingw32/lib/crt2.o": "0247d159d516a04f02050956e08757069386c2a8d7fb07d40373bab248e1b9af",
+    "x86_64-w64-mingw32/lib/libmingw32.a": "7d828be54d48bf558a51ed982532c6b15a447bbe6010202093fcbf67d5b8e3e4",
+    "x86_64-w64-mingw32/lib/libmingwex.a": "7baf1aebd4828f146a2fe3ede4ffc6fd20364f8da3e93df6922f8ddb82be1041",
+    "x86_64-w64-mingw32/lib/libmoldname.a": "7eee9fb99d1e7d1f226c6093e25e5a626a592816e8e412b6b44e42bd9ef65de5",
+    "x86_64-w64-mingw32/lib/libpthread.a": "9dc80dae87b4ae5cb92ef9210aee758874cbe6cc5a41c6dc3e30a12cccbef0e5",
+    "x86_64-w64-mingw32/lib/libwinpthread.a": "9dc80dae87b4ae5cb92ef9210aee758874cbe6cc5a41c6dc3e30a12cccbef0e5",
+    "x86_64-w64-mingw32/lib/libucrt.a": "55a50ae1aadf26b9c0f8c21367216f87b05ed9aba96f48c8ba650e1547c54d58"
+  },
+  "legalFiles": {
+    "gcc/COPYING3": "0b383d5a63da644f628d99c33976ea6487ed89aaa59f0b3257992deac1171e6b",
+    "gcc/COPYING.RUNTIME": "90077ba306ee9d8ed966cab1b4abd69b6e728acf08777283cc50283cd9503fa6",
+    "mingw-w64/COPYING": "253aba9804544809db693d59153a57de7679be617e77f2e1fb2f9f4441f3fb61",
+    "mingw-w64/COPYING.MinGW-w64-runtime.txt": "e7a33fd8d164abd188ee629bbe3b07912419b29192a6bbfdce29de0ad4f0e7fb",
+    "mingw-w64/COPYING.MinGW-w64.txt": "8b5b2c7c74842122f7a2479653dc612aa8e1c313bfec63808f90517ae13af40a",
+    "mingw-w64/DISCLAIMER": "84db291f8e4654556fd6de6ca888d9891c414154ddc20deda82265dacf10d236",
+    "mingw-w64/DISCLAIMER.PD": "716fee4352b35ba28ea2cec0c0d7654ca3a93966226f4eb9555e4f9b900866e3",
+    "winpthreads/COPYING": "1c8d23063c3772b9435831410b31b51fef3d9cf2138a442dc367ef5d72239f67"
+  }
+}

@@ -66,6 +66,14 @@ try:
  else:
   with tarfile.open(archive) as t:names=t.getnames();assert all(x.isfile() for x in t.getmembers());t.extractall(extracted,filter='data')
  rows.append({'id':'safe-layout','passed':all(not n.startswith('/') and '..' not in pathlib.PurePosixPath(n).parts for n in names) and len({n.split('/')[0] for n in names})==1 and any(n.endswith('/LICENSE') for n in names) and any('/licenses/go/' in n for n in names) and any('/licenses/argo-cd/' in n for n in names)})
+ if a.platform=='windows/amd64':
+  pinned=json.loads((ROOT/'tools/windows-runtime.json').read_text())
+  rows.append({'id':'windows-runtime-notices','passed':all(sha(extracted/p1['root']/'licenses/windows-runtime'/name)==expected for name,expected in pinned['legalFiles'].items())})
+  for label,corrupt in [('missing-runtime-notice',False),('rewritten-runtime-notice',True)]:
+   copied=release/'legal/licenses/windows-runtime/winpthreads/COPYING';original=copied.read_bytes();bad=json.loads((release/'manifest.json').read_text());key='licenses/windows-runtime/winpthreads/COPYING'
+   if corrupt:copied.write_bytes(b'altered runtime notice');bad['legalInputs'][key]=sha(copied)
+   else:del bad['legalInputs'][key]
+   altered=release/(label+'.json');altered.write_text(json.dumps(bad));invoke(label,fixture,['package','--manifest',str(altered),'--output',str(out/label)],2);copied.write_bytes(original)
  rows.append({'id':'go-patent-grant','passed':(extracted/p1['root']/'licenses/go/PATENTS').is_file() and (extracted/p1['root']/'licenses/go/PATENTS').read_bytes()==(pathlib.Path(rm['goEnvironment']['GOROOT'])/'PATENTS').read_bytes()})
  binary=extracted/p1['root']/('argocd-ls.exe' if a.platform.startswith('windows/') else 'argocd-ls');binary.chmod(0o755);r=subprocess.run([str(binary),'version','--json'],capture_output=True,timeout=10);(out/'extracted.stdout').write_bytes(r.stdout);(out/'extracted.stderr').write_bytes(r.stderr);rows.append({'id':'extracted-native','passed':r.returncode==0 and json.loads(r.stdout)==rm['identity'] and sha(binary)==rm['binarySHA256']})
  invoke('existing-output',fixture,['package','--manifest',str(release/'manifest.json'),'--output',str(out/'package-one-result')],2)
