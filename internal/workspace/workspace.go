@@ -389,8 +389,7 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 				return input, failure("INPUT_INCOMPLETE", e.Error())
 			}
 			*remaining -= len(b)
-			u := url.URL{Scheme: "file", Path: filepath.ToSlash(resolved)}
-			snap, e = source.New(source.URI(u.String()), 1, string(b))
+			snap, e = source.New(source.URI(FileURI(resolved)), 1, string(b))
 			if e != nil {
 				return input, e
 			}
@@ -606,4 +605,13 @@ func readConfig(ctx context.Context, file string) ([]byte, error) {
 		return nil, failure("CONFIG_INVALID", "configuration exceeds 1 MiB")
 	}
 	return raw, nil
+}
+
+// FileURI formats an absolute local path without treating a Windows drive as a URI authority.
+func FileURI(path string) string {
+	p := filepath.ToSlash(path)
+	if filepath.Separator == '\\' && len(p) >= 3 && p[1:3] == ":/" && ((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z')) {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
 }

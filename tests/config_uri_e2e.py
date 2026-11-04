@@ -5,7 +5,7 @@ import audit_repair_e2e as wire
 wire.BINARY=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(sys.argv[2]).resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
 def record(name,checks,observed=None):rows.append({'id':name,'checks':checks,'observed':observed,'passed':all(checks.values())})
 for form in ['canonical','localhost']:
- folder=out/form;root=folder/'workspace';root.mkdir(parents=True);disk=wire.CONFIG;config=wire.write(root,'.argocd-ls.yaml',disk);app=wire.write(root,'app.yaml',wire.APP);wire.write(root,'project.yaml',wire.PROJECT);uri=config.as_uri() if form=='canonical' else 'file://localhost'+config.as_posix();client=None
+ folder=out/form;root=folder/'workspace';root.mkdir(parents=True);disk=wire.CONFIG;config=wire.write(root,'.argocd-ls.yaml',disk);app=wire.write(root,'app.yaml',wire.APP);wire.write(root,'project.yaml',wire.PROJECT);uri=config.as_uri() if form=='canonical' else config.as_uri().replace('file://','file://localhost',1);client=None
  try:
   client=wire.LSP(folder,[root]);opened=disk.replace('3.0.0','3.5.6')+'scopes:\n  - name: dev\n    include: ["**"]\n';client.send('textDocument/didOpen',{'textDocument':{'uri':uri,'languageId':'yaml','version':1,'text':opened}});client.open(app,wire.APP,1);client.diag(app,1)
   def hover():return client.request('textDocument/hover',{'textDocument':{'uri':app.as_uri()},'position':{'line':5,'character':12}})

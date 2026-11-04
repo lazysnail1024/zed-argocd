@@ -9,7 +9,7 @@ def run(name,command,extra=None,timeout=180):
  (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'passed':status==0});save();return status==0
 
 def save():
- report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'rows':rows,'passed':len(rows)==13 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
+ report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'rows':rows,'passed':len(rows)==14 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 try:
  head=subprocess.run(['git','rev-parse','--verify','HEAD'],cwd=ROOT,capture_output=True);commit=head.stdout.decode().strip() if head.returncode==0 else None
  status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT,capture_output=True)
@@ -27,6 +27,7 @@ try:
  run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
  run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
  run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode','development'])
+ run('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')])
  run('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'])
  run('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')])
  run('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')])
@@ -35,4 +36,4 @@ try:
  if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
 except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
 finally:save()
-sys.exit(0 if len(rows)==13 and all(r['passed'] for r in rows) else 1)
+sys.exit(0 if len(rows)==14 and all(r['passed'] for r in rows) else 1)

@@ -678,7 +678,7 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		return roots[i] < roots[j]
 	})
 	for _, root := range roots {
-		configURI := (&url.URL{Scheme: "file", Path: filepath.ToSlash(filepath.Join(root, ".argocd-ls.yaml"))}).String()
+		configURI := workspace.FileURI(filepath.Join(root, ".argocd-ls.yaml"))
 		var config *string
 		configPath, _ := uriPath(configURI)
 		if snapshot, ok := openFiles[configPath]; ok {
@@ -868,6 +868,10 @@ func uriPath(uri string) (string, error) {
 	u, e := url.Parse(uri)
 	if e != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") {
 		return "", fmt.Errorf("only local file URIs are supported")
+	}
+	// A Windows drive URI has a leading slash that is not part of the drive path.
+	if filepath.Separator == '\\' && len(u.Path) >= 4 && u.Path[0] == '/' && u.Path[2:4] == ":/" && ((u.Path[1] >= 'A' && u.Path[1] <= 'Z') || (u.Path[1] >= 'a' && u.Path[1] <= 'z')) {
+		u.Path = u.Path[1:]
 	}
 	p := filepath.FromSlash(u.Path)
 	if !filepath.IsAbs(p) {
