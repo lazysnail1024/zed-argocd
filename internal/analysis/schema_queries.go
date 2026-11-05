@@ -22,6 +22,88 @@ type queryFacet struct {
 	candidate bool
 }
 
+// Editor queries select complete release branches using existing field names.
+// Ignore the active field and ordinary value/required errors while a document is
+// being edited. Diagnostics still use the unfiltered catalog to recognize every
+// supported name, including an incompatible combination of known fields.
+func automaticQueryDocument(doc Document, active []string) Document {
+	if doc.Target != "auto" || doc.CompiledSchema == nil || len(doc.CompiledSchema.AnyOf) < 2 {
+		return doc
+	}
+	possible := []*schema.Schema{}
+	for _, branch := range doc.CompiledSchema.AnyOf {
+		if queryShape(branch, doc.Value, active, 0) {
+			possible = append(possible, branch)
+		}
+	}
+	// An inconsistent or damaged document must still offer a way to repair it.
+	if len(possible) == 0 || len(possible) == len(doc.CompiledSchema.AnyOf) {
+		return doc
+	}
+	selected := *doc.CompiledSchema
+	selected.AnyOf = possible
+	doc.CompiledSchema = &selected
+	return doc
+}
+
+func queryShape(s *schema.Schema, value any, active []string, depth int) bool {
+	if s == nil || depth > 64 {
+		return depth <= 64
+	}
+	visit := func(name string, childValue any) bool {
+		var childActive []string
+		if len(active) > 0 && name == active[0] {
+			if len(active) == 1 {
+				return true
+			}
+			childActive = active[1:]
+		}
+		if child := childSchema(s, name, value); child != nil {
+			return queryShape(child, childValue, childActive, depth+1)
+		}
+		allowed, closed := s.AdditionalProperties.(bool)
+		return !closed || allowed
+	}
+	switch v := value.(type) {
+	case map[string]any:
+		for name, child := range v {
+			if !visit(name, child) {
+				return false
+			}
+		}
+	case []any:
+		for i, child := range v {
+			if !visit(fmt.Sprint(i), child) {
+				return false
+			}
+		}
+	}
+	if !queryShape(s.Ref, value, active, depth+1) {
+		return false
+	}
+	for _, child := range s.AllOf {
+		if !queryShape(child, value, active, depth+1) {
+			return false
+		}
+	}
+	for _, alternatives := range [][]*schema.Schema{s.AnyOf, s.OneOf} {
+		if len(alternatives) == 0 {
+			continue
+		}
+		possible := false
+		for _, child := range alternatives {
+			if queryShape(child, value, active, depth+1) {
+				possible = true
+				break
+			}
+		}
+		if !possible {
+			return false
+		}
+	}
+	return true
+}
+
 func branchPossible(s *schema.Schema, value any, ignore string, depth int) bool {
 	if s == nil || depth > 64 {
 		return depth <= 64
@@ -123,7 +205,7 @@ func queryAt(doc Document, parts []string) []queryFacet {
 				}
 			}
 		}
-		facets = next
+		facets = uniqueFacets(next)
 		value = valueAt(value, []string{part})
 	}
 	result := []queryFacet{}
@@ -132,6 +214,22 @@ func queryAt(doc Document, parts []string) []queryFacet {
 	}
 	if budget < 0 {
 		return nil
+	}
+	return uniqueFacets(result)
+}
+
+// Shared compatibility nodes are visited once per path. Their constraints are
+// still validated in their original whole-release branches.
+func uniqueFacets(facets []queryFacet) []queryFacet {
+	result := []queryFacet{}
+	seen := map[*schema.Schema]int{}
+	for _, f := range facets {
+		if index, ok := seen[f.schema]; ok {
+			result[index].candidate = result[index].candidate || f.candidate
+			continue
+		}
+		seen[f.schema] = len(result)
+		result = append(result, f)
 	}
 	return result
 }
@@ -197,6 +295,7 @@ func queryType(facets []queryFacet) string {
 	return strings.Join(names, " | ")
 }
 func fieldCompletions(doc Document, parent []string, prefix string, r Range, suffix string, current string) []Completion {
+	doc = automaticQueryDocument(doc, appendPath(parent, current))
 	result := []Completion{}
 	fields := map[string][]queryFacet{}
 	existing := object(valueAt(doc.Value, parent))
@@ -351,6 +450,7 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 }
 
 func schemaHoverText(doc Document, parts []string) string {
+	doc = automaticQueryDocument(doc, parts)
 	facets := queryAt(doc, parts)
 	if len(facets) == 0 {
 		return ""

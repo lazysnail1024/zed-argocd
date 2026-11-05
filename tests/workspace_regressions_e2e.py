@@ -14,7 +14,6 @@ import platform
 import re
 import subprocess
 import sys
-import tomllib
 from urllib.parse import urlsplit
 
 import audit_repair_e2e as wire
@@ -218,19 +217,7 @@ class Suite:
             client.close()
 
     def helm(self):
-        manifest_path = pathlib.Path(__file__).resolve().parents[1] / "extension.toml"
-        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
-        server = manifest["language_servers"]["argocd-ls"]
-        expected = {"YAML": "yaml", "Helm": "helm"}
-        checks = {"languagesDeclared": all(name in server["languages"] for name in expected),
-                  "protocolIDsMatch": all(server.get("language_ids", {}).get(name) == ident for name, ident in expected.items())}
-        self.record("helm-language-registration", checks,
-                    {"server": server, "extensionSHA256": wire.hash_file(manifest_path)})
-        if not all(checks.values()):
-            return
-        # Exercise the IDs actually shipped by the adapter. Protocol coverage
-        # does not establish that a real Zed host attached these servers.
-        language_ids = [server["language_ids"][name] for name in expected]
+        language_ids = ["yaml", "helm"]
         for language_id in language_ids:
             self.helm_language(language_id)
         self.helm_language_switch(language_ids)

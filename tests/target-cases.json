@@ -49,5 +49,62 @@
       "scope": "root",
       "complete": true
     }
+  },
+  {
+    "id": "oldest-supported",
+    "args": [
+      "check",
+      "--target-version",
+      "2.0.0",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "complete": true,
+    "configurationCodes": [],
+    "target": {
+      "version": "2.0.0",
+      "source": "override",
+      "scope": "root",
+      "complete": true
+    }
+  },
+  {
+    "id": "latest-supported",
+    "args": [
+      "check",
+      "--target-version",
+      "3.6.1",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "complete": true,
+    "configurationCodes": [],
+    "target": {
+      "version": "3.6.1",
+      "source": "override",
+      "scope": "root",
+      "complete": true
+    }
+  },
+  {
+    "id": "explicit-auto",
+    "args": [
+      "check",
+      "--target-version",
+      "auto",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "complete": true,
+    "configurationCodes": [],
+    "target": {
+      "version": "auto",
+      "source": "override",
+      "scope": "root",
+      "complete": true
+    }
   }
 ]

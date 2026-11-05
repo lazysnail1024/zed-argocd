@@ -134,7 +134,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 				emit(appendPath(parts, "ref"), "CD_VALUES_REF_INVALID", 1, "Source ref cannot contain a path or be combined with chart")
 			}
 			count := 0
-			for _, name := range []string{"helm", "kustomize", "directory", "plugin"} {
+			for _, name := range []string{"helm", "kustomize", "ksonnet", "directory", "plugin"} {
 				if v, exists := src[name]; exists && v != nil {
 					count++
 				}

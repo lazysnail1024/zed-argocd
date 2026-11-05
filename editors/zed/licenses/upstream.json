@@ -1,0 +1,239 @@
+{
+  "auditable-serde-0.8.0": {
+    "commit": "ceb4475d237b0296a3ddb946e0337fb658743ccc",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/cargo-auditable/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/rust-secure-code/cargo-auditable/ceb4475d237b0296a3ddb946e0337fb658743ccc/LICENSE-APACHE"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/cargo-auditable/LICENSE-MIT",
+        "sha256": "e3a8938c0304a5d418b6f7453c2f60fd6b590d486c798879063373e3acc94bf1",
+        "url": "https://raw.githubusercontent.com/rust-secure-code/cargo-auditable/ceb4475d237b0296a3ddb946e0337fb658743ccc/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "auditable-serde",
+    "repository": "https://github.com/rust-secure-code/cargo-auditable"
+  },
+  "wasm-encoder-0.227.1": {
+    "commit": "3b3e1ac6c309c807a956ffffb8276a621a0a50fa",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/wasm-encoder",
+    "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder"
+  },
+  "wasm-metadata-0.227.1": {
+    "commit": "3b3e1ac6c309c807a956ffffb8276a621a0a50fa",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/wasm-metadata",
+    "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-metadata"
+  },
+  "wasmparser-0.227.1": {
+    "commit": "3b3e1ac6c309c807a956ffffb8276a621a0a50fa",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/wasmparser",
+    "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser"
+  },
+  "wit-bindgen-0.41.0": {
+    "commit": "d8994a329a74f6eb96c080b42765e42af6ef5be6",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/guest-rust",
+    "repository": "https://github.com/bytecodealliance/wit-bindgen"
+  },
+  "wit-bindgen-core-0.41.0": {
+    "commit": "d8994a329a74f6eb96c080b42765e42af6ef5be6",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/core",
+    "repository": "https://github.com/bytecodealliance/wit-bindgen"
+  },
+  "wit-bindgen-rt-0.41.0": {
+    "commit": "d8994a329a74f6eb96c080b42765e42af6ef5be6",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/guest-rust/rt",
+    "repository": "https://github.com/bytecodealliance/wit-bindgen"
+  },
+  "wit-bindgen-rust-0.41.0": {
+    "commit": "d8994a329a74f6eb96c080b42765e42af6ef5be6",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/rust",
+    "repository": "https://github.com/bytecodealliance/wit-bindgen"
+  },
+  "wit-bindgen-rust-macro-0.41.0": {
+    "commit": "d8994a329a74f6eb96c080b42765e42af6ef5be6",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wit-bindgen/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wit-bindgen/d8994a329a74f6eb96c080b42765e42af6ef5be6/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/guest-rust/macro",
+    "repository": "https://github.com/bytecodealliance/wit-bindgen"
+  },
+  "wit-component-0.227.1": {
+    "commit": "3b3e1ac6c309c807a956ffffb8276a621a0a50fa",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/wit-component",
+    "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-component"
+  },
+  "wit-parser-0.227.1": {
+    "commit": "3b3e1ac6c309c807a956ffffb8276a621a0a50fa",
+    "files": {
+      "LICENSE-APACHE": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-APACHE"
+      },
+      "LICENSE-Apache-2.0_WITH_LLVM-exception": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-Apache-2.0_WITH_LLVM-exception",
+        "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-Apache-2.0_WITH_LLVM-exception"
+      },
+      "LICENSE-MIT": {
+        "path": "licenses/upstream/wasm-tools/LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+        "url": "https://raw.githubusercontent.com/bytecodealliance/wasm-tools/3b3e1ac6c309c807a956ffffb8276a621a0a50fa/LICENSE-MIT"
+      }
+    },
+    "pathInVcs": "crates/wit-parser",
+    "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wit-parser"
+  }
+}

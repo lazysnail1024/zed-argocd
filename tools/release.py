@@ -10,19 +10,18 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import tomllib
 import zipfile
 
 from native import ROOT, PLATFORMS, canonical, content, digest
 
 
 def version_matches(version):
-    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
-        raise ValueError("Release version must be a stable semantic version")
-    cargo = tomllib.loads(content(ROOT / "Cargo.toml").decode())
-    extension = tomllib.loads(content(ROOT / "extension.toml").decode())
-    if cargo["package"]["version"] != version or extension["version"] != version:
-        raise ValueError("Release version must match Cargo.toml and extension.toml")
+    # Prereleases use an explicit channel and a numeric revision. The server
+    # version is independent of every editor adapter's package manifest.
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.(?:0|[1-9][0-9]*))?", version):
+        raise ValueError("Release version must be a stable semantic version or alpha/beta/rc prerelease")
+    if content(ROOT / "VERSION").decode().strip() != version:
+        raise ValueError("Release version must match the LSP VERSION file")
 
 
 def clean_source(commit):
@@ -206,7 +205,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     tag = sub.add_parser("version")
-    tag.add_argument("--tag", required=True)
+    tag.add_argument("--tag")
+    tag.add_argument("--requested-version", default="")
     tag.add_argument("--source-commit", required=True)
     for name in ("stage", "collect"):
         command = sub.add_parser(name)
@@ -217,11 +217,16 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "version":
-            if not args.tag.startswith("v"):
-                raise ValueError("Release tag must start with v")
-            version_matches(args.tag[1:])
+            version = content(ROOT / "VERSION").decode().strip()
+            if args.tag is not None:
+                if not args.tag.startswith("v"):
+                    raise ValueError("Release tag must start with v")
+                version_matches(args.tag[1:])
+            version_matches(version)
+            if args.requested_version and args.requested_version != version:
+                raise ValueError("Requested release version must match VERSION")
             clean_source(args.source_commit)
-            print("version=" + args.tag[1:])
+            print("version=" + version)
         elif args.command == "stage":
             print(json.dumps(stage_assets(args.manifest, args.output, args.version, args.source_commit)))
         else:

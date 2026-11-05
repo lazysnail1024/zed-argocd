@@ -10,6 +10,7 @@ def audit_consumers(platform):
  # deliberately broken variants. Other platforms still exercise native behavior.
  full_catalog=platform=='linux/amd64'
  cases=[
+  ('multi-version-compatibility','multi_version_e2e.py',[] if full_catalog else ['--representatives'],600),
   ('lsp-lifecycle','lsp_e2e.py',[],90),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
@@ -36,7 +37,7 @@ def accepted():
 
 def configure(argv=None):
  global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable release build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
  expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.

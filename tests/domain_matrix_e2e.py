@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Independent full-diagnostic CLI matrix for every pinned patch; no production imports."""
+"""Historical source-audited domain matrix; current CRD inventory uses multi_version_e2e.py."""
 import argparse,collections,concurrent.futures,hashlib,json,os,pathlib,subprocess,sys,shutil
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser();parser.add_argument('binary');parser.add_argument('--versions',nargs='*');parser.add_argument('--output',default=str(ROOT/'artifacts/domain-matrix/cli'));parser.add_argument('--timeout-seconds',type=float,default=20);args=parser.parse_args()
 BINARY=pathlib.Path(args.binary).resolve();OUT=pathlib.Path(args.output).resolve();OUT.mkdir(parents=True,exist_ok=True)
-catalog=json.loads((ROOT/'compat/catalog.lock.json').read_text());sources=json.loads((ROOT/'compat/local-rules-sources.json').read_text());cases=json.loads((ROOT/'tests/domain-matrix-cases.json').read_text())['cases'];versions=[v for v in catalog['versions'] if not args.versions or v['version'] in args.versions]
+catalog=json.loads((ROOT/'compat/catalog.lock.json').read_text());sources=json.loads((ROOT/'compat/local-rules-sources.json').read_text());cases=json.loads((ROOT/'tests/domain-matrix-cases.json').read_text())['cases'];versions=[v for v in catalog['versions'] if v['version'] in sources['versions'] and (not args.versions or v['version'] in args.versions)]
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
 for source in [pathlib.Path(__file__), ROOT/'tests/domain-matrix-cases.json', ROOT/'compat/local-rules-sources.json']:
  (OUT/source.name).write_bytes(source.read_bytes())
 selectionError=None
 if args.versions==[] or not versions or not cases:selectionError='Selection must contain at least one known version and scenario'
-if args.versions and set(args.versions)-{v['version'] for v in versions}:selectionError='Selection contains unknown target versions'
+if args.versions and set(args.versions)-{v['version'] for v in versions}:selectionError='Selection contains versions without historical controller-source evidence; run multi_version_e2e.py for the current CRD inventory'
 if args.timeout_seconds<=0:selectionError='Process timeout must be positive'
 
-def expected(case,version):return case['expected35'] if version in ['3.5.0','3.5.1','3.5.2','3.5.3','3.5.4','3.5.5','3.5.6'] and case['expected35'] is not None else case['expected']
+def expected(case,version):return case['expected35'] if tuple(map(int,version.split('.'))) >= (3,5,0) and case['expected35'] is not None else case['expected']
 def run(pair):
  version,case=pair;out=OUT/version['version']/case['id'];root=out/'workspace'
  if root.exists():shutil.rmtree(root)

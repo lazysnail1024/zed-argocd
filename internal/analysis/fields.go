@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/edit"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
+	schema "github.com/santhosh-tekuri/jsonschema/v6"
 	"sigs.k8s.io/yaml"
 	"sort"
 	"strings"
@@ -24,6 +25,9 @@ func UnknownFields(doc Document) []Field {
 	fields := []Field{}
 	var visit func(any, map[string]any, []string)
 	visit = func(value any, schema map[string]any, path []string) {
+		if doc.Target == "auto" {
+			schema = autoFieldSchema(doc, path)
+		}
 		if preserve, _ := schema["x-kubernetes-preserve-unknown-fields"].(bool); preserve {
 			return
 		}
@@ -73,6 +77,40 @@ func UnknownFields(doc Document) []Field {
 	sort.SliceStable(fields, func(i, j int) bool { return strings.Join(fields[i].Path, "/") < strings.Join(fields[j].Path, "/") })
 	return fields
 }
+
+// Auto queries use all covered schema branches. The map here contains names
+// only; constraints and references are interpreted by the compiled validator.
+func autoFieldSchema(doc Document, path []string) map[string]any {
+	properties := map[string]any{}
+	result := map[string]any{"properties": properties}
+	for _, facet := range queryAt(doc, path) {
+		node := facet.schema
+		for name := range node.Properties {
+			properties[name] = map[string]any{}
+		}
+		switch additional := node.AdditionalProperties.(type) {
+		case bool:
+			if additional {
+				result["additionalProperties"] = true
+			}
+		case *schema.Schema:
+			if result["additionalProperties"] != true {
+				result["additionalProperties"] = map[string]any{}
+			}
+		}
+		// A genuine unconstrained object is open; reference/composition wrappers
+		// do not make an otherwise structured object open.
+		if node.Types != nil && len(node.Properties) == 0 && node.Ref == nil && len(node.AllOf)+len(node.AnyOf)+len(node.OneOf) == 0 && node.AdditionalProperties == nil {
+			for _, name := range node.Types.ToStrings() {
+				if name == "object" {
+					result["additionalProperties"] = true
+				}
+			}
+		}
+	}
+	return result
+}
+
 func fieldCandidates(doc Document) []Fix {
 	fixes := []Fix{}
 	for _, field := range UnknownFields(doc) {
