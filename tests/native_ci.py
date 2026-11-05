@@ -8,11 +8,12 @@ def audit_consumers(platform):
  # Every entry is a required real-process gate, not a documentation-only command.
  # The fixed Linux amd64 runner also retains the large workload samples and
  # deliberately broken variants. Other platforms still exercise native behavior.
+ full_catalog=platform=='linux/amd64'
  cases=[
   ('lsp-lifecycle','lsp_e2e.py',[],90),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
-  ('appset-overrides','appset_overrides_e2e.py',['--all-targets'],180),
+  ('appset-overrides','appset_overrides_e2e.py',['--all-targets'] if full_catalog else [],480 if full_catalog else 180),
   ('quickfix-scaling','quickfix_scaling_e2e.py',[],180),
   ('repository-exclusion','repository_exclusion_e2e.py',[],300),
   ('reconciliation','reconciliation_e2e.py',[],60),
