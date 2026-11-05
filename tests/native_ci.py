@@ -36,7 +36,7 @@ def accepted():
 
 def configure(argv=None):
  global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable release build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
  expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.
@@ -124,8 +124,10 @@ def main():
   status=subprocess.run(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT,capture_output=True)
   if status.returncode!=0:raise RuntimeError('Cannot independently observe Git status')
   (out/'git-head.stdout').write_bytes(head.stdout);(out/'git-head.stderr').write_bytes(head.stderr);(out/'git-status.stdout').write_bytes(status.stdout);(out/'git-status.stderr').write_bytes(status.stderr)
-  expected={'sourceCommit':commit,'dirty':commit is None or bool(status.stdout),'buildMode':'development'}
+  mode='release' if a.release_version else 'development'
+  expected={'sourceCommit':commit,'dirty':commit is None or bool(status.stdout),'buildMode':mode}
   args=[sys.executable,str(ROOT/'tools/native.py'),'build','--output',str(out/'build'),'--platform',a.platform]
+  if a.release_version:args+=['--mode','release','--version',a.release_version]
   if a.source_commit:args+=['--source-commit',a.source_commit]
   if not run('build',args):raise RuntimeError('native build failed')
   manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
@@ -136,7 +138,7 @@ def main():
   run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900)
   run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
   run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
-  run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode','development'])
+  run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode',mode])
   run('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')])
   run('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'])
   run('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')])

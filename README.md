@@ -2,28 +2,47 @@
 
 Offline YAML support for Argo CD `Application`, `AppProject`, and `ApplicationSet`: schema diagnostics, field completion and hover, local navigation and references, and limited safe edits. It does not connect to a cluster or deploy, sync, or execute generators.
 
-**Install a precompiled development bundle with Zed's Install Dev Extension command.** There is no registry installation or hosted release download yet.
+**Store publication is pending.** The Rust adapter now downloads a version-pinned native server through the Zed Extension API, or uses a user-provided executable. It contains no native server payload. The first pinned `v0.1.0` GitHub Release, real Zed acceptance, and the extension-registry review are still required. The [release checklist](docs/store-distribution.md) records the outstanding conditions.
 
 ## Install
 
-Download the development ZIP from a successful [Native candidate workflow run](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml), inside the matching `argocd-native-<platform>` artifact under `dev-bundle/`. Only runs containing that directory provide the new bundle; older native-only artifacts do not. GitHub may require sign-in for workflow artifacts. Use the ZIP for your operating system and CPU architecture. The native language server is already compiled; no Go or C compiler and no `serverPath` setting are required.
+### Precompiled developer package
 
-1. Unzip the bundle into a permanent directory.
-2. Install Rust through **rustup** and make it available to Zed. The bundle pins Rust **1.99.1** and `wasm32-wasip2`; initial toolchain and locked Cargo dependency downloads require network access.
-3. Open Zed's Extensions page, choose **Install Dev Extension** (or run `zed: install dev extension`), and select the extracted `zed-argocd-dev-<platform>` folder containing `extension.toml`.
-4. Keep that folder in place and open a YAML project. Zed compiles the small Rust adapter automatically, then the adapter installs and verifies its embedded native server in Zed's extension work directory.
+Until the first native Release is published, use a development ZIP from a successful [Native candidate workflow run](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml). Find `dev-bundle/` inside the matching `argocd-native-<platform>` artifact. Only a completed run for the current commit provides this layout; older artifacts may still use the retired embedded-server layout. GitHub may require sign-in for workflow artifacts.
 
-Keep Zed's YAML language support enabled. Remove any old `lsp.argocd-ls.settings.serverPath` override to use the bundle: an explicit override takes priority and an invalid override fails startup. Choose the bundle matching your operating system and CPU architecture. The native server needs no runtime downloads.
+The ZIP contains an adapter-only `extension/` folder and a separate, already compiled `server/` folder with its licenses and provenance. No Go or C compiler is needed to consume this package.
 
-To upgrade, obtain a newer verified bundle for the same platform, extract it into a
-new directory, and select that directory with **Install Dev Extension**. Restart
-Zed, then check the server identity and a YAML diagnostic. Keep the previous
-verified ZIP and extracted directory: to roll back, select the previous directory
-with the same command and restart. The adapter checks cached native bytes against
-the selected bundle and restores its exact payload. Remove obsolete `serverPath`
-overrides when using bundled delivery; an invalid override intentionally blocks
-startup instead of falling back. This procedure still needs real Zed acceptance
-on each claimed consumer platform.
+1. Unzip the package into a permanent directory, preserving both folders.
+2. Install Rust through **rustup** and make it available to Zed. The adapter pins Rust **1.99.1** and `wasm32-wasip2`; the first toolchain and locked Cargo dependency downloads require network access.
+3. Merge `settings.example.json` into your Zed settings, replacing its example `lsp.argocd-ls.settings.serverPath` with the **absolute** path to `server/argocd-ls` (`server/argocd-ls.exe` on Windows).
+4. Choose **Install Dev Extension** on Zed's Extensions page, or run `zed: install dev extension`, and select the extracted **`extension/`** directory containing `extension.toml`.
+5. Keep both folders in place and open a YAML project. Zed builds the Rust adapter, then the adapter checks the configured server's product, contract and readiness before starting it.
+
+For example:
+
+```json
+{
+  "lsp": {
+    "argocd-ls": {
+      "settings": {
+        "serverPath": "/absolute/path/to/zed-argocd-dev-linux-amd64/server/argocd-ls"
+      }
+    }
+  }
+}
+```
+
+Windows paths may use `C:/tools/zed-argocd-dev-windows-amd64/server/argocd-ls.exe`. Keep Zed's YAML language support enabled. An explicit invalid `serverPath` stops startup and reports an error; it is never silently ignored.
+
+### Managed native server
+
+The source adapter's selection order is `settings.serverPath`, `argocd-ls` on the worktree's shell `PATH`, then the pinned GitHub Release. A local executable must pass the adapter identity checks. Managed downloads additionally require a clean release with the exact pinned server version.
+
+With no local executable configured, this adapter selects **`v0.1.0`** and its Linux amd64/arm64, macOS amd64/arm64, or Windows amd64 asset. It uses Zed's `download_file` API for both `SHA256SUMS` and the executable, checks the exact asset's SHA-256 **before any execution**, and verifies server identity before activating the cache. A missing Release or asset is an installation error. As of the 2026-11-05 implementation review, that first Release has not been published, so use the developer `serverPath` installation above until it is available.
+
+After a successful installation, startup revalidates cached bytes and identity without any network request. An offline first installation needs an executable installed through `serverPath` or `PATH`. A damaged or incomplete managed cache requires a successful re-download; unverifiable bytes never run. Checksums obtained from the same HTTPS Release detect corrupted or mismatched downloads; they are not an independent publisher signature.
+
+Managed upgrades occur when an extension update changes the pinned version. Each version and platform gets its own cache directory. Failed downloads, checksum checks, permissions or identity checks leave previous versions intact and report an error; the new adapter does not silently select an older version. To roll back, install the previous adapter version or explicitly select a compatible known-good server. Old version caches are retained for rollback. For developer ZIP upgrades, extract into a new directory, update `serverPath`, select its `extension/` directory, restart Zed and verify a YAML diagnostic before removing the previous package.
 
 Source-checkout installation and contributor overrides are described in [Development](DEVELOPMENT.md). See also [Zed's development-extension instructions](https://zed.dev/docs/extensions/developing-extensions).
 
@@ -62,7 +81,8 @@ Without a pin, the current catalog defaults to **3.5.6**. It contains 88 verifie
 
 ## Verify and troubleshoot
 
-- If startup fails, run the bundled native server or your configured override executable with `version --json` and check its identity, readiness, execution permissions, and absolute path.
+- If startup fails, run your configured `server/argocd-ls` (`argocd-ls.exe` on Windows) or managed cached executable with `version --json` and check its identity, readiness, execution permissions, and absolute path. Confirm an old `serverPath` or shell `PATH` entry is not selecting a different server.
+- For a managed download failure, check that the pinned Release and platform asset exist and Zed allows the download and identity-process capabilities. Restore network access and restart the language server to retry. Close Zed before manually inspecting or removing a broken cache slot; a valid cache needs no network.
 - For extension compilation or startup errors, run `zed: open log`. Check that rustup and the pinned toolchain are available to Zed. [Zed documents additional logging](https://zed.dev/docs/extensions/developing-extensions).
 - If no Argo features appear, confirm the file is in YAML mode and the `argocd-ls` server has not been disabled in language settings. Keep the general YAML server enabled as well.
 - If configuration is rejected, use `explain-config` below and remove unsupported target overrides. Existing YAML schema associations can cause duplicate diagnostics; this extension does not modify them.
@@ -72,12 +92,12 @@ Without a pin, the current catalog defaults to **3.5.6**. It contains 88 verifie
 Run from the extracted bundle folder, replacing `/path/to/project` with your YAML project:
 
 ```sh
-./native/server.bin explain-config --root /path/to/project
-./native/server.bin check --root /path/to/project --target-version 3.0.0 --format json
-./native/server.bin check --help
+./server/argocd-ls explain-config --root /path/to/project
+./server/argocd-ls check --root /path/to/project --target-version 3.0.0 --format json
+./server/argocd-ls check --help
 ```
 
-On Windows, copy `native/server.bin` to a path ending in `.exe` before invoking it directly.
+On Windows, invoke `server/argocd-ls.exe` directly.
 
 Checks exit **0** when complete without errors, **1** for diagnostic errors (also warnings with `--warnings-as-errors`), **2** for configuration/input/analysis incompleteness, and **3** for cancellation or deadline. `analysisComplete` describes the particular check; `analysisReady` describes the server's local editing contract.
 
@@ -85,13 +105,13 @@ Checks exit **0** when complete without errors, **1** for diagnostic errors (als
 
 Analysis is local and static. Controller behavior, generator/template execution, dynamic or controller-specific patch effects, hydration, value-file expansion, and complex policy/RBAC evaluation are outside its scope. Ambiguous or derived YAML locations do not receive guessed edits. Analysis has a five-second budget, fixed text budgets, and bounded alias expansion; refused input is incomplete rather than silently accepted.
 
-Development installation is the available delivery mode. Native CLI/LSP CI covers Linux amd64/arm64, macOS amd64/arm64, and Windows amd64; this does not establish real Zed GUI acceptance on all platforms or minimum supported OS versions. Signed release artifacts and registry delivery remain unavailable. Contributor builds, packaging, tests, and provenance are in [Development](DEVELOPMENT.md).
+Development installation remains the available delivery mode until the release and registry checklist is completed. Native CLI/LSP CI is configured for Linux amd64/arm64, macOS amd64/arm64, and Windows amd64; it does not establish real Zed GUI acceptance or minimum supported OS versions. All five platforms still require editor acceptance for this installer. No signed native artifacts or completed store publication are claimed. Contributor builds, packaging, tests, and provenance are in [Development](DEVELOPMENT.md).
 
 ## License and acknowledgments
 
 Original code and documentation are [MIT licensed](LICENSE). Third-party licenses and copyright notices remain applicable.
 
-Thanks to [k8s-crd-toolkit](https://github.com/lazysnail1024/k8s-crd-toolkit) (MIT), [zed_extension_api](https://github.com/zed-industries/zed/tree/main/crates/extension_api) (Apache-2.0), [serde](https://github.com/serde-rs/serde) and [serde_json](https://github.com/serde-rs/json) (MIT OR Apache-2.0), [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) (see its vendored license), [yaml.v3](https://github.com/go-yaml/yaml) (MIT/Apache-2.0), [glsp](https://github.com/tliron/glsp) and [jsonschema/v6](https://github.com/santhosh-tekuri/jsonschema) (Apache-2.0). Exact dependencies are recorded in `go.mod`, `go.sum`, and `Cargo.lock`.
+Thanks to [k8s-crd-toolkit](https://github.com/lazysnail1024/k8s-crd-toolkit) (MIT), [zed_extension_api](https://github.com/zed-industries/zed/tree/main/crates/extension_api) (Apache-2.0), [serde](https://github.com/serde-rs/serde), [serde_json](https://github.com/serde-rs/json), and [sha2](https://github.com/RustCrypto/hashes) (MIT OR Apache-2.0), [sigs.k8s.io/yaml](https://github.com/kubernetes-sigs/yaml) (see its vendored license), [yaml.v3](https://github.com/go-yaml/yaml) (MIT/Apache-2.0), [glsp](https://github.com/tliron/glsp) and [jsonschema/v6](https://github.com/santhosh-tekuri/jsonschema) (Apache-2.0). Exact dependencies are recorded in `go.mod`, `go.sum`, and `Cargo.lock`.
 
 [Argo CD](https://github.com/argoproj/argo-cd) supplies the Apache-2.0 CRDs pinned in `compat/catalog.lock.json`. Raw assets retain upstream bytes; embedded schemas are extracted and normalized derivatives. [PyYAML](https://github.com/yaml/pyyaml) (MIT) is used during asset generation. Tree-sitter, go-pointer, and the YAML grammar retain their MIT notices; the Tree-sitter Unicode license is retained separately. Distribution must include the licenses and applicable notices for the actual bundled components.
 

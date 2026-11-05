@@ -2,6 +2,13 @@ name: Native candidate build and behavior
 on:
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_version:
+        description: Stable server version for a clean tagged release build
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -61,15 +68,30 @@ jobs:
         with:
           python-version: '3.14.0'
       - name: Build, package and execute actual native consumers
-        run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}"
+        run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}" --release-version "${{ inputs.release_version }}"
       - name: Prepare pinned Rust adapter toolchain
         run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-wasip2
+      - name: Test the production installer and offline recovery
+        run: cargo test --locked
       - name: Build and verify the development bundle
         run: python tests/dev_bundle_e2e.py --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/dev-bundle-e2e
       - name: Produce installable development bundle
         run: python tools/dev_bundle.py --manifest artifacts/native-ci/build/manifest.json --platform "${{ matrix.platform }}" --output artifacts/native-ci/dev-bundle
-      - name: Build the actual bundled adapter
-        run: cargo build --locked --release --target wasm32-wasip2 --manifest-path artifacts/native-ci/dev-bundle/zed-argocd-dev-${{ matrix.bundle }}/Cargo.toml
+      - name: Build the actual adapter without native payload
+        run: cargo build --locked --release --target wasm32-wasip2 --manifest-path artifacts/native-ci/dev-bundle/zed-argocd-dev-${{ matrix.bundle }}/extension/Cargo.toml
+      - name: Test release staging and complete-platform aggregation
+        run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e
+      - name: Stage verified release assets
+        if: ${{ inputs.release_version != '' }}
+        run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ inputs.release_version }}" --source-commit "${{ github.sha }}"
+      - name: Retain per-platform release assets
+        if: ${{ inputs.release_version != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: argocd-release-${{ matrix.bundle }}
+          path: artifacts/native-ci/release-assets/
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain successful and failed native evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
