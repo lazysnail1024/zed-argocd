@@ -22,11 +22,6 @@ commit and publishes the checked artifacts. Matching version-tag pushes and
 manual runs on `main` or that exact tag are also supported. Existing tags are
 never moved, and an existing release or draft stops publication.
 
-A change to `.github/workflows/release.yml` on `main` also retries the native
-pipeline, so a publication-workflow repair can complete an unpublished version.
-It still runs every gate and refuses an existing release, draft, or tag pointing
-at another commit; this retry path never replaces already published artifacts.
-
 The Zed publication step checks its committed `native-server-version` pin before
 creating a tag or publishing a ZIP. The native release must already be published
 and contain `SHA256SUMS` plus raw executables for Linux amd64/arm64, macOS
