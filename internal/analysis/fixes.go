@@ -10,20 +10,16 @@ import (
 	"strings"
 )
 
-func FixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span) []Fix {
-	return fixesInRange(ctx, doc, scope, options, span, nil, false)
-}
-
 // FixCandidatesInRange defers Project replacement validation until selection.
 func FixCandidatesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span) []Fix {
-	return fixesInRange(ctx, doc, scope, options, span, nil, true)
+	return fixesInRange(ctx, doc, scope, options, span, nil)
 }
 
 func ResolveFix(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, code, text string) []Fix {
-	return fixesInRange(ctx, doc, scope, options, span, &Fix{Code: code, Plan: edit.Plan{Replacements: []edit.Replacement{{NewText: text}}}}, false)
+	return fixesInRange(ctx, doc, scope, options, span, &Fix{Code: code, Plan: edit.Plan{Replacements: []edit.Replacement{{NewText: text}}}})
 }
 
-func fixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, selected *Fix, deferred bool) []Fix {
+func fixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, selected *Fix) []Fix {
 	options.Context = ctx
 	out := []Fix{}
 	if !options.Complete || ctx.Err() != nil || doc.Root.Span().Start > span.End || doc.Root.Span().End < span.Start {
@@ -48,7 +44,7 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 		if selected != nil && (selected.Code != code || selected.Plan.Replacements[0].NewText != string(b)) {
 			return
 		}
-		if (deferred && code == "FIX_REFERENCE_CANDIDATE") || safeScopePlan(ctx, doc, scope, options, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
+		if (selected == nil && code == "FIX_REFERENCE_CANDIDATE") || safeScopePlan(ctx, doc, scope, options, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
 			out = append(out, Fix{code, title, plan})
 		}
 	}

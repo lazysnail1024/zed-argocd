@@ -48,7 +48,6 @@ type Document struct {
 type Result struct {
 	Documents   []Document
 	Diagnostics []Diagnostic
-	Resources   int
 	Incomplete  bool
 }
 
@@ -104,9 +103,6 @@ func (a *Analyzer) ReuseSchemas(documents []Document) {
 	}
 }
 
-func Analyze(ctx context.Context, s source.Snapshot, target string) (Result, error) {
-	return new(Analyzer).Analyze(ctx, s, target)
-}
 func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string) (Result, error) {
 	result := Result{Diagnostics: []Diagnostic{}}
 	view, err := yamlview.Parse(ctx, s)
@@ -220,8 +216,6 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 				switch e.ErrorKind.(type) {
 				case *kind.Type:
 					code = "SCHEMA_TYPE"
-				case *kind.Required:
-					code = "SCHEMA_REQUIRED"
 				}
 				node := document.location(e.InstanceLocation)
 				emit(node, code, document.locationMessage(e.InstanceLocation, e.Error()))
@@ -231,7 +225,6 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		result.Resources++
 	}
 	return result, nil
 }

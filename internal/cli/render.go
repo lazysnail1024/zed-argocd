@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
@@ -99,7 +100,7 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 			reason = "RENDER_DEADLINE_EXCEEDED"
 		}
 		catalogHash := assets.CatalogHash()
-		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: inputSource, ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []any{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: e.Error()}}}
+		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: inputSource, ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: e.Error()}}}
 		if *format == "json" {
 			if writeErr := json.NewEncoder(out).Encode(report); writeErr != nil {
 				fmt.Fprintln(errOut, writeErr)
@@ -190,16 +191,7 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 	}
 	env := append(os.Environ(), "HELM_CACHE_HOME="+filepath.Join(temp, "cache"), "HELM_CONFIG_HOME="+filepath.Join(temp, "config"), "HELM_DATA_HOME="+filepath.Join(temp, "data"))
 	var binaryHash string
-	var toolPrepared bool
 	run := func(arguments []string) ([]byte, []byte, int, error) {
-		if !toolPrepared {
-			var err error
-			binaryHash, err = rendererHash(ctx, *helm)
-			if err != nil {
-				return nil, nil, -1, err
-			}
-			toolPrepared = true
-		}
 		commandCtx, stop := context.WithCancel(ctx)
 		defer stop()
 		cmd := exec.CommandContext(commandCtx, *helm, arguments...)
@@ -246,7 +238,7 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 			}
 		}
 		catalogHash := assets.CatalogHash()
-		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "helm-generated", ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []any{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: commandErr.Error()}}, Renderer: &RenderInfo{Binary: *helm, BinarySHA256: binaryHash, Command: append([]string{*helm}, arguments...), Stdout: string(stdout), Stderr: string(stderr), Exit: code}}
+		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "helm-generated", ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: commandErr.Error()}}, Renderer: &RenderInfo{Binary: *helm, BinarySHA256: binaryHash, Command: append([]string{*helm}, arguments...), Stdout: string(stdout), Stderr: string(stderr), Exit: code}}
 		if *format == "json" {
 			if writeErr := json.NewEncoder(out).Encode(report); writeErr != nil {
 				fmt.Fprintln(errOut, writeErr)
@@ -258,6 +250,10 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 		return exit
 	}
 	versionArgs := []string{"version", "--short"}
+	binaryHash, e = rendererHash(ctx, *helm)
+	if e != nil {
+		return renderFailure(versionArgs, nil, nil, -1, e)
+	}
 	versionBytes, versionStderr, versionCode, e := run(versionArgs)
 	if e != nil {
 		return renderFailure(versionArgs, versionBytes, versionStderr, versionCode, e)
@@ -298,27 +294,10 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 	if e = os.WriteFile(generated, rendered, 0644); e != nil {
 		return fail(e)
 	}
-	var checked bytes.Buffer
-	checkArgs := []string{"--root", outputPath, "--file", generated, "--target-version", input.Targets[0].Version, "--format", "json"}
-	if *warningsAsErrors {
-		checkArgs = append(checkArgs, "--warnings-as-errors")
-	}
-	exit := check(checkArgs, &checked, errOut)
-	var report Report
-	if e = json.Unmarshal(checked.Bytes(), &report); e != nil {
-		return fail(e)
-	}
+	report, exit := checkReport(outputPath, "", generated, input.Targets[0].Version, *warningsAsErrors)
 	report.Renderer = &RenderInfo{Binary: *helm, BinarySHA256: binaryHash, Version: version, Command: append([]string{*helm}, command...), ReleaseName: *release, Namespace: *namespace, KubeVersion: *kube, APIVersions: apis, Chart: chartPath, Values: valuesPath, Stdout: string(rendered), Stderr: string(stderr), Exit: code}
 	report.InputSource = "helm-generated"
-	if *format == "json" {
-		if e = json.NewEncoder(out).Encode(report); e != nil {
-			fmt.Fprintln(errOut, e)
-			if exit == 3 {
-				return 3
-			}
-			return 2
-		}
-	} else {
+	if *format == "human" {
 		if _, e = fmt.Fprintf(out, "Helm %s generated %s; analysisComplete=%v\n", version, generated, report.AnalysisComplete); e != nil {
 			fmt.Fprintln(errOut, e)
 			if exit == 3 {
@@ -326,17 +305,8 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 			}
 			return 2
 		}
-		for _, d := range report.Diagnostics {
-			if _, e = fmt.Fprintln(out, d); e != nil {
-				fmt.Fprintln(errOut, e)
-				if exit == 3 {
-					return 3
-				}
-				return 2
-			}
-		}
 	}
-	return exit
+	return writeReport(report, *format, out, errOut, exit)
 }
 
 // Renderer provenance is acquired once from a regular file before execution.

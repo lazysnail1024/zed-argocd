@@ -26,21 +26,21 @@ type ConfigError struct {
 }
 
 type Report struct {
-	Renderer            *RenderInfo        `json:"renderer,omitempty"`
-	ResourcesAnalyzed   int                `json:"resourcesAnalyzed"`
-	ReportSchemaVersion int                `json:"reportSchemaVersion"`
-	Product             string             `json:"product"`
-	ToolVersion         string             `json:"toolVersion"`
-	CatalogHash         *string            `json:"catalogHash"`
-	InputSource         string             `json:"inputSource"`
-	ValidationScope     string             `json:"validationScope"`
-	AnalysisComplete    bool               `json:"analysisComplete"`
-	NotEvaluated        []string           `json:"notEvaluated"`
-	FilesAnalyzed       int                `json:"filesAnalyzed"`
-	Targets             []workspace.Target `json:"targets"`
-	Diagnostics         []any              `json:"diagnostics"`
-	ConfigurationErrors []ConfigError      `json:"configurationErrors"`
-	ElapsedMilliseconds int64              `json:"elapsedMilliseconds"`
+	Renderer            *RenderInfo           `json:"renderer,omitempty"`
+	ResourcesAnalyzed   int                   `json:"resourcesAnalyzed"`
+	ReportSchemaVersion int                   `json:"reportSchemaVersion"`
+	Product             string                `json:"product"`
+	ToolVersion         string                `json:"toolVersion"`
+	CatalogHash         *string               `json:"catalogHash"`
+	InputSource         string                `json:"inputSource"`
+	ValidationScope     string                `json:"validationScope"`
+	AnalysisComplete    bool                  `json:"analysisComplete"`
+	NotEvaluated        []string              `json:"notEvaluated"`
+	FilesAnalyzed       int                   `json:"filesAnalyzed"`
+	Targets             []workspace.Target    `json:"targets"`
+	Diagnostics         []analysis.Diagnostic `json:"diagnostics"`
+	ConfigurationErrors []ConfigError         `json:"configurationErrors"`
+	ElapsedMilliseconds int64                 `json:"elapsedMilliseconds"`
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -96,7 +96,6 @@ func Run(args []string, out, errOut io.Writer) int {
 }
 
 func check(args []string, out, errOut io.Writer) int {
-	start := time.Now()
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	format := fs.String("format", "human", "json or human")
@@ -112,14 +111,19 @@ func check(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "format must be json or human")
 		return 2
 	}
+	report, exit := checkReport(*root, *scope, *file, *target, *warningsAsErrors)
+	return writeReport(report, *format, out, errOut, exit)
+}
 
+func checkReport(root, scope, file, target string, warningsAsErrors bool) (Report, int) {
+	start := time.Now()
 	catalogHash := assets.CatalogHash()
-	r := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "filesystem", ValidationScope: "local-editing-contract", NotEvaluated: []string{"controller-admission-and-runtime", "source-hydration", "helm-value-file-expansion", "template-function-availability", "templatePatch-effects", "controller-generators", "complex-project-policy", "CEL"}, Targets: []workspace.Target{}, Diagnostics: []any{}, ConfigurationErrors: []ConfigError{}}
+	r := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "filesystem", ValidationScope: "local-editing-contract", NotEvaluated: []string{"controller-admission-and-runtime", "source-hydration", "helm-value-file-expansion", "template-function-availability", "templatePatch-effects", "controller-generators", "complex-project-policy", "CEL"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{}}
 	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stopSignal()
 	ctx, cancel := context.WithTimeout(signalCtx, 5*time.Second)
 	defer cancel()
-	input, loadErr := workspace.Load(ctx, *root, *scope, *file, *target)
+	input, loadErr := workspace.Load(ctx, root, scope, file, target)
 	if loadErr != nil {
 		code := "INPUT_INCOMPLETE"
 		if e, ok := loadErr.(*workspace.Error); ok {
@@ -160,7 +164,7 @@ func check(args []string, out, errOut io.Writer) int {
 			if !result.Incomplete {
 				counts[0]++
 			}
-			counts[1] += result.Resources
+			counts[1] += len(result.Documents)
 			scopeCounts[f.Target.Scope] = counts
 			if f.Output {
 				for _, d := range result.Diagnostics {
@@ -174,12 +178,7 @@ func check(args []string, out, errOut io.Writer) int {
 			docs := documents[scope]
 			for _, d := range analysis.Domain(docs, analysis.DomainOptions{Context: ctx, LocalPaths: input.LocalPaths, ControlPlaneNamespace: input.Config.ControlPlaneNamespace, ReferencePolicy: input.Config.ReferencePolicy, Complete: input.Complete && !scopeIncomplete[scope]}) {
 				if outputs[d.URI] {
-					for _, target := range input.Targets {
-						if target.Scope == scope {
-							d.TargetID = target.ID
-							break
-						}
-					}
+					d.TargetID = target.ID
 					r.Diagnostics = append(r.Diagnostics, d)
 				}
 			}
@@ -203,9 +202,8 @@ func check(args []string, out, errOut io.Writer) int {
 	exit := 2
 	if r.AnalysisComplete {
 		exit = 0
-		for _, item := range r.Diagnostics {
-			d := item.(analysis.Diagnostic)
-			if d.Severity == 1 || (*warningsAsErrors && d.Severity == 2) {
+		for _, d := range r.Diagnostics {
+			if d.Severity == 1 || (warningsAsErrors && d.Severity == 2) {
 				exit = 1
 			}
 		}
@@ -226,8 +224,12 @@ func check(args []string, out, errOut io.Writer) int {
 		r.ConfigurationErrors = append(filtered, ConfigError{Code: code, Message: e.Error()})
 	}
 	r.ElapsedMilliseconds = time.Since(start).Milliseconds()
+	return r, exit
+}
+
+func writeReport(r Report, format string, out, errOut io.Writer, exit int) int {
 	var writeErr error
-	if *format == "json" {
+	if format == "json" {
 		writeErr = json.NewEncoder(out).Encode(r)
 	} else {
 		state := "incomplete"
