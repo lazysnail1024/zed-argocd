@@ -205,5 +205,5 @@ jobs:
         if [[ "$RELEASE_VERSION" == *-* ]]; then
           flags+=(--prerelease)
         fi
-        gh release create "$RELEASE_TAG" artifacts/zed-release/* --verify-tag --target "$RELEASE_COMMIT" --draft --latest=false "${flags[@]}" --title "Argo CD Zed adapter $RELEASE_VERSION" --notes 'Precompiled Zed adapter with original Rust dependency notices and SHA256SUMS. This editor release is independent of the native LSP. Follow the README installation instructions; the adapter downloads its pinned native server when needed. This release does not publish to the Zed extension store. Rust installer and package tests have passed; a real Zed GUI session is not claimed by this workflow.'
+        gh release create "$RELEASE_TAG" artifacts/zed-release/* --verify-tag --target "$RELEASE_COMMIT" --draft --latest=false "${flags[@]}" --title "Argo CD Zed adapter $RELEASE_VERSION" --notes-file editors/zed/release-notes.md
         gh release edit "$RELEASE_TAG" --draft=false --latest=false

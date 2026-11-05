@@ -21,7 +21,7 @@ def invoke(name,root,command,expected=0):
  except Exception:r={}
  checks={'exit':status==expected,'structured':r.get('passed')==(expected==0)}
  if expected==2:
-  reason={'real-release-refused':'provenance','wrong-platform':'platform','unsafe-version':'version','commit-mismatch':'commit','dirty-tracked':'provenance','dirty-untracked':'provenance','existing-output':'already exist','tampered-hash':'hash','package-platform-mismatch':'binary path','missing-dependency-notice':'inventory','modified-license':'license'}.get(name)
+  reason={'real-release-refused':'provenance','wrong-platform':'platform','unsafe-version':'version','commit-mismatch':'commit','dirty-tracked':'provenance','dirty-untracked':'provenance','existing-output':'already exist','tampered-hash':'hash','package-platform-mismatch':'binary path','missing-dependency-notice':'inventory','modified-license':'license','conflicting-crd-legal-declaration':'CRD legal source changed'}.get(name)
   if reason:checks['failureReason']=reason.lower() in r.get('error','').lower()
  active=None
  record({'id':name,'command':cmd,'exit':status,'elapsedSeconds':time.monotonic()-started,'checks':checks,'passed':all(checks.values())});return r
@@ -30,7 +30,6 @@ try:
  head=subprocess.run(['git','rev-parse','--verify','HEAD'],cwd=ROOT,capture_output=True);expectedCommit=head.stdout.decode().strip() if head.returncode==0 else None;expectedDirty=expectedCommit is None or bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT))
  real=invoke('development',ROOT,['build','--output',str(out/'development-build'),'--platform',a.platform]);assert real.get('passed'),'development tool unavailable'
  manifest=out/'development-build/manifest.json';m=json.loads(manifest.read_text());identity=m['identity'];record({'id':'real-development-identity','passed':identity['buildMode']=='development' and identity['dirty']==expectedDirty and identity['sourceCommit']==expectedCommit})
- invoke('repeat-development',ROOT,['build','--output',str(out/'development-repeat'),'--platform',a.platform]);repeat=json.loads((out/'development-repeat/manifest.json').read_text());record({'id':'repeat-native-bytes','passed':repeat['binarySHA256']==m['binarySHA256']})
  invoke('real-release-refused',ROOT,['build','--output',str(out/'real-release'),'--platform',a.platform,'--mode','release','--version','0.1.0'],2)
  invoke('wrong-platform',ROOT,['build','--output',str(out/'wrong-platform'),'--platform','unsupported/amd64'],2)
  invoke('unsafe-version',ROOT,['build','--output',str(out/'unsafe-version'),'--platform',a.platform,'--version','../escape'],2)
@@ -50,6 +49,10 @@ try:
  exclude.write_text(savedExclude+'\n'+''.join('/'+name+'\n' for _,name,_ in ignored));assert not subprocess.check_output(['git','status','--porcelain'],cwd=fixture)
  result=invoke('ignored-inputs',fixture,['build','--output',str(out/'ignored-inputs'),'--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit])
  actual=json.loads((out/'ignored-inputs/manifest.json').read_text()) if result.get('passed') else {}
+ # These independent release builds already compile identical declared inputs
+ # from different temporary snapshots. Use them for reproducibility as well as
+ # the ignored-input controls, avoiding another full development-mode rebuild.
+ record({'id':'repeat-native-bytes','firstBuild':'synthetic-release','repeatBuild':'ignored-inputs','passed':actual.get('binarySHA256')==rm['binarySHA256'] and actual.get('identity')==rm['identity'] and actual.get('sourceInputs')==rm['sourceInputs']})
  for label,name,_ in ignored:
   record({'id':'ignored-'+label+'-not-compiled','passed':actual.get('binarySHA256')==rm['binarySHA256'] and name not in actual.get('sourceInputs',{})})
   (fixture/name).unlink()
@@ -72,6 +75,12 @@ try:
  shutil.rmtree(fixture/'cmd')
  for label in ['one','two']:invoke('package-'+label,fixture,['package','--manifest',str(release/'manifest.json'),'--output',str(out/('package-'+label+'-result'))])
  p1=json.loads((out/'package-one-result/package.json').read_text());p2=json.loads((out/'package-two-result/package.json').read_text());archive=out/'package-one-result'/p1['archive'];record({'id':'deterministic-archive','passed':p1['archiveSHA256']==p2['archiveSHA256']==sha(archive)})
+ # A later conflicting digest for the same path must not disappear in deduplication.
+ catalogPath=fixture/'compat/catalog.lock.json';originalCatalog=catalogPath.read_bytes();conflicting=json.loads(originalCatalog)
+ target=next(t for t in conflicting['versions'] if any(s['path'] in ['LICENSE','NOTICE'] for s in t['sources']));source=next(s for s in target['sources'] if s['path'] in ['LICENSE','NOTICE']);target['sources'].append(dict(source,sha256='0'*64))
+ try:
+  catalogPath.write_text(json.dumps(conflicting));invoke('conflicting-crd-legal-declaration',fixture,['package','--manifest',str(release/'manifest.json'),'--output',str(out/'conflicting-crd-legal')],2)
+ finally:catalogPath.write_bytes(originalCatalog)
  extracted=out/'extracted';extracted.mkdir()
  if archive.suffix=='.zip':
   with zipfile.ZipFile(archive) as z:names=z.namelist();z.extractall(extracted)

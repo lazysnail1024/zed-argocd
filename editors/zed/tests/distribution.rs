@@ -684,15 +684,15 @@ fn invalid_pins_cannot_escape_or_select_arbitrary_release_urls() {
 #[test]
 fn pinned_alpha_is_verified_cached_and_rejects_another_release_identity() {
     let version = distribution::server_version();
-    assert_eq!(version, "0.0.1-alpha.1");
+    assert_eq!(version, "0.0.1-alpha.2");
     let root = Scratch::new();
     let mut host = FakeHost::online(target(), version);
     let path = distribution::install(&mut host, &root.0, target(), version).unwrap();
     assert_eq!(
         host.downloads,
         [
-            format!("{BASE}/v0.0.1-alpha.1/SHA256SUMS"),
-            format!("{BASE}/v0.0.1-alpha.1/argocd-ls-0.0.1-alpha.1-linux-amd64")
+            format!("{BASE}/v0.0.1-alpha.2/SHA256SUMS"),
+            format!("{BASE}/v0.0.1-alpha.2/argocd-ls-0.0.1-alpha.2-linux-amd64")
         ]
     );
     assert_eq!(fs::read(&path).unwrap(), release(version));
@@ -705,10 +705,10 @@ fn pinned_alpha_is_verified_cached_and_rejects_another_release_identity() {
 
     let root = Scratch::new();
     let mut wrong = FakeHost::online(target(), version);
-    *wrong.binary_mut(target(), version) = release("0.0.1-alpha.2");
-    *wrong.manifest_mut(version) = sums(target(), version, &release("0.0.1-alpha.2"));
+    *wrong.binary_mut(target(), version) = release("0.0.1-alpha.1");
+    *wrong.manifest_mut(version) = sums(target(), version, &release("0.0.1-alpha.1"));
     let error = distribution::install(&mut wrong, &root.0, target(), version).unwrap_err();
-    assert!(error.contains("matching version 0.0.1-alpha.1"));
+    assert!(error.contains("matching version 0.0.1-alpha.2"));
     assert!(root.generations(target(), version).is_empty());
 }
 

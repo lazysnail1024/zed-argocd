@@ -118,14 +118,6 @@ func sample(kind string) map[string]any {
 }
 
 func TestAutoWholeVersion(t *testing.T) {
-	data, err := SchemaData("auto", "argoproj.io/v1alpha1", "Application")
-	if err != nil {
-		t.Fatal(err)
-	}
-	compiled, err := CompileSchema(data)
-	if err != nil {
-		t.Fatal(err)
-	}
 	checks := []struct {
 		name   string
 		fields string
@@ -135,21 +127,48 @@ func TestAutoWholeVersion(t *testing.T) {
 		{"current enabled", `{"syncPolicy":{"automated":{"enabled":true}}}`, true},
 		{"new field wrong type", `{"syncPolicy":{"automated":{"enabled":"yes"}}}`, false},
 		{"legacy field wrong type", `{"source":{"repoURL":"https://example.com/repo","ksonnet":{"environment":42}}}`, false},
+		{"legacy required parameter value", `{"source":{"repoURL":"https://example.com/repo","ksonnet":{"parameters":[{"name":"missing-value"}]}}}`, false},
 		{"impossible version combination", `{"source":{"repoURL":"https://example.com/repo","ksonnet":{"environment":"dev"}},"syncPolicy":{"automated":{"enabled":true}}}`, false},
 	}
-	for _, check := range checks {
-		t.Run(check.name, func(t *testing.T) {
-			value := sample("Application")
-			fields := map[string]any{}
-			if err := json.Unmarshal([]byte(check.fields), &fields); err != nil {
-				t.Fatal(err)
-			}
-			for key, field := range fields {
-				value["spec"].(map[string]any)[key] = field
-			}
-			if got := compiled.Validate(value) == nil; got != check.valid {
-				t.Fatalf("accepted=%v want=%v", got, check.valid)
-			}
-		})
+	for _, kind := range []string{"Application", "ApplicationSet"} {
+		data, err := SchemaData("auto", "argoproj.io/v1alpha1", kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := CompileSchema(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, check := range checks {
+			t.Run(kind+"/"+check.name, func(t *testing.T) {
+				value := sample(kind)
+				applicationSpec := value["spec"].(map[string]any)
+				if kind == "ApplicationSet" {
+					applicationSpec = applicationSpec["template"].(map[string]any)["spec"].(map[string]any)
+				}
+				fields := map[string]any{}
+				if err := json.Unmarshal([]byte(check.fields), &fields); err != nil {
+					t.Fatal(err)
+				}
+				for key, field := range fields {
+					applicationSpec[key] = field
+				}
+				if got := compiled.Validate(value) == nil; got != check.valid {
+					t.Fatalf("accepted=%v want=%v", got, check.valid)
+				}
+			})
+		}
+	}
+}
+
+func TestHistoricalApplicationSetSource(t *testing.T) {
+	for version, commit := range map[string]string{
+		"2.3.0":  "eab46ad3d633317279ddf3a56855823b0057a13e",
+		"2.3.17": "a5712ba564afaff0b23697135d6281d413e60345",
+	} {
+		want := "https://raw.githubusercontent.com/argoproj/applicationset/" + commit + "/manifests/install.yaml"
+		if got := SchemaSource(version, "ApplicationSet"); got != want {
+			t.Fatalf("%s source=%q want=%q", version, got, want)
+		}
 	}
 }

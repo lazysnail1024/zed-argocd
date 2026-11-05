@@ -11,7 +11,7 @@ const Product = "argo-cd"
 const Server = "argocd-ls"
 
 // These variables may be set by an explicit go build -ldflags invocation.
-var ServerVersion = "0.0.1-alpha.1"
+var ServerVersion = "0.0.0-dev"
 var SourceCommit = ""
 var Dirty = "true"
 var BuildMode = "development"

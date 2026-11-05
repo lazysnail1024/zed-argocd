@@ -70,7 +70,7 @@ def main():
     original = args.binary.resolve()
     catalog = json.loads((ROOT / 'internal/assets/catalog.json').read_text())
     rows = []
-    for variant in ('baseline', 'without-object-closure', 'newest-schema-only', 'without-shared-definitions', 'without-query-version-filter'):
+    for variant in ('baseline', 'without-object-closure', 'newest-schema-only', 'without-shared-definitions', 'without-query-version-filter', 'without-historical-appset-addon'):
         folder = output / variant
         folder.mkdir(parents=True, exist_ok=True)
         row = {'id': variant}
@@ -98,12 +98,20 @@ def main():
                     for entry in current['autoSchemas']:
                         if variant == 'without-query-version-filter':
                             continue
+                        if variant == 'without-historical-appset-addon' and entry['kind'] != 'ApplicationSet':
+                            continue
                         data = json.loads((ROOT / entry['path']).read_text())
                         before = len(canonical(data))
                         if variant == 'without-object-closure':
                             data = open_objects(data)
                         elif variant == 'newest-schema-only':
                             data['anyOf'] = data['anyOf'][:1]
+                        elif variant == 'without-historical-appset-addon':
+                            before_branches = len(data['anyOf'])
+                            data['anyOf'] = [branch for branch in data['anyOf']
+                                             if 'ksonnet' not in inline(branch, data['$defs'])['properties']['spec']['properties']['template']['properties']['spec']['properties']['source']['properties']]
+                            if len(data['anyOf']) != before_branches - 1:
+                                raise RuntimeError('historical ApplicationSet schema removal no longer matches exactly one variant')
                         else:
                             data = inline(data, data['$defs'])
                         raw = canonical(data)
@@ -125,13 +133,31 @@ def main():
                     (folder / 'build.stderr').write_bytes(build.stderr)
                     if build.returncode:
                         raise RuntimeError('mutant build failed')
-                result = acceptance.cross_version(binary, folder, False)
+                begin = time.monotonic()
+                try:
+                    result = acceptance.cross_version(binary, folder, False)
+                except subprocess.TimeoutExpired as error:
+                    if variant != 'without-shared-definitions':
+                        raise
+                    # This counterfactual specifically removes the optimization
+                    # needed to meet fixed consumer deadlines. A timeout in the
+                    # complete compatibility workload is already that evidence;
+                    # do not raise its budget or claim unobserved functional results.
+                    (folder / 'compatibility-timeout.stdout').write_bytes(error.stdout or b'')
+                    (folder / 'compatibility-timeout.stderr').write_bytes(error.stderr or b'')
+                    result = {'id': 'auto-old-new-combination', 'completed': False, 'passed': None,
+                              'command': error.cmd, 'timeoutSeconds': error.timeout,
+                              'elapsedMilliseconds': round((time.monotonic() - begin) * 1000, 2)}
                 (folder / 'probe.json').write_text(json.dumps(result, indent=2) + '\n')
                 row.update({'acceptancePassed': result['passed'], 'probe': result, 'schemaChanges': changes,
                             'binarySHA256': acceptance.checksum(binary), 'binaryBytes': binary.stat().st_size})
-                if variant in ('baseline', 'without-query-version-filter'):
+                if variant in ('baseline', 'without-query-version-filter', 'without-historical-appset-addon'):
                     row['queryProbe'] = acceptance.lsp_auto(binary, folder)
-                if variant in ('baseline', 'without-shared-definitions'):
+                if variant == 'without-shared-definitions' and result.get('completed') is False:
+                    row['timing'] = {'completed': False, 'probe': 'compatibility-cases',
+                                     'timeoutSeconds': result['timeoutSeconds'], 'elapsedMilliseconds': result['elapsedMilliseconds']}
+                    row['passed'] = True
+                elif variant in ('baseline', 'without-shared-definitions'):
                     row['timing'] = timing(binary, folder)
                     row['passed'] = result['passed'] and (row['timing']['completed'] or variant == 'without-shared-definitions')
                     if variant == 'baseline':
@@ -141,6 +167,10 @@ def main():
                     # editor must not suggest introducing those combinations.
                     failed = {probe['id'] for probe in row['queryProbe']['rows'] if not probe['passed']}
                     row['passed'] = result['passed'] and {'legacy-selects-whole-version', 'current-selects-whole-version'} <= failed
+                elif variant == 'without-historical-appset-addon':
+                    failed = {probe['id'] for probe in row['queryProbe']['rows'] if not probe['passed']}
+                    row['passed'] = (not result['passed'] and all(error.startswith('appset-') for error in result['errors'])
+                                     and {'appset-legacy-field', 'appset-legacy-hover'} <= failed)
                 else:
                     # Both removals must be caught by the independent old/new
                     # fixtures, rather than being accepted as a simplification.

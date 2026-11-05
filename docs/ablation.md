@@ -18,7 +18,10 @@ the repository; CI retains successful and failed evidence as workflow artifacts.
 No editor registry, generic version provider or placeholder VS Code/Neovim
 implementation was added. The stdio protocol and native identity are the boundary.
 
-## Removals rejected by behavior
+## Alpha.1 historical observations
+
+The following measurements belong to alpha.1. Current reproduction commands use
+the alpha.2 catalog; its results are recorded separately below.
 
 | Isolated mutation | Observed regression | Decision |
 | --- | --- | --- |
@@ -35,6 +38,21 @@ was 300.95 ms in the initial run and 179.65 ms in the query follow-up. These are
 separate host observations, not evidence of a speed improvement or a portable performance
 promise. The inline mutant passed the narrower Application probe; its timed-out
 three-kind run does not prove semantic parity for every resource.
+
+## Alpha.2 follow-up
+
+The passing baseline covers the historical ApplicationSet addon as well.
+Removing that branch breaks its CLI positive case and three LSP scenarios;
+removing query selection breaks ten LSP scenarios. Inlining shared definitions
+grows automatic JSON from 865,934 to 9,099,786 bytes and exceeds the existing
+20-second compatibility probe deadline. Functional acceptance for this variant
+is incomplete (`null`), not a pass. The baseline three-kind CLI median is
+205.50 ms on the local host; this is a descriptive observation.
+
+Identical legal-source reads and irrelevant vendor file-type checks are removed
+with byte-identical package output and 40 passing packaging controls. See
+[the current verification details](multi-version-support.md#alpha2-verification-and-ablation)
+and [evidence manifest](../compat/multi-version-verification.json).
 
 ## Reproduce
 

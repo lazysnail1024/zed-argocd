@@ -12,7 +12,8 @@ go vet -mod=vendor ./...
 ./build/argocd-ls check --root /path/to/yaml --format json
 ```
 
-Root `VERSION` controls release-mode builds. From a clean commit, run:
+Root `VERSION` controls release-mode builds; `docs/native-release-notes.md` supplies
+the native release description. From a clean commit, run:
 
 ```sh
 python tools/release.py version --source-commit "$(git rev-parse HEAD)"
@@ -40,8 +41,9 @@ cargo build --locked --release --target wasm32-wasip2
 Select this directory when using Zed's Install Dev Extension. The independent
 `native-server-version` file chooses a released LSP; the adapter's own version can
 change independently. The adapter package command is also in this directory.
-`zed.yml` owns adapter CI. Bump the matching Cargo and extension versions and merge
-the changed `editors/zed/extension.toml` into `main` to start `zed-release.yml`.
+`zed.yml` owns adapter CI. Bump the matching Cargo and extension versions, including
+the local package entry in `Cargo.lock`, and update `editors/zed/release-notes.md`.
+Merge the changed `editors/zed/extension.toml` into `main` to start `zed-release.yml`.
 It also accepts matching `zed-v*` tags and manual runs. After its own gates pass,
 it waits up to 45 minutes for the exact native pin to be published with all five
 platform executables and `SHA256SUMS`, then creates its tag and publishes the ZIP.
