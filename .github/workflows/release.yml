@@ -1,0 +1,83 @@
+name: Publish verified native servers
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14.0'
+      - name: Require a stable tag matching the exact extension source
+        id: version
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          if [[ "$RELEASE_REF" != refs/tags/* ]]; then
+            echo 'Run this workflow on a stable version tag.' >&2
+            exit 1
+          fi
+          python tools/release.py version --tag "$RELEASE_TAG" --source-commit "$RELEASE_COMMIT" >> "$GITHUB_OUTPUT"
+
+  native:
+    needs: version
+    uses: ./.github/workflows/native.yml
+    with:
+      release_version: ${{ needs.version.outputs.version }}
+    permissions:
+      contents: read
+
+  publish:
+    needs: [version, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14.0'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: argocd-release-*
+          path: artifacts/release-inputs
+      - name: Recheck all five platforms and generate SHA256SUMS
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: python tools/release.py collect --inputs artifacts/release-inputs --output artifacts/release --version "$RELEASE_VERSION" --source-commit "$RELEASE_COMMIT"
+      - name: Publish a complete release without replacing existing pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'This release already exists. Do not overwrite a published version; inspect any incomplete draft before retrying.' >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" artifacts/release/* --verify-tag --draft --title "Argo CD language server $RELEASE_VERSION" --notes "Native servers for five platforms with SHA256SUMS and complete legal archives. See the repository release checklist for real Zed verification. This native release does not publish the Zed extension."
+          gh release edit "$RELEASE_TAG" --draft=false

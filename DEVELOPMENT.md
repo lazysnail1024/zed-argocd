@@ -20,7 +20,7 @@ The toolkit API and implementation identity are pinned in [the contract snapshot
 
 Run `python3 tests/native_ci.py --platform linux/amd64 --output artifacts/native-ci-local` for the grouped native build, packaging and current CLI/LSP consumers. The output directory must be new. The runner observes Git provenance independently before building and records the complete required step list before running consumers. A failed or omitted required consumer fails the gate, even if every other step succeeds. Failure evidence is retained. The consumers include save/watch actions and the real 30-second lost-event reconciliation timer.
 
-The native workflow defines five platform jobs: Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. It retains native build/package, query/projection/lifecycle and bounded child-process evidence. The performance and usability audit consumers below are required in these jobs, not just manual commands. Linux amd64 additionally runs the full pinned-target ApplicationSet matrix, the fixed 1,000/3,000-resource performance workloads and source mutation checks. The other platforms exercise ApplicationSet behavior at the first and latest tested targets, while all platforms run the new boundary regressions. Hosted runner execution does not prove the minimum supported OS or real Zed behavior. See the [native workflow](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml) for each commit's actual platform outcomes; a successful job on another commit is not acceptance of the current bytes. Signed release artifacts and registry delivery are not available.
+The native workflow defines five platform jobs: Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. It retains native build/package, query/projection/lifecycle and bounded child-process evidence. The performance and usability audit consumers below are required in these jobs, not just manual commands. Linux amd64 additionally runs the full pinned-target ApplicationSet matrix, the fixed 1,000/3,000-resource performance workloads and source mutation checks. The other platforms exercise ApplicationSet behavior at the first and latest tested targets, while all platforms run the new boundary regressions. Hosted runner execution does not prove the minimum supported OS or real Zed behavior. See the [native workflow](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml) for each commit's actual platform outcomes; a successful job on another commit is not acceptance of the current bytes. The release workflow reuses these five native jobs before assembling downloadable assets. It does not establish real Zed acceptance or complete registry publication; see the [store distribution checklist](docs/store-distribution.md).
 
 ## Behavioral verification
 
@@ -50,11 +50,26 @@ python3 tools/dev_bundle.py --manifest build/native/manifest.json --platform lin
 python3 tests/dev_bundle_e2e.py --manifest build/native/manifest.json --output artifacts/dev-bundle-e2e
 ```
 
-The producer reuses `native.py package` to verify native SHA, actual product/readiness/platform/build identity, toolchain and all legal inputs. It never rebuilds Go. Run it on the native target platform with the pinned Go toolchain available for provenance inspection. The archive contains the Rust adapter sources and lock, snippets, usage documentation, native payload and its manifest, and complete native build/legal provenance. ZIP entries are sorted with fixed metadata. Outputs must be new directories. The generated copy enables `bundled-server`; source checkouts leave it disabled. No hosted URL or formal release is implied.
+The producer reuses `native.py package` to verify native SHA, actual product/readiness/platform/build identity, toolchain and all legal inputs. It never rebuilds Go. Run it on the native target platform with the pinned Go toolchain available for provenance inspection. The ZIP separates `extension/` (Rust adapter, lockfile, snippets, documentation and LICENSE) from `server/` (the verified native executable, legal texts, notices and build provenance). `settings.example.json` shows the required absolute `serverPath`; consumers replace the placeholder before opening YAML. ZIP entries are sorted with fixed metadata, and outputs must be new directories. Neither the adapter source folder nor its compiled WASM contains the native executable. This development ZIP is not a store package or a published Release.
 
-For source-checkout development, first build the native server using the commands above. Set `lsp.argocd-ls.settings.serverPath` to its absolute path, then select the checkout root in Zed Install Dev Extension. Windows paths may use `C:/src/zed-argocd/build/native/argocd-ls.exe`. This explicit override always wins over an embedded server and must pass the same identity/readiness handshake. Zed's generic `binary.path` bypasses the adapter and its checks.
+For source-checkout development, first build the native server using the commands above. Set `lsp.argocd-ls.settings.serverPath` to its absolute path, then select the checkout root in Zed Install Dev Extension. Windows paths may use `C:/src/zed-argocd/build/native/argocd-ls.exe`. An explicit override always wins and must pass the identity/readiness handshake; development identities remain supported. Zed's generic `binary.path` bypasses the adapter and its checks, so use `settings.serverPath` to test adapter behavior.
 
-The bundled adapter checks the host platform before extraction and compares cached executable bytes with its embedded payload. It repairs missing or altered regular cache files, refuses unsafe cache entry kinds, and returns an absolute executable path before applying the existing identity/readiness handshake.
+## Managed distribution and installer acceptance
+
+The extension pins the native Release to `CARGO_PKG_VERSION` (`0.1.0` at this revision), and this must match `extension.toml`. It uses an existing configured or shell-`PATH` executable first. Otherwise, the shared installer in `src/distribution.rs` downloads `SHA256SUMS` and the exact raw platform executable through Zed's API. It hashes before making the file executable or invoking `version --json`, then requires the exact pinned release identity. The adapter uses an absolute path derived from Zed's extension work directory for both the process probe and the returned language-server command. User-provided paths are inspected through the Zed process API, without trying to read files outside the WASI sandbox.
+
+Each managed cache slot contains the executable and its checksum manifest. Cached bytes and identity are revalidated on every adapter startup, with no network if valid. Isolated staging directories and directory promotion keep partial downloads out of active slots. Old version slots survive failed upgrades; an older server is not an automatic fallback. Concurrent successful installation of the same version is revalidated and reused. Unexpected cache file types, checksum errors, permission errors and identity failures remain visible to the user. Downloads from an HTTPS Release and its checksum manifest provide integrity checks, not independent signatures.
+
+Run the actual Rust installer tests and build the adapter:
+
+```sh
+cargo test --locked
+cargo build --locked --release --target wasm32-wasip2
+```
+
+`tests/distribution.rs` calls the same filesystem installer used in Zed, with only download, executable-permission and identity-process operations injected. It covers all five platform asset names, strict checksum selection, missing/duplicate/wrong/truncated manifests, corrupt bytes, network interruption and retry, offline cache reuse, cache repair, failed permission/identity probes, exact release matching, versioned upgrades and rollback, explicit-path priority, unsafe symlinks on Unix, concurrent cache reuse and failed cache replacement. The existing native and development-package consumers still execute the real Go server. These tests cannot exercise the real Zed WASI host, capability prompts, GUI events or antivirus behavior.
+
+The [store distribution document](docs/store-distribution.md) defines the release-asset contract, CI gate, manual editor matrix and remaining registry requirements. Do not submit the registry submodule or claim installation works automatically while the pinned Release is missing.
 
 ## Interaction and delivery acceptance
 
@@ -85,8 +100,9 @@ against Projects; Project changes invalidate their scope's domain checks. Reposi
 Resolve validates only the selected Project replacement while retaining the
 current revision, target, complete-scope and no-new-Error requirements.
 
-The native workflow also builds the actual bundled WASM adapter and retains a
-platform development ZIP. Workflow preparation is not evidence of an uploaded
+The native workflow also runs the Rust installer acceptance tests, builds the
+adapter-only WASM from the generated `extension/` directory, and retains a
+platform development ZIP with a separate native server. Workflow preparation is not evidence of an uploaded
 artifact: a run must complete on the exact source before its bundle is available.
 The local native, bundle and WASM layers do not replace a real Zed installation
 record or establish acceptance on platforms that have not run.
