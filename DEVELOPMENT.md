@@ -18,9 +18,9 @@ The toolkit API and implementation identity are pinned in [the contract snapshot
 
 `python3 tools/native.py package --manifest build/native/manifest.json --output dist/native` packages that already built native without rebuilding. Copied Go legal text is checked against the selected pinned toolchain; copied CRD legal text is checked against the catalog source digest, independently of the build manifest. Output directories must be new. Archives have a fixed single-root layout, deterministic metadata, binary/archive SHA256, actual linked-module and CRD legal texts, and build provenance. The package has no hosted download URL. Windows builds use the fixed MinGW distribution recorded in `tools/windows-runtime.json`, validate its compiler/static runtime and complete notice bytes, and link the runtime statically. Packages retain the MinGW, winpthreads and GCC runtime notices. Non-system DLL imports remain rejected; the original linker map is retained in build artifacts.
 
-Run `python3 tests/native_ci.py --platform linux/amd64 --output artifacts/native-ci-local` for the grouped native build, packaging and current CLI/LSP consumers. The output directory must be new. The runner observes Git provenance independently before building; it also runs finite save/watch action controls, without claiming periodic-timer acceptance on every platform.
+Run `python3 tests/native_ci.py --platform linux/amd64 --output artifacts/native-ci-local` for the grouped native build, packaging and current CLI/LSP consumers. The output directory must be new. The runner observes Git provenance independently before building and records the complete required step list before running consumers. A failed or omitted required consumer fails the gate, even if every other step succeeds. Failure evidence is retained. The consumers include save/watch actions and the real 30-second lost-event reconciliation timer.
 
-The native workflow defines five platform jobs: Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. It retains native build/package, query/projection/lifecycle and bounded child-process evidence. Hosted runner execution does not prove the minimum supported OS or real Zed behavior. See the [native workflow](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml) for each commit's actual platform outcomes; a successful job on another commit is not acceptance of the current bytes. Signed release artifacts and registry delivery are not available.
+The native workflow defines five platform jobs: Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. It retains native build/package, query/projection/lifecycle and bounded child-process evidence. The performance and usability audit consumers below are required in these jobs, not just manual commands. Linux amd64 additionally runs the fixed 1,000/3,000-resource performance workloads and source mutation checks. Hosted runner execution does not prove the minimum supported OS or real Zed behavior. See the [native workflow](https://github.com/lazysnail1024/zed-argocd/actions/workflows/native.yml) for each commit's actual platform outcomes; a successful job on another commit is not acceptance of the current bytes. Signed release artifacts and registry delivery are not available.
 
 ## Behavioral verification
 
@@ -66,6 +66,10 @@ python3 tests/host_capabilities_e2e.py build/argocd-ls artifacts/host-capabiliti
 python3 tests/appset_overrides_e2e.py build/argocd-ls artifacts/appset-overrides --all-targets
 python3 tests/quickfix_scaling_e2e.py build/argocd-ls artifacts/quickfix-scaling
 python3 tests/incremental_performance_e2e.py build/argocd-ls artifacts/performance --require-incremental
+python3 tests/lsp_regressions_e2e.py build/argocd-ls artifacts/lsp-regressions
+python3 tests/semantic_regressions_e2e.py build/argocd-ls artifacts/semantic-regressions
+python3 tests/workspace_regressions_e2e.py build/argocd-ls artifacts/workspace-regressions
+python3 tests/audit_regression_mutations.py build/argocd-ls artifacts/audit-mutations
 ```
 
 Each output directory must be new. `ARGOCD_LS_TRACE=1` writes bounded per-analysis
@@ -86,3 +90,17 @@ platform development ZIP. Workflow preparation is not evidence of an uploaded
 artifact: a run must complete on the exact source before its bundle is available.
 The local native, bundle and WASM layers do not replace a real Zed installation
 record or establish acceptance on platforms that have not run.
+
+The [November audit repair plan and acceptance matrix](docs/audit-remediation-2026-11.md)
+maps every remaining audit issue to its fix and regression consumer. The new
+consumers use real CLI/LSP processes and include working controls. The Linux
+scan-cancellation case uses inotify to observe the scan opening a file before
+issuing the cancelling edit; platforms without inotify record this case as
+unsupported instead of pretending to run it. Windows runs real drive-URI
+incremental checks. Symlink tests record a skip only if the host cannot create
+the test-owned symlink. The fixed Linux performance runs enforce actual work
+counts (zero disk reads, one changed file parsed, two domain documents), retain
+all 30 samples per size, and report p50/p95 without changing the debounce timer.
+Source mutations must compile, the unmodified binary must pass, and the changed
+binary must fail the selected regression assertion; a compiler or runner failure
+does not count as a detected regression.

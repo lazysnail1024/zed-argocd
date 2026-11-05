@@ -2,9 +2,41 @@
 """Native CI entry: retain each real-process outcome, including failures."""
 import argparse,hashlib,json,os,pathlib,subprocess,sys,signal,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
+BASE_STEPS=('build','package','ci-process-boundary','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
+
+def audit_consumers(platform):
+ # Every entry is a required real-process gate, not a documentation-only command.
+ # The fixed Linux amd64 runner also retains the large workload samples and
+ # deliberately broken variants. Other platforms still exercise native behavior.
+ cases=[
+  ('lsp-lifecycle','lsp_e2e.py',[],90),
+  ('interaction-remediation','interaction_remediation_e2e.py',[],180),
+  ('host-capabilities','host_capabilities_e2e.py',[],60),
+  ('appset-overrides','appset_overrides_e2e.py',['--all-targets'],180),
+  ('quickfix-scaling','quickfix_scaling_e2e.py',[],180),
+  ('repository-exclusion','repository_exclusion_e2e.py',[],300),
+  ('reconciliation','reconciliation_e2e.py',[],60),
+  ('query-delivery','query_delivery_e2e.py',[],180),
+  ('candidate-concurrency','candidate_concurrency_e2e.py',[],120),
+  ('lsp-regressions','lsp_regressions_e2e.py',[],240),
+  ('semantic-regressions','semantic_regressions_e2e.py',[],180),
+  ('workspace-regressions','workspace_regressions_e2e.py',[],180),
+ ]
+ if platform=='linux/amd64':
+  cases.extend([
+   ('incremental-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental'],180),
+   ('repository-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental','--repository'],180),
+   ('audit-regression-mutations','audit_regression_mutations.py',['--worker'],480),
+  ])
+ return cases
+
+def accepted():
+ return completed and [r['id'] for r in rows]==expected_steps and all(r['passed'] for r in rows)
+
 def configure(argv=None):
- global a,out,rows,expected,cache,modules,env,go,active,completed
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.
  if os.name!='nt':
@@ -54,6 +86,7 @@ def start_command(command,child_env):
 def run(name,command,extra=None,timeout=180):
  global active
  active={'id':name,'command':command,'timeoutSeconds':timeout};save();started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
+ print(json.dumps({'step':name,'state':'started','command':command}),flush=True)
  try:
   p,close=start_command(command,dict(env,**(extra or {})))
   try:stdout,stderr=p.communicate(timeout=timeout);status=p.returncode
@@ -77,10 +110,11 @@ def run(name,command,extra=None,timeout=180):
    if p.stderr:p.stderr.close()
    if os.name=='nt':p._handle.Close()
   (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'elapsedSeconds':time.monotonic()-started,'cleanupError':cleanupError,'passed':status==0 and cleanupError is None});active=None;save()
+ print(json.dumps({'step':name,'state':'completed','exit':status,'passed':rows[-1]['passed'],'elapsedSeconds':rows[-1]['elapsedSeconds']}),flush=True)
  return rows[-1]['passed']
 
 def save():
- report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'rows':rows,'activeCommand':active,'completed':completed,'passed':completed and len(rows)==15 and all(r['passed'] for r in rows)};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');pending.replace(out/'report.json')
+ report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');pending.replace(out/'report.json')
 def main():
  global expected,completed
  configure()
@@ -109,9 +143,11 @@ def main():
   run('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')])
   helper=out/('native-helper.exe' if a.platform.startswith('windows/') else 'native-helper')
   if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
+  for name,script,options,timeout in audit_consumers(a.platform):
+   run(name,[sys.executable,str(ROOT/'tests'/script),str(binary),str(out/name),*options],timeout=timeout)
   completed=True
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
  finally:save()
- return 0 if completed and len(rows)==15 and all(r['passed'] for r in rows) else 1
+ return 0 if accepted() else 1
 
 if __name__=='__main__':sys.exit(main())

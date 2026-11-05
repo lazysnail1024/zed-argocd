@@ -25,6 +25,14 @@ if len(sys.argv)>1 and sys.argv[1]=='--driver':
  ci.run('tree',[sys.executable,__file__,'--parent',str(d),sys.argv[4]],timeout=2)
  ci.run('missing',[str(d/'absent-native')],timeout=2)
  sys.exit(0)
+if len(sys.argv)>1 and sys.argv[1]=='--gate-driver':
+ import native_ci as ci
+ d=pathlib.Path(sys.argv[2]);mode=sys.argv[4];ci.configure(['--platform',sys.argv[3],'--output',str(d/'gate')])
+ ci.expected_steps=['positive','regression']
+ ci.run('positive',[sys.executable,'-c','print("positive consumer")'])
+ if mode!='omitted':ci.run('regression',[sys.executable,'-c','import sys; print("regression consumer"); sys.exit('+('7' if mode=='failure' else '0')+')'])
+ ci.completed=True;ci.save()
+ sys.exit(0 if ci.accepted() else 1)
 ap=argparse.ArgumentParser();ap.add_argument('output',type=pathlib.Path);ap.add_argument('--platform',required=True);a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
 try:
  for mode in ['wait','exit']:
@@ -53,6 +61,13 @@ try:
    (d/'stop').write_text('test-owned helper cleanup')
    if p and p.poll() is None:p.kill();p.communicate(timeout=3)
    (out/'report.json').write_text(json.dumps({'rows':rows,'passed':False},indent=2)+'\n')
+ for mode in ['success','failure','omitted']:
+  d=out/('gate-'+mode);d.mkdir();command=[sys.executable,__file__,'--gate-driver',str(d),a.platform,mode]
+  p=subprocess.run(command,capture_output=True,timeout=15);(d/'stdout').write_bytes(p.stdout);(d/'stderr').write_bytes(p.stderr)
+  report=json.loads((d/'gate/report.json').read_text());expected=mode=='success'
+  checks={'exit':p.returncode==(0 if expected else 1),'completed':report['completed'] is True,'acceptance':report['passed'] is expected,'requiredSteps':report['expectedSteps']==['positive','regression']}
+  if mode=='failure':checks['retainedFailure']=report['rows'][1]['exit']==7 and (d/'gate/regression.stdout').read_text().strip()=='regression consumer'
+  rows.append({'id':'gate-'+mode,'command':command,'checks':checks,'passed':all(checks.values())})
 finally:
- report={'platform':a.platform,'python':sys.version,'command':sys.argv,'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'boundarySHA256':hashlib.sha256((ROOT/'tests/native_ci.py').read_bytes()).hexdigest(),'rows':rows,'passed':len(rows)==2 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+ report={'platform':a.platform,'python':sys.version,'command':sys.argv,'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'boundarySHA256':hashlib.sha256((ROOT/'tests/native_ci.py').read_bytes()).hexdigest(),'rows':rows,'passed':len(rows)==5 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 sys.exit(0 if report['passed'] else 1)

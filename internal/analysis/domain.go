@@ -117,10 +117,11 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 				parts = []string{"spec", "sources", fmt.Sprint(i)}
 			}
 
-			if localPath := literal(src["path"]); localPath != "" && options.Complete {
-				cleaned := path.Clean(localPath)
+			if localRef, known := staticRepositoryReference(doc, src, parts); known && options.Complete {
+				cleaned := path.Clean(localRef.Path)
 				if cleaned != ".." && !strings.HasPrefix(cleaned, "../") && !strings.HasPrefix(cleaned, "/") {
-					if known, ok := options.LocalPaths[literal(src["repoURL"])+"\x00"+literal(src["targetRevision"])]; ok && !known[cleaned] {
+					known := options.LocalPaths[localRef.RepoURL+"\x00"+localRef.TargetRevision]
+					if exists, checked := known[cleaned]; checked && !exists {
 						emit(appendPath(parts, "path"), "CD_LOCAL_PATH_MISSING", 2, "Path is absent from the explicitly mapped local repository")
 					}
 				}

@@ -16,7 +16,6 @@ import (
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -74,12 +73,14 @@ type queryResult struct {
 
 type completed struct {
 	stats struct {
-		Scope             string `json:"scope"`
-		RepositoryDecodes int    `json:"repositoryDecodes"`
-		DiskReads         int    `json:"diskReads"`
-		ParsedFiles       int    `json:"parsedFiles"`
-		DomainDocuments   int    `json:"domainDocuments"`
-		FullScan          bool   `json:"fullScan"`
+		Scope                string   `json:"scope"`
+		AcquisitionRoots     []string `json:"acquisitionRoots"`
+		AcquisitionFallbacks int      `json:"acquisitionFallbacks"`
+		RepositoryDecodes    int      `json:"repositoryDecodes"`
+		DiskReads            int      `json:"diskReads"`
+		ParsedFiles          int      `json:"parsedFiles"`
+		DomainDocuments      int      `json:"domainDocuments"`
+		FullScan             bool     `json:"fullScan"`
 	}
 	failures        map[string]error
 	editGeneration  uint64
@@ -168,15 +169,18 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": why}})
 		}
 	}
-	var active, pending, scanPending bool
-	acquisitionPending := true
+	var active, pending bool
+	scanPending := map[string]bool{}
 	debounce := time.NewTimer(time.Hour)
 	debounce.Stop()
 	defer debounce.Stop()
 	var ready <-chan time.Time
-	launch := func(inputChanged, fullScan bool) {
-		scanPending = scanPending || fullScan
-		acquisitionPending = acquisitionPending || fullScan
+	launch := func(inputChanged bool, rescanRoots ...string) {
+		for _, root := range rescanRoots {
+			if root != "" {
+				scanPending[root] = true
+			}
+		}
 		if inputChanged {
 			editGeneration++
 		}
@@ -187,6 +191,10 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		pending = true
 		debounce.Reset(120 * time.Millisecond)
 		ready = debounce.C
+	}
+	rootForURI := func(uri string) string {
+		path, _ := uriPath(uri)
+		return workspace.Owner(roots, path)
 	}
 	fitsBuffer := func(uri string, size int) bool {
 		if size < 0 || size > workspace.MaxFileText {
@@ -210,7 +218,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		for _, request := range requests {
 			request.stop()
 		}
-		launch(true, true)
+		launch(true, rootForURI(uri))
 		publish(map[string]any{"uri": uri, "version": version, "diagnostics": []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: reason}}})
 	}
 	startAnalysis := func() {
@@ -228,11 +236,12 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		copyRoots := append([]string{}, roots...)
 		current, selected := epoch, override
 		previous := latest
-		fullScan := scanPending
-		scanPending = false
+		rescanRoots := copyRootSet(scanPending)
+		// Acquisition remains owed until a current pass commits it. Starting a
+		// scan must not consume a watcher/save event that cancellation can lose.
 		go func() {
 			defer c()
-			result := analyze(ctx, current, copyRoots, copyBuffers, selected, previous, fullScan)
+			result := analyzeRoots(ctx, current, copyRoots, copyBuffers, selected, previous, rescanRoots)
 			select {
 			case results <- result:
 			case <-done:
@@ -251,7 +260,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				for _, root := range roots {
 					diskGenerations[root]++
 				}
-				launch(false, true)
+				launch(false, roots...)
 			}
 		case q := <-queries:
 			if q.trace != "" {
@@ -279,6 +288,10 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				startAnalysis()
 			}
 			if result.epoch != epoch || shutdown {
+				if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+					trace, _ := json.Marshal(result.stats)
+					fmt.Fprintln(errOut, "argocd-analysis-discarded", string(trace))
+				}
 				continue
 			}
 			if !result.unchangedInputs {
@@ -286,7 +299,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			}
 			result.editGeneration = editGeneration
 			latest = result
-			acquisitionPending = false
+			if result.err == nil && result.stats.FullScan {
+				clear(scanPending)
+			}
 			if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 				trace, _ := json.Marshal(result.stats)
 				fmt.Fprintln(errOut, "argocd-analysis", string(trace))
@@ -399,6 +414,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					continue
 				}
 				override = p.InitializationOptions.TargetVersion
+				for _, root := range roots {
+					scanPending[root] = true
+				}
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
@@ -424,7 +442,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if canWatch {
 					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-watch-registration", "method": "client/registerCapability", "params": map[string]any{"registrations": []any{map[string]any{"id": "argocd-workspace-files", "method": "workspace/didChangeWatchedFiles", "registerOptions": map[string]any{"watchers": []any{map[string]any{"globPattern": "**/*", "kind": 7}}}}}}})
 				}
-				launch(true, true)
+				launch(true, roots...)
 			case "shutdown":
 				if canWatch {
 					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-watch-unregister", "method": "client/unregisterCapability", "params": map[string]any{"unregisterations": []any{map[string]any{"id": "argocd-workspace-files", "method": "workspace/didChangeWatchedFiles"}}}})
@@ -471,7 +489,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					continue
 				}
 				buffers[p.TextDocument.URI] = buffer{snapshot: s, version: p.TextDocument.Version, revision: s.Revision()}
-				launch(true, true)
+				launch(true, rootForURI(p.TextDocument.URI))
 			case "textDocument/didChange":
 				var p struct {
 					TextDocument struct {
@@ -549,7 +567,12 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				if valid {
 					buffers[p.TextDocument.URI] = buffer{snapshot: snapshot, version: p.TextDocument.Version, revision: snapshot.Revision()}
-					launch(true, filepath.Base(func() string { p, _ := uriPath(p.TextDocument.URI); return p }()) == ".argocd-ls.yaml")
+					path, _ := uriPath(p.TextDocument.URI)
+					var rescanRoots []string
+					if filepath.Base(path) == ".argocd-ls.yaml" {
+						rescanRoots = append(rescanRoots, workspace.Owner(roots, path))
+					}
+					launch(true, rescanRoots...)
 				} else {
 					fmt.Fprintln(errOut, "rejected invalid incremental edit")
 				}
@@ -562,7 +585,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if json.Unmarshal(m.Params, &p) == nil {
 					_, existed := buffers[p.TextDocument.URI]
 					delete(buffers, p.TextDocument.URI)
-					launch(existed, true)
+					launch(existed, rootForURI(p.TextDocument.URI))
 				}
 			case "textDocument/didSave", "workspace/didChangeWatchedFiles":
 				var event struct {
@@ -588,10 +611,12 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 						changedRoots[root] = true
 					}
 				}
+				var rescanRoots []string
 				for root := range changedRoots {
 					diskGenerations[root]++
+					rescanRoots = append(rescanRoots, root)
 				}
-				launch(false, true)
+				launch(false, rescanRoots...)
 			case "workspace/didChangeWorkspaceFolders":
 				previousRoots := append([]string(nil), roots...)
 				var p struct {
@@ -641,7 +666,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					}
 					return roots[i] < roots[j]
 				})
-				launch(!reflect.DeepEqual(previousRoots, roots), true)
+				launch(!reflect.DeepEqual(previousRoots, roots), roots...)
 			case "workspace/didChangeConfiguration":
 				var p struct {
 					Settings struct {
@@ -651,7 +676,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if json.Unmarshal(m.Params, &p) == nil {
 					changed := override != p.Settings.TargetVersion
 					override = p.Settings.TargetVersion
-					launch(changed, true)
+					launch(changed, roots...)
 				}
 
 			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion":
@@ -664,22 +689,23 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				requests[key] = pendingQuery{ctx, stop}
 				input, current := latest, epoch
 				selected := override
-				queryScan := acquisitionPending
+				queryScan := copyRootSet(scanPending)
 				var queryRoots []string
 				var copied map[string]buffer
+				queryDisk := make(map[string]uint64, len(diskGenerations))
 				{
 					queryRoots = append([]string{}, roots...)
 					copied = map[string]buffer{}
 					for uri, b := range buffers {
 						copied[uri] = b
 					}
+					for root, generation := range diskGenerations {
+						queryDisk[root] = generation
+					}
 				}
 				editable := canEdit
-				var proof *readProof
-				if m.Method != "textDocument/codeAction" && m.Method != "codeAction/resolve" {
-					proof = newReadProof(m, input, copied, queryRoots, selected, diskGenerations)
-				}
 				go func() {
+					var proof *readProof
 					var trace bytes.Buffer
 					if os.Getenv("ARGOCD_LS_TRACE") == "1" && (m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve") {
 						input.scopes = append([]scopeResult(nil), input.scopes...)
@@ -695,6 +721,12 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					} else {
 						fresh := queryInput(ctx, m, input, copied, queryRoots, selected, current, queryScan)
 						answer, code, why = readRequest(ctx, m, fresh, current)
+						if code == 0 {
+							// The proof must describe the very scopes used by this
+							// answer, including configuration changes refreshed above.
+							proof = newReadProof(m, fresh, copied, queryRoots, selected, queryDisk)
+						}
+						traceReadRequest(&trace, m, fresh, proof)
 					}
 					if ctx.Err() != nil {
 						code, why = -32800, "request cancelled"
@@ -725,8 +757,18 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 }
 
 func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, fullScan bool) completed {
+	rescanRoots := map[string]bool{}
+	if fullScan {
+		for _, root := range roots {
+			rescanRoots[root] = true
+		}
+	}
+	return analyzeRoots(ctx, epoch, roots, buffers, override, previous, rescanRoots)
+}
+
+func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, rescanRoots map[string]bool) completed {
 	result := completed{epoch: epoch, failures: map[string]error{}}
-	result.stats.FullScan = fullScan
+	result.stats.FullScan = len(rescanRoots) > 0
 	result.stats.Scope = "diagnostic-pass"
 	if ctx.Err() != nil {
 		result.err = ctx.Err()
@@ -739,12 +781,7 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		}
 	}
 	seen := map[string]bool{}
-	analyzer := new(analysis.Analyzer)
-	if previous.err == nil {
-		for _, scope := range previous.scopes {
-			analyzer.ReuseSchemas(scope.documents)
-		}
-	}
+	analyzer := retainedAnalyzer(previous, nil)
 	remaining := workspace.MaxRetainedText
 	openFiles := map[string]source.Snapshot{}
 	for uri, b := range buffers {
@@ -773,10 +810,12 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		}
 		return roots[i] < roots[j]
 	})
+rootLoop:
 	for _, root := range roots {
 		if result.failures[root] != nil {
 			continue
 		}
+		checkpoint := rootCheckpoint{len(result.inputs), len(result.scopes), len(result.publications)}
 		configURI := workspace.FileURI(filepath.Join(root, ".argocd-ls.yaml"))
 		var config *string
 		configPath, _ := uriPath(configURI)
@@ -791,7 +830,7 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		var e error
 		reusedInput := false
 		beforeRemaining := remaining
-		if !fullScan {
+		if !rescanRoots[root] {
 			for _, prior := range previous.inputs {
 				if prior.Root == root {
 					input, reusedInput = workspace.RefreshBuffers(ctx, prior, openFiles, roots, &remaining)
@@ -801,6 +840,10 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		}
 		if !reusedInput {
 			remaining = beforeRemaining
+			result.stats.AcquisitionRoots = append(result.stats.AcquisitionRoots, root)
+			if !rescanRoots[root] {
+				result.stats.AcquisitionFallbacks++
+			}
 			input, e = workspace.LoadBuffers(ctx, root, override, config, openFiles, roots, &remaining)
 			result.stats.DiskReads += input.AcquisitionReads
 			input.AcquisitionReads = 0
@@ -812,17 +855,7 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 				result.failureURI = configURI
 				return result
 			}
-			result.failures[root] = e
-			code := "ANALYSIS_INCOMPLETE"
-			if failure, ok := e.(*workspace.Error); ok {
-				code = failure.Code
-			}
-			var version *int
-			if b, ok := buffers[configURI]; ok {
-				v := b.version
-				version = &v
-			}
-			result.publications = append(result.publications, publication{configURI, version, []analysis.Diagnostic{{URI: configURI, Code: code, Source: "argocd-ls", Severity: 1, Message: e.Error()}}})
+			result.failRoot(checkpoint, root, configURI, buffers, e)
 			continue
 		}
 		result.stats.RepositoryDecodes += input.RepositoryDecodes
@@ -982,9 +1015,21 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 					}
 				}
 				if e != nil {
-					result.err = e
-					result.failureURI = uri
-					return result
+					if ctx.Err() != nil {
+						result.err = ctx.Err()
+						result.failureURI = uri
+						return result
+					}
+					// A parser/input failure invalidates this root's authority,
+					// not the other roots. Discard all partial facts and charges
+					// from this root before continuing with independent inputs.
+					result.failRoot(checkpoint, root, uri, buffers, e)
+					remaining = beforeRemaining
+					for uri := range files {
+						delete(seen, uri)
+					}
+					analyzer = retainedAnalyzer(previous, result.scopes)
+					continue rootLoop
 				}
 				incomplete = incomplete || checked.Incomplete
 				docs = append(docs, checked.Documents...)
@@ -1065,6 +1110,46 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 	return result
 }
 
+type rootCheckpoint struct{ inputs, scopes, publications int }
+
+// failRoot drops the failed root's partially accumulated result, so it cannot
+// supply stale diagnostics, reference authority, or edit candidates.
+func (result *completed) failRoot(checkpoint rootCheckpoint, root, uri string, buffers map[string]buffer, err error) {
+	clear(result.inputs[checkpoint.inputs:])
+	clear(result.scopes[checkpoint.scopes:])
+	clear(result.publications[checkpoint.publications:])
+	result.inputs = result.inputs[:checkpoint.inputs]
+	result.scopes = result.scopes[:checkpoint.scopes]
+	result.publications = result.publications[:checkpoint.publications]
+	result.failures[root] = err
+	code := "ANALYSIS_INCOMPLETE"
+	if failure, ok := err.(*workspace.Error); ok {
+		code = failure.Code
+	}
+	var version *int
+	if b, ok := buffers[uri]; ok {
+		v := b.version
+		version = &v
+	}
+	result.publications = append(result.publications, publication{uri, version, []analysis.Diagnostic{{URI: uri, Code: code, Source: "argocd-ls", Severity: 1, Message: err.Error()}}})
+}
+
+// Rebuild budget accounting only after a root is rolled back. Schema preparation
+// remains reusable, while projections belonging to discarded roots are released.
+func retainedAnalyzer(previous completed, retained []scopeResult) *analysis.Analyzer {
+	analyzer := new(analysis.Analyzer)
+	if previous.err == nil {
+		for _, scope := range previous.scopes {
+			analyzer.ReuseSchemas(scope.documents)
+		}
+	}
+	for _, scope := range retained {
+		analyzer.ReuseSchemas(scope.documents)
+		analyzer.ReuseProjections(scope.documents)
+	}
+	return analyzer
+}
+
 func sameScopeFiles(before, after []workspace.File) bool {
 	if len(before) != len(after) {
 		return false
@@ -1075,7 +1160,7 @@ func sameScopeFiles(before, after []workspace.File) bool {
 	}
 	for _, f := range after {
 		prior, ok := old[f.Snapshot.URI()]
-		if !ok || prior.Target != f.Target || prior.Output != f.Output || prior.Snapshot.Revision() != f.Snapshot.Revision() || prior.Snapshot.Text() != f.Snapshot.Text() {
+		if !ok || prior.Path != f.Path || prior.Target != f.Target || prior.Output != f.Output || prior.Snapshot.Revision() != f.Snapshot.Revision() || prior.Snapshot.Text() != f.Snapshot.Text() {
 			return false
 		}
 	}
@@ -1083,22 +1168,7 @@ func sameScopeFiles(before, after []workspace.File) bool {
 }
 
 func uriPath(uri string) (string, error) {
-	u, e := url.Parse(uri)
-	if e != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") {
-		return "", fmt.Errorf("only local file URIs are supported")
-	}
-	// A Windows drive URI has a leading slash that is not part of the drive path.
-	if filepath.Separator == '\\' && len(u.Path) >= 4 && u.Path[0] == '/' && u.Path[2:4] == ":/" && ((u.Path[1] >= 'A' && u.Path[1] <= 'Z') || (u.Path[1] >= 'a' && u.Path[1] <= 'z')) {
-		u.Path = u.Path[1:]
-	}
-	p := filepath.FromSlash(u.Path)
-	if !filepath.IsAbs(p) {
-		return "", fmt.Errorf("absolute file URI required")
-	}
-	if real, err := filepath.EvalSymlinks(p); err == nil {
-		return real, nil
-	}
-	return filepath.Clean(p), nil
+	return workspace.PathFromURI(uri)
 }
 func readMessage(reader *bufio.Reader) (message, error) {
 	var m message
@@ -1347,7 +1417,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64)
 
 // queryInput refreshes changed buffers within the requested root without waiting
 // for diagnostic debounce. It never promotes this read-only view to edit state.
-func queryInput(ctx context.Context, m message, latest completed, buffers map[string]buffer, roots []string, override string, epoch uint64, fullScan bool) completed {
+func queryInput(ctx context.Context, m message, latest completed, buffers map[string]buffer, roots []string, override string, epoch uint64, rescanRoots map[string]bool) completed {
 
 	var p struct {
 		TextDocument struct {
@@ -1365,12 +1435,13 @@ func queryInput(ctx context.Context, m message, latest completed, buffers map[st
 	if root == "" {
 		return completed{epoch: epoch}
 	}
-	if failure := latest.failures[root]; failure != nil && !fullScan {
+	if failure := latest.failures[root]; failure != nil && !rescanRoots[root] {
 		latest.err = failure
 		return latest
 	}
-	if fullScan {
-		result := analyze(ctx, epoch, roots, buffers, override, latest, true)
+	if rescanRoots[root] || queryMembershipChanged(latest, buffers, root) {
+		result := analyzeRoots(ctx, epoch, roots, buffers, override, latest, rescanRoots)
+		result.stats.Scope = "query-acquisition"
 		if failure := result.failures[root]; failure != nil {
 			result.err = failure
 		}
@@ -1439,6 +1510,48 @@ func queryInput(ctx context.Context, m message, latest completed, buffers map[st
 	return fresh
 }
 
+// The query fast path may replace text only while acquisition membership is
+// unchanged. Apply the same URI and Helm policies as diagnostic acquisition.
+func queryMembershipChanged(latest completed, buffers map[string]buffer, root string) bool {
+	for _, input := range latest.inputs {
+		for _, f := range input.Files {
+			b, ok := buffers[string(f.Snapshot.URI())]
+			if !ok || b.unavailable != "" {
+				continue
+			}
+			path, err := uriPath(string(b.snapshot.URI()))
+			if err != nil || path != f.Path {
+				return true
+			}
+			if input.Root == root && workspace.IsHelmTemplate(root, path, b.snapshot) {
+				return true
+			}
+		}
+		if input.Root != root {
+			continue
+		}
+		for _, snapshot := range input.Skipped {
+			b, ok := buffers[string(snapshot.URI())]
+			if !ok || b.unavailable != "" {
+				continue
+			}
+			path, err := uriPath(string(b.snapshot.URI()))
+			if err != nil || !workspace.IsHelmTemplate(root, path, b.snapshot) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func copyRootSet(roots map[string]bool) map[string]bool {
+	copied := make(map[string]bool, len(roots))
+	for root := range roots {
+		copied[root] = true
+	}
+	return copied
+}
+
 // A read proof only spans the queried scope, while edits retain the global epoch.
 // It permits unrelated input churn without accepting stale text or dependencies.
 type readProof struct {
@@ -1446,6 +1559,23 @@ type readProof struct {
 	diskGeneration    uint64
 	files, knownFiles map[string]bool
 	buffers           map[string]buffer
+}
+
+func traceReadRequest(out io.Writer, m message, input completed, proof *readProof) {
+	if os.Getenv("ARGOCD_LS_TRACE") != "1" {
+		return
+	}
+	if input.stats.Scope == "query-acquisition" {
+		payload, _ := json.Marshal(input.stats)
+		fmt.Fprintln(out, "argocd-query-acquisition", string(payload))
+	}
+	if proof == nil {
+		return
+	}
+	// Counts and identities explain which immutable dependency set was used
+	// without logging document contents or unbounded lists of files.
+	payload, _ := json.Marshal(map[string]any{"method": m.Method, "epoch": input.epoch, "root": proof.root, "dependencyFiles": len(proof.files), "knownFiles": len(proof.knownFiles), "diskGeneration": proof.diskGeneration})
+	fmt.Fprintln(out, "argocd-read-proof", string(payload))
 }
 
 func newReadProof(m message, input completed, buffers map[string]buffer, roots []string, override string, disk map[string]uint64) *readProof {

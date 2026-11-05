@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Independent framed stdio client: buffer ownership, versions, sequential UTF-16 changes and lifecycle."""
 import pathlib,json,subprocess,sys,hashlib,threading,queue,time
-root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=root/'artifacts/lsp';out.mkdir(parents=True,exist_ok=True);folder=out/'workspace';folder.mkdir(exist_ok=True);(folder/'.argocd-ls.yaml').write_text('schemaVersion: 1\ntargetVersion: "3.0.0"\n')
+root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(sys.argv[2]).resolve() if len(sys.argv)>2 else root/'artifacts/lsp';out.mkdir(parents=True,exist_ok=len(sys.argv)==2);folder=out/'workspace';folder.mkdir(exist_ok=True);(folder/'.argocd-ls.yaml').write_text('schemaVersion: 1\ntargetVersion: "3.0.0"\n')
 project_file=folder/'project.yaml';project_file.write_text('apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata:\n  name: default\n  namespace: argocd\nspec:\n  sourceRepos: ["*"]\n  destinations: [{server: "*", namespace: "*"}]\n')
 valid='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: sample\nspec:\n  project: default\n';invalid=valid.replace('project: default','project: 42');file=folder/'app.yaml';file.write_text(valid);uri=file.as_uri();p=subprocess.Popen([str(binary),'serve','--stdio'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE);messages=queue.Queue();raw=[];sent=[];rows=[]
 def read():
