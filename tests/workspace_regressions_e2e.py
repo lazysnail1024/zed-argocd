@@ -14,6 +14,7 @@ import platform
 import re
 import subprocess
 import sys
+import tomllib
 from urllib.parse import urlsplit
 
 import audit_repair_e2e as wire
@@ -217,7 +218,27 @@ class Suite:
             client.close()
 
     def helm(self):
-        folder, root = self.fixture("helm-transitions")
+        manifest_path = pathlib.Path(__file__).resolve().parents[1] / "extension.toml"
+        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        server = manifest["language_servers"]["argocd-ls"]
+        expected = {"YAML": "yaml", "Helm": "helm"}
+        checks = {"languagesDeclared": all(name in server["languages"] for name in expected),
+                  "protocolIDsMatch": all(server.get("language_ids", {}).get(name) == ident for name, ident in expected.items())}
+        self.record("helm-language-registration", checks,
+                    {"server": server, "extensionSHA256": wire.hash_file(manifest_path)})
+        if not all(checks.values()):
+            return
+        # Exercise the IDs actually shipped by the adapter. Protocol coverage
+        # does not establish that a real Zed host attached these servers.
+        language_ids = [server["language_ids"][name] for name in expected]
+        for language_id in language_ids:
+            self.helm_language(language_id)
+        self.helm_language_switch(language_ids)
+
+    def helm_language(self, language_id):
+        # Keep YAML case IDs stable for the existing mutation-test consumer.
+        prefix = "helm-" if language_id == "yaml" else "helm-" + language_id + "-"
+        folder, root = self.fixture(prefix + "transitions")
         write(root, "project.yaml", wire.PROJECT)
         write(root, "other.yaml", wire.APP.replace("name: app", "name: other"))
         write(root, "chart/Chart.yaml", "apiVersion: v2\nname: chart\nversion: 1.0.0\n")
@@ -225,40 +246,80 @@ class Suite:
         template = wire.APP.replace("project: team", "project: {{ .Values.project }}")
         quoted = wire.APP.replace("project: team", 'project: "{{ .Values.project }}"')
         app = write(root, "chart/templates/app.yaml", plain)
+        disk_bytes = app.read_bytes()
         client = wire.LSP(folder, [root])
         transitions = []
         try:
-            client.open(app, plain)
+            client.open(app, plain, language_id=language_id)
             diagnostics = client.diag(app, 1)
-            self.record("helm-pure-yaml-control", {"schemaStillChecked": any(d["code"] == "SCHEMA_TYPE" and d["severity"] == 1 for d in diagnostics)}, diagnostics)
+            self.record(prefix + "pure-yaml-control", {"schemaStillChecked": any(d["code"] == "SCHEMA_TYPE" and d["severity"] == 1 for d in diagnostics)}, diagnostics)
             for version, text, skipped in [(2, template, True), (3, plain, False), (4, quoted, True), (5, plain, False)]:
                 marker = len(client.messages)
                 client.change(app, text, version)
                 symbols = client.request("textDocument/documentSymbol", {"textDocument": {"uri": app.as_uri()}})
                 diagnostics = diagnostics_since(client, app, version, marker)
-                checks = {"queryUsesCurrentClass": "error" not in symbols and (symbols.get("result") == [] if skipped else any(s["name"] == "app" for s in symbols.get("result", [])))}
+                checks = {"queryUsesCurrentClass": "error" not in symbols and (symbols.get("result") == [] if skipped else any(s["name"] == "app" for s in symbols.get("result", []))),
+                          "sourceUnchanged": app.read_bytes() == disk_bytes}
                 if skipped:
                     checks["onlyUnrenderedInfo"] = len(diagnostics) == 1 and diagnostics[0]["code"] == "HELM_UNRENDERED" and diagnostics[0]["severity"] == 3
                 else:
                     checks["schemaRestored"] = any(d["code"] == "SCHEMA_TYPE" and d["severity"] == 1 for d in diagnostics) and not any(d["code"] == "HELM_UNRENDERED" for d in diagnostics)
-                self.record("helm-unsaved-version-" + str(version), checks, {"diagnostics": diagnostics, "symbols": symbols})
+                self.record(prefix + "unsaved-version-" + str(version), checks, {"diagnostics": diagnostics, "symbols": symbols})
                 transitions.append(diagnostics)
         finally:
             client.close()
         hot = [row for row in traces(folder) if not row["fullScan"]]
-        self.record("helm-transitions-no-acquisition", {"fourCompletedEdits": len(hot) == 4, "noUnrelatedReads": all(row["diskReads"] == 0 for row in hot),
+        self.record(prefix + "transitions-no-acquisition", {"fourCompletedEdits": len(hot) == 4, "noUnrelatedReads": all(row["diskReads"] == 0 for row in hot),
                     "noFallback": all(row.get("acquisitionFallbacks") == 0 for row in hot)}, hot)
 
-        direct_folder, direct_root = self.fixture("helm-direct-open")
+        direct_folder, direct_root = self.fixture(prefix + "direct-open")
         write(direct_root, "project.yaml", wire.PROJECT)
         write(direct_root, "chart/Chart.yaml", "apiVersion: v2\nname: chart\nversion: 1.0.0\n")
         direct = write(direct_root, "chart/templates/app.yaml", template)
         client = wire.LSP(direct_folder, [direct_root])
         try:
-            client.open(direct, template)
+            client.open(direct, template, language_id=language_id)
             diagnostics = client.diag(direct, 1)
             compact = lambda ds: [(d["code"], d["severity"], d["message"]) for d in ds]
-            self.record("helm-direct-and-edited-equivalent", {"sameDiagnosticContract": compact(diagnostics) == compact(transitions[0])}, diagnostics)
+            self.record(prefix + "direct-and-edited-equivalent", {"sameDiagnosticContract": compact(diagnostics) == compact(transitions[0])}, diagnostics)
+        finally:
+            client.close()
+
+    def helm_language_switch(self, language_ids):
+        folder, root = self.fixture("helm-language-switch")
+        write(root, "project.yaml", wire.PROJECT)
+        write(root, "chart/Chart.yaml", "apiVersion: v2\nname: chart\nversion: 1.0.0\n")
+        plain = wire.APP.replace("project: team", "project: 42")
+        template = wire.APP.replace("project: team", 'project: "{{ .Values.project }}"')
+        app = write(root, "chart/templates/app.yaml", plain)
+        disk_bytes = app.read_bytes()
+        client = wire.LSP(folder, [root])
+        try:
+            client.open(app, template, version=7, language_id=language_ids[0])
+            diagnostics = client.diag(app, 7)
+            self.record("helm-language-switch-initial", {"templateBuffer": len(diagnostics) == 1 and diagnostics[0]["code"] == "HELM_UNRENDERED"}, diagnostics)
+            # didChange has no languageId. A host changes a document's language
+            # by closing and reopening it; the new lifetime may reset version.
+            for language_id in [language_ids[1], language_ids[0]]:
+                client.send("textDocument/didClose", {"textDocument": {"uri": app.as_uri()}})
+                client.wait(lambda message: message.get("method") == "textDocument/publishDiagnostics"
+                            and message.get("params", {}).get("uri") == app.as_uri()
+                            and message["params"].get("version") is None)
+                marker = len(client.messages)
+                client.open(app, plain, version=1, language_id=language_id)
+                symbols = client.request("textDocument/documentSymbol", {"textDocument": {"uri": app.as_uri()}})
+                diagnostics = diagnostics_since(client, app, 1, marker)
+                self.record("helm-language-reopen-" + language_id,
+                            {"resetVersionAccepted": any(d["code"] == "SCHEMA_TYPE" and d["severity"] == 1 for d in diagnostics),
+                             "oldTemplateCleared": not any(d["code"] == "HELM_UNRENDERED" for d in diagnostics),
+                             "currentSymbols": "error" not in symbols and any(s["name"] == "app" for s in symbols.get("result", [])),
+                             "sourceUnchanged": app.read_bytes() == disk_bytes},
+                            {"diagnostics": diagnostics, "symbols": symbols, "languageId": language_id})
+                client.change(app, template, 2)
+                diagnostics = client.diag(app, 2)
+                self.record("helm-language-reopen-edit-" + language_id,
+                            {"currentTemplate": len(diagnostics) == 1 and diagnostics[0]["code"] == "HELM_UNRENDERED" and diagnostics[0]["severity"] == 3,
+                             "sourceUnchanged": app.read_bytes() == disk_bytes}, diagnostics)
         finally:
             client.close()
 

@@ -9,10 +9,11 @@ description = "Argo CD YAML diagnostics, completion and navigation with a verifi
 
 [language_servers.argocd-ls]
 name = "Argo CD Language Server"
-languages = ["YAML"]
+languages = ["YAML", "Helm"]
 
 [language_servers.argocd-ls.language_ids]
 YAML = "yaml"
+Helm = "helm"
 
 [[capabilities]]
 kind = "process:exec"
