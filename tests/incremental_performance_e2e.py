@@ -12,7 +12,7 @@ try:
   for i in range(a.repeats):
    start=time.monotonic();c.change(f,text+'# sample '+str(i)+'\n',i+2);ds=c.diag(f,i+2);samples.append((time.monotonic()-start)*1000);status=pathlib.Path('/proc')/str(c.proc.pid)/'status';rss.append(next((line.split(':',1)[1].strip() for line in status.read_text().splitlines() if line.startswith('VmRSS:')),None) if status.exists() else None);assert not any(x['severity']==1 for x in ds)
   c.close();traces=[json.loads(line.split(' ',1)[1]) for line in (d/'stderr').read_text().splitlines() if line.startswith('argocd-analysis ')];hot=[x for x in traces if not x['fullScan']]
-  if a.require_incremental:assert len(hot)==a.repeats and all(x['diskReads']==0 and x['parsedFiles']==1 and x['domainDocuments']==2 and x.get('repositoryDecodes',0)<=1 for x in hot),hot
+  if a.require_incremental:assert len(hot)==a.repeats and all(x['diskReads']==0 and x['parsedFiles']==1 and x['domainDocuments']==2 and x.get('repositoryDecodes',0)<=1 and x.get('acquisitionFallbacks')==0 for x in hot),hot
   rows.append({'size':n,'rssSamples':rss,'traces':traces,'samplesMs':samples,'p50':statistics.median(samples),'p95':sorted(samples)[math.ceil(.95*len(samples))-1]});print(json.dumps(rows[-1]),flush=True)
 finally:
  for c in w.CLIENTS:c.close()

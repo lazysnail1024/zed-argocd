@@ -12,7 +12,7 @@ PROJECT = 'apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata:\n  name
 def write(root, name, text):
     p = root / name
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text)
+    p.write_text(text, encoding='utf-8')
     return p
 
 def hash_file(path):
@@ -34,6 +34,7 @@ class LSP:
         self.start = time.monotonic()
         self.proc = subprocess.Popen([str(BINARY), 'serve', '--stdio'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.q, self.messages, self.sent, self.raw = queue.Queue(), [], [], []
+        self.stderr_chunks = []
         self.seq = 10
         def read():
             try:
@@ -54,6 +55,16 @@ class LSP:
                 self.q.put({'readerError': repr(exc)})
         self.thread = threading.Thread(target=read, daemon=True)
         self.thread.start()
+        # Trace-enabled consumers can exceed a pipe's capacity before close().
+        # Drain stderr concurrently so test instrumentation cannot stall LSP I/O.
+        def read_stderr():
+            while True:
+                chunk = self.proc.stderr.read(65536)
+                if not chunk:
+                    return
+                self.stderr_chunks.append(chunk)
+        self.stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        self.stderr_thread.start()
         self.send('initialize', {'processId': None, 'workspaceFolders':[{'uri':r.as_uri(),'name':r.name} for r in roots], 'capabilities':{'workspace':{'workspaceEdit':{'documentChanges':True}}}}, 1)
         self.wait(lambda m: m.get('id') == 1)
         self.send('initialized', {})
@@ -110,9 +121,10 @@ class LSP:
                 self.proc.kill()
                 self.proc.wait()
         self.thread.join(timeout=2)
+        self.stderr_thread.join(timeout=2)
         (self.out/'stdin').write_bytes(b''.join(self.sent))
         (self.out/'stdout').write_bytes(b''.join(self.raw))
-        (self.out/'stderr').write_bytes(self.proc.stderr.read())
+        (self.out/'stderr').write_bytes(b''.join(self.stderr_chunks))
         (self.out/'messages.json').write_text(json.dumps(self.messages, indent=2)+'\n')
 
 ROWS = []

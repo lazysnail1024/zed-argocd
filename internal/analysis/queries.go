@@ -344,49 +344,23 @@ func sourceReferences(doc Document, p Position) (string, map[string][]Location, 
 	return selected, definitions, uses, selected != ""
 }
 
-// RecoverProjectUse recovers a read-only use from a complete physical prefix.
-// It never contributes declarations, symbols, diagnostics or edit plans.
+// RecoverProjectUse proves both a complete physical use and unambiguous
+// membership in the current document. It never contributes declarations,
+// symbols, diagnostics or edit plans.
 func RecoverProjectUse(ctx context.Context, snapshot source.Snapshot, target string, p Position) *Document {
 	offset, err := snapshot.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})
 	if err != nil {
 		return nil
 	}
-	original, err := yamlview.Parse(ctx, snapshot)
-	if err != nil {
+	recovered := recoverReferencePrefix(ctx, snapshot, target, offset)
+	parts := []string{"spec", "project"}
+	if recovered == nil || recovered.document.Kind != "Application" || !recovered.permits(ctx, parts) {
 		return nil
 	}
-	damaged := false
-	for _, d := range original.Documents() {
-		if !d.Complete() && offset >= d.Span().Start && offset <= d.Span().End {
-			damaged = true
-		}
-	}
-	if !damaged {
-		return nil
-	}
-	end := strings.IndexByte(snapshot.Text()[offset:], '\n')
-	if end < 0 {
-		end = len(snapshot.Text())
-	} else {
-		end += offset + 1
-	}
-	prefix, err := source.New(snapshot.URI(), snapshot.Revision(), snapshot.Text()[:end])
-	if err != nil {
-		return nil
-	}
-	checked, err := Analyze(ctx, prefix, target)
-	if err != nil {
-		return nil
-	}
-	for _, doc := range checked.Documents {
-		if doc.Kind != "Application" || !doc.exact([]string{"spec", "project"}) || !exactReferencePath(doc.Root, []string{"spec", "project"}) {
-			continue
-		}
-		node := doc.location([]string{"spec", "project"})
-		if _, ok := referenceLiteral(node); ok && contains(doc, node, p) {
-			doc.Snapshot = snapshot
-			return &doc
-		}
+	doc := recovered.document
+	node := doc.location(parts)
+	if _, ok := referenceLiteral(node); ok && contains(doc, node, p) {
+		return &doc
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
+	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
 	yamlv3 "gopkg.in/yaml.v3"
 	"io"
@@ -58,15 +59,18 @@ type File struct {
 	Snapshot source.Snapshot
 	Target   Target
 	Output   bool
+	// Path is the canonical acquisition identity. Snapshot.URI is the client's
+	// spelling and must remain unchanged in diagnostics, navigation and edits.
+	Path string
 }
-type repositoryReference struct{ URL, Revision, Path string }
 type repositoryFile struct {
 	Snapshot   source.Snapshot
-	References []repositoryReference
+	References []analysis.RepositoryReference
 }
 type Input struct {
 	RepositoryDecodes int
 	repositoryFiles   map[source.URI]repositoryFile
+	skippedFiles      []File
 	AcquisitionReads  int
 	Skipped           []source.Snapshot
 	LocalPaths        map[string]map[string]bool
@@ -384,16 +388,17 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 				return input, e
 			}
 		}
-		if helmTemplate(root, resolved) && strings.Contains(snap.Text(), "{{") {
-			input.Skipped = append(input.Skipped, snap)
-			continue
-		}
 		if excluded && opened {
 			t.Scope = owner
 			t.ID += ":" + owner
 		}
-
-		input.Files = append(input.Files, File{Snapshot: snap, Target: t, Output: selected == "" || selected == resolved})
+		file := File{Snapshot: snap, Target: t, Output: selected == "" || selected == resolved, Path: resolved}
+		if IsHelmTemplate(root, resolved, snap) {
+			input.Skipped = append(input.Skipped, snap)
+			input.skippedFiles = append(input.skippedFiles, file)
+			continue
+		}
+		input.Files = append(input.Files, file)
 	}
 	if err := resolveLocalPaths(ctx, &input); err != nil {
 		return input, err
@@ -526,6 +531,12 @@ func helmTemplate(root, file string) bool {
 	return false
 }
 
+// IsHelmTemplate is shared by acquisition, buffer refresh and read-only queries.
+// Ordinary YAML in a chart is analyzed normally; templates are never executed.
+func IsHelmTemplate(root, file string, snapshot source.Snapshot) bool {
+	return strings.Contains(snapshot.Text(), "{{") && helmTemplate(root, file)
+}
+
 // TargetForFile assigns an already canonical local buffer to its root scope.
 func TargetForFile(input Input, file string) (Target, error) {
 	if !inside(input.Root, file) {
@@ -614,6 +625,26 @@ func FileURI(path string) string {
 	return (&url.URL{Scheme: "file", Path: p}).String()
 }
 
+// PathFromURI normalizes local identity once for filesystem and buffer lookups.
+// It accepts unsaved files while resolving existing aliases and Windows drives.
+func PathFromURI(uri string) (string, error) {
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") {
+		return "", fmt.Errorf("only local file URIs are supported")
+	}
+	if filepath.Separator == '\\' && len(u.Path) >= 4 && u.Path[0] == '/' && u.Path[2:4] == ":/" && ((u.Path[1] >= 'A' && u.Path[1] <= 'Z') || (u.Path[1] >= 'a' && u.Path[1] <= 'z')) {
+		u.Path = u.Path[1:]
+	}
+	p := filepath.FromSlash(u.Path)
+	if !filepath.IsAbs(p) {
+		return "", fmt.Errorf("absolute file URI required")
+	}
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real, nil
+	}
+	return filepath.Clean(p), nil
+}
+
 // A trailing /** excludes every descendant; arbitrary leaf globs cannot prune.
 func excludedSubtree(globs []string, relative string) bool {
 	for _, glob := range globs {
@@ -628,20 +659,33 @@ func excludedSubtree(globs []string, relative string) bool {
 // configuration/new-file/ownership transition falls back to full acquisition.
 func RefreshBuffers(ctx context.Context, prior Input, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, bool) {
 	input := prior
-	input.Files = append([]File(nil), prior.Files...)
+	input.AcquisitionReads = 0
+	input.RepositoryDecodes = 0
+	input.Files = nil
+	input.Skipped = nil
+	input.skippedFiles = nil
 	input.LocalPaths = map[string]map[string]bool{}
-	for key, value := range prior.LocalPaths {
-		input.LocalPaths[key] = value
-	}
+	all := append(append([]File(nil), prior.Files...), prior.skippedFiles...)
 	members := map[string]int{}
-	for i, f := range input.Files {
-		p, err := url.Parse(string(f.Snapshot.URI()))
-		if err != nil {
+	for i, f := range all {
+		// A client alias may now identify a different target. Never transfer the
+		// old file's scope or text identity merely to keep a cache hit.
+		if f.Path == "" {
 			return Input{}, false
 		}
-		members[filepath.FromSlash(p.Path)] = i
+		if string(f.Snapshot.URI()) != FileURI(f.Path) {
+			current, err := PathFromURI(string(f.Snapshot.URI()))
+			if err != nil || current != f.Path {
+				return Input{}, false
+			}
+		}
+		members[f.Path] = i
 	}
+	changed := map[string]bool{}
 	for p, snapshot := range buffers {
+		if ctx.Err() != nil {
+			return Input{}, false
+		}
 		if Owner(roots, p) != prior.Root {
 			continue
 		}
@@ -652,15 +696,26 @@ func RefreshBuffers(ctx context.Context, prior Input, buffers map[string]source.
 		if !ok {
 			return Input{}, false
 		}
-		input.Files[i].Snapshot = snapshot
+		changed[p] = all[i].Snapshot.URI() != snapshot.URI() || all[i].Snapshot.Text() != snapshot.Text()
+		all[i].Snapshot = snapshot
 	}
-	for p, i := range members {
-		if _, open := buffers[p]; !open {
-			*remaining -= len(input.Files[i].Snapshot.Text())
+	for i, f := range all {
+		if _, open := buffers[f.Path]; !open {
+			*remaining -= len(f.Snapshot.Text())
 			if *remaining < 0 {
 				return Input{}, false
 			}
 		}
+		skipped := i >= len(prior.Files)
+		if changed[f.Path] {
+			skipped = IsHelmTemplate(input.Root, f.Path, f.Snapshot)
+		}
+		if skipped {
+			input.Skipped = append(input.Skipped, f.Snapshot)
+			input.skippedFiles = append(input.skippedFiles, f)
+			continue
+		}
+		input.Files = append(input.Files, f)
 	}
 	if err := resolveLocalPaths(ctx, &input); err != nil {
 		return Input{}, false
@@ -687,28 +742,6 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 			continue
 		}
 		facts := repositoryFile{Snapshot: f.Snapshot}
-		var visit func(any)
-		visit = func(v any) {
-			if ctx.Err() != nil {
-				return
-			}
-			switch x := v.(type) {
-			case map[string]any:
-				url, _ := x["repoURL"].(string)
-				revision, _ := x["targetRevision"].(string)
-				local, _ := x["path"].(string)
-				if url != "" && local != "" && !strings.Contains(local, "{{") {
-					facts.References = append(facts.References, repositoryReference{url, revision, local})
-				}
-				for _, child := range x {
-					visit(child)
-				}
-			case []any:
-				for _, child := range x {
-					visit(child)
-				}
-			}
-		}
 		input.RepositoryDecodes++
 		decoder := yamlv3.NewDecoder(strings.NewReader(f.Snapshot.Text()))
 		for {
@@ -719,7 +752,8 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 			if err := decoder.Decode(&value); err != nil {
 				break
 			}
-			visit(value)
+			root, _ := value.(map[string]any)
+			facts.References = append(facts.References, analysis.RepositoryReferences(f.Snapshot, root)...)
 		}
 		next[f.Snapshot.URI()] = facts
 	}
@@ -733,7 +767,7 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				if ref.URL != repo.RepoURL || ref.Revision != repo.TargetRevision {
+				if ref.RepoURL != repo.RepoURL || ref.TargetRevision != repo.TargetRevision {
 					continue
 				}
 				clean := path.Clean(ref.Path)

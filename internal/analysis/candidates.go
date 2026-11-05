@@ -25,67 +25,21 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 			selected = append(selected, doc)
 		}
 	}
-	partial := false
+	var recovered *referenceRecovery
 	if len(selected) == 0 {
-		original, e := yamlview.Parse(ctx, snapshot)
-		if e != nil {
+		recovered = recoverReferencePrefix(ctx, snapshot, target, offset)
+		if recovered == nil {
 			return result
 		}
-		damaged := false
-		for _, d := range original.Documents() {
-			if offset >= d.Span().Start && offset <= d.Span().End && !d.Complete() {
-				damaged = true
-			}
-		}
-		if !damaged {
-			return result
-		}
-		// Only a complete physical-line prefix is recovered. Damage before or on
-		// the selected line remains a hard boundary; no tokens are invented.
-		end := strings.IndexByte(snapshot.Text()[offset:], '\n')
-		if end < 0 {
-			end = len(snapshot.Text())
-		} else {
-			end += offset + 1
-		}
-		prefix, e := source.New(snapshot.URI(), snapshot.Revision(), snapshot.Text()[:end])
-		if e != nil {
-			return result
-		}
-		view, e := yamlview.Parse(ctx, prefix)
-		if e != nil {
-			return result
-		}
-		for _, d := range view.Documents() {
-			root := d.Root()
-			if !d.Complete() || offset < root.Span().Start || offset > root.Span().End || oversizedScalar(root) {
-				continue
-			}
-			raw, e := documentText(prefix, d.Span())
-			if e != nil {
-				continue
-			}
-			projected, e := projectValues(ctx, raw, root)
-			if e != nil {
-				continue
-			}
-			value := object(projected.Value)
-			if literal(value["apiVersion"]) != "argoproj.io/v1alpha1" {
-				continue
-			}
-			kind := literal(value["kind"])
-			if kind != "Application" && kind != "ApplicationSet" {
-				continue
-			}
-			selected = append(selected, Document{Snapshot: snapshot, Root: root, Kind: kind, Target: target, Value: value, Origin: projected.Origin})
-			partial = true
-		}
+		selected = append(selected, recovered.document)
 	}
 	for _, doc := range selected {
 		if ctx.Err() != nil {
 			return []Completion{}
 		}
+		var templatePath []string
 		if doc.Kind == "ApplicationSet" {
+			templatePath = []string{"spec", "template"}
 			doc.Origin = doc.originBelow([]string{"spec", "template"})
 			doc.Value = object(object(doc.Value["spec"])["template"])
 			doc.Root = locate(doc.Root, []string{"spec", "template"})
@@ -102,6 +56,9 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 			ok = true
 		}
 		if !ok || key || !doc.exact(parts) || !exactReferencePath(doc.Root, parts) || (!empty && (node.Kind() != yamlview.Scalar || node.Damaged() || strings.ContainsAny(node.Raw(), "\r\n") || strings.Contains(node.Raw(), "{{") || strings.Contains(node.Raw(), "}}"))) {
+			continue
+		}
+		if recovered != nil && !recovered.permits(ctx, appendPath(templatePath, parts...)) {
 			continue
 		}
 		raw := node.Raw()
@@ -148,7 +105,7 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 					text += " "
 				}
 			}
-			if partial {
+			if recovered != nil {
 				detail += "; reliable prefix only"
 			}
 			a, e1 := snapshot.Position(span.Start)

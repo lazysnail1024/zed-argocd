@@ -2,8 +2,8 @@
 """Observe read-query cancellation independently, then stale epoch delivery."""
 import hashlib,importlib.util,json,os,pathlib,shutil,sys,time
 HERE=pathlib.Path(__file__).resolve().parent
-BINARY=pathlib.Path(os.environ.get('CD_AUDIT_BINARY',str(HERE.parent/'build/argocd-ls'))).resolve()
-OUT=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(HERE.parent/'artifacts/candidate-concurrency'))).resolve();OUT.mkdir(parents=True,exist_ok=True)
+BINARY=pathlib.Path(sys.argv[1] if len(sys.argv)>1 else os.environ.get('CD_AUDIT_BINARY',str(HERE.parent/'build/argocd-ls'))).resolve()
+OUT=pathlib.Path(sys.argv[2] if len(sys.argv)>2 else os.environ.get('CD_AUDIT_OUTPUT',str(HERE.parent/'artifacts/candidate-concurrency'))).resolve();OUT.mkdir(parents=True,exist_ok=len(sys.argv)<=2)
 os.environ['CD_AUDIT_BINARY']=str(BINARY)
 spec=importlib.util.spec_from_file_location('client',HERE/'audit_repair_e2e.py');e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 root=OUT/'workspace'
