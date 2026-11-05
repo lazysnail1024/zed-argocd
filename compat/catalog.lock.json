@@ -156,7 +156,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.0",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/f5119c06686399134b3f296d44445bcdbc778d42",
+          "sha256": "d748515bb88a65eab02850d461fd2434e9ad02f1b514ac7a4095fde962c5537e",
+          "localPath": "schemas/d748515bb88a65eab02850d461fd2434e9ad02f1b514ac7a4095fde962c5537e"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/6d993b2d553d236097834902b4202d053d0daa06?recursive=1",
+          "sha256": "51661cc345fbbbb3e06162d151380a8909b334b37d99b566e32e3245d31b019b",
+          "localPath": "schemas/51661cc345fbbbb3e06162d151380a8909b334b37d99b566e32e3245d31b019b"
+        }
+      }
     },
     {
       "version": "2.0.1",
@@ -209,7 +222,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.1",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/33eaf11e3abd8c761c726e815cbb4b6af7dcb030",
+          "sha256": "4e1da5b88058bbb9fd0ae8409f6525212235b00776f074a2a734b9ef58c14023",
+          "localPath": "schemas/4e1da5b88058bbb9fd0ae8409f6525212235b00776f074a2a734b9ef58c14023"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/97e6ad1a6aec76fbb3f4c9ab39f22f1c189aef01?recursive=1",
+          "sha256": "687a6cc8eab6017958e75c21efa31b18f865ae66b99db7d8ed3a63a21052e72a",
+          "localPath": "schemas/687a6cc8eab6017958e75c21efa31b18f865ae66b99db7d8ed3a63a21052e72a"
+        }
+      }
     },
     {
       "version": "2.0.2",
@@ -262,7 +288,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.2",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/9a7b0bc35048835516fc5f5f31a93d4c1bd61242",
+          "sha256": "5a4ba9fb122aeba5628a656727a698da9ddf0188cf1ad3b1100fc20e2d9673b3",
+          "localPath": "schemas/5a4ba9fb122aeba5628a656727a698da9ddf0188cf1ad3b1100fc20e2d9673b3"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/44f12c306f86200bf978ca2008240d6fc5250360?recursive=1",
+          "sha256": "f42391e9d265c64f2bf81fedad087e606b9120b17f89099d65f626fe3c1a27c4",
+          "localPath": "schemas/f42391e9d265c64f2bf81fedad087e606b9120b17f89099d65f626fe3c1a27c4"
+        }
+      }
     },
     {
       "version": "2.0.3",
@@ -315,7 +354,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.3",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/8d2b13d733e1dff7d1ad2c110ed31be4804406e2",
+          "sha256": "8a4b13576c43517ec1b5b6a76b80b0fe0a21221400de1a1522ccb030c4818039",
+          "localPath": "schemas/8a4b13576c43517ec1b5b6a76b80b0fe0a21221400de1a1522ccb030c4818039"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/c295da68e1ebbf0582b5ae95e4642fa96ad299f4?recursive=1",
+          "sha256": "a3c1f22960bf181eeaf78b92952bda1d173f565940a426de776e677247f56310",
+          "localPath": "schemas/a3c1f22960bf181eeaf78b92952bda1d173f565940a426de776e677247f56310"
+        }
+      }
     },
     {
       "version": "2.0.4",
@@ -368,7 +420,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.4",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/0842d448107eb1397b251e63ec4d4bc1b4efdd6e",
+          "sha256": "699b407e6eda6872cc2f1e77dda4c3cc12a1358876e27b399361bd25a9d49ff6",
+          "localPath": "schemas/699b407e6eda6872cc2f1e77dda4c3cc12a1358876e27b399361bd25a9d49ff6"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/73ca0f1842413cdf81a2b6f25c6672f13ef0d605?recursive=1",
+          "sha256": "86bfadbffa8e6fd4681118d059638e3500fc053b412584ebf786e26608ca3642",
+          "localPath": "schemas/86bfadbffa8e6fd4681118d059638e3500fc053b412584ebf786e26608ca3642"
+        }
+      }
     },
     {
       "version": "2.0.5",
@@ -421,7 +486,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.0.5",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/4c94d886f56bcb2f9d5b3251fdc049c2d1354b88",
+          "sha256": "3036c31b74a3b7336508c407213a200f30173a63b8c628aa5fb9eb22128bebdc",
+          "localPath": "schemas/3036c31b74a3b7336508c407213a200f30173a63b8c628aa5fb9eb22128bebdc"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/e3777d122448e1c7f2526e4e3f5628ebed8a9ba2?recursive=1",
+          "sha256": "bd17967c815a99840c40d029b6f342d1c4ec11a2a7b1c53d3f03016bc60c8ca6",
+          "localPath": "schemas/bd17967c815a99840c40d029b6f342d1c4ec11a2a7b1c53d3f03016bc60c8ca6"
+        }
+      }
     },
     {
       "version": "2.1.0",
@@ -474,7 +552,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.0",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/d0b2d55e3fb7fe8b17385d6687886de41651f31b",
+          "sha256": "4df1a0c9671e943f9d503809ac21f7239dbd65fef89fb18a49213bf4e4cb6d5d",
+          "localPath": "schemas/4df1a0c9671e943f9d503809ac21f7239dbd65fef89fb18a49213bf4e4cb6d5d"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/f4c66055214694a3293536da4093342e620c80ce?recursive=1",
+          "sha256": "4655d857962acd8a51cec4bf39197cf7fdb72687810c4cd63c8f69a88de1189e",
+          "localPath": "schemas/4655d857962acd8a51cec4bf39197cf7fdb72687810c4cd63c8f69a88de1189e"
+        }
+      }
     },
     {
       "version": "2.1.1",
@@ -527,7 +618,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.1",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/aab9542f8b3354f0940945c4295b67622f0af296",
+          "sha256": "1989826b337606e322e5b7cfa106371ded019674fd4170570a36844d9b859434",
+          "localPath": "schemas/1989826b337606e322e5b7cfa106371ded019674fd4170570a36844d9b859434"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/88e698f5caca89e10badc86cf8221e5055e3b359?recursive=1",
+          "sha256": "31397e3e7cad1226a7005d0a91f44f4eb99d18171222aed37e5df4f61706140d",
+          "localPath": "schemas/31397e3e7cad1226a7005d0a91f44f4eb99d18171222aed37e5df4f61706140d"
+        }
+      }
     },
     {
       "version": "2.1.2",
@@ -580,7 +684,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.2",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/7af9dfb3524c13e941ab604e36e49a617fe47d2e",
+          "sha256": "95a63e0c2deae04c24e65d23f3504db9fddc16ce0ce4b8c6a90f4447ceb5f5f2",
+          "localPath": "schemas/95a63e0c2deae04c24e65d23f3504db9fddc16ce0ce4b8c6a90f4447ceb5f5f2"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/e06b22bd3593b5222f798bc651625d5ef554798c?recursive=1",
+          "sha256": "9c4bf1b9163f701b1ffb5efd6e973985475c1a072e79f23b1737eb5edd4437c7",
+          "localPath": "schemas/9c4bf1b9163f701b1ffb5efd6e973985475c1a072e79f23b1737eb5edd4437c7"
+        }
+      }
     },
     {
       "version": "2.1.3",
@@ -633,7 +750,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.3",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/d855831540e51d8a90b1006d2eb9f49ab1b088af",
+          "sha256": "3cd1fc2d056c90cda34fb061616cd8f6501ce082846350b3fe42f5d084ed2063",
+          "localPath": "schemas/3cd1fc2d056c90cda34fb061616cd8f6501ce082846350b3fe42f5d084ed2063"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/e4d59cfd4cf3a3c2cf5f83662871d1495f70741e?recursive=1",
+          "sha256": "24dd990294a3415b3a82bee917121175c25116a247a6200562cecf703d8788f4",
+          "localPath": "schemas/24dd990294a3415b3a82bee917121175c25116a247a6200562cecf703d8788f4"
+        }
+      }
     },
     {
       "version": "2.1.4",
@@ -686,7 +816,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.4",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/d5c66088272c83e1b8b78562ce100006833c2d74",
+          "sha256": "0e6165ef728b2232be484814b10342d1fe7779ecc8d2b4d5c714a5dd0b2d6673",
+          "localPath": "schemas/0e6165ef728b2232be484814b10342d1fe7779ecc8d2b4d5c714a5dd0b2d6673"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/86b4f5f777746ca8fb78c077da0bc200c9cb6e7e?recursive=1",
+          "sha256": "249b6faff030e65670a4b1e8adc37b5ecd68f24a89a24db97c7d1fb9fa84c5e2",
+          "localPath": "schemas/249b6faff030e65670a4b1e8adc37b5ecd68f24a89a24db97c7d1fb9fa84c5e2"
+        }
+      }
     },
     {
       "version": "2.1.5",
@@ -739,7 +882,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.5",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/a8a6fc8dda0e26bb1e0b893e270c1128038f5b0f",
+          "sha256": "a75899fa9b51309f3785fd1d78f7cf3f99e6b198b2671010d11397bab65bdb2e",
+          "localPath": "schemas/a75899fa9b51309f3785fd1d78f7cf3f99e6b198b2671010d11397bab65bdb2e"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/13738824a887d1a22bd914837db48e020eab9b32?recursive=1",
+          "sha256": "e0dbc1c6db7414e091e57e7babf90cae6d9572b003db1e2fdc503b7e927080cb",
+          "localPath": "schemas/e0dbc1c6db7414e091e57e7babf90cae6d9572b003db1e2fdc503b7e927080cb"
+        }
+      }
     },
     {
       "version": "2.1.6",
@@ -792,7 +948,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.6",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/a346cf933e10d872eae26bff8e58c5e7ac40db25",
+          "sha256": "f6a9c83b359a1a31f32fa03801795ac598f9343aa82b9c3e8569127b9049d724",
+          "localPath": "schemas/f6a9c83b359a1a31f32fa03801795ac598f9343aa82b9c3e8569127b9049d724"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/d187a3ea8679ace43caf73703cfd910620e56394?recursive=1",
+          "sha256": "40a6398f22034640dabe1ace6a3d93144aee35dd928058a48f07efbf8f6652bd",
+          "localPath": "schemas/40a6398f22034640dabe1ace6a3d93144aee35dd928058a48f07efbf8f6652bd"
+        }
+      }
     },
     {
       "version": "2.1.7",
@@ -845,7 +1014,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.7",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/a408e299ffa743213df3aa9135bf7945644ec936",
+          "sha256": "6e9bcb1f758f6eee50e1ac334e68ca11a72bbf122ea978373ce0064d4288ad50",
+          "localPath": "schemas/6e9bcb1f758f6eee50e1ac334e68ca11a72bbf122ea978373ce0064d4288ad50"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/85a66292d86d4d9cd2e7360e07e25496009e3ca9?recursive=1",
+          "sha256": "6f899a11091195178df9c89ec0b6a31bbc2c6f628a7985baf8f28c2cb55c8673",
+          "localPath": "schemas/6f899a11091195178df9c89ec0b6a31bbc2c6f628a7985baf8f28c2cb55c8673"
+        }
+      }
     },
     {
       "version": "2.1.8",
@@ -898,7 +1080,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.8",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/2fdaf7a9add4ba6d6657d28dc32228419cb8b8f5",
+          "sha256": "0c1a9da849e6c773feb9cbe549b3be9034a7bb6dfa99deb7ff50a71efc616c17",
+          "localPath": "schemas/0c1a9da849e6c773feb9cbe549b3be9034a7bb6dfa99deb7ff50a71efc616c17"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/d9db85fe9f96104ab57abdee67a57099dc8f150e?recursive=1",
+          "sha256": "b6bdf0b90dffc412ce89c6fae2d8a0ecda7ff5d694e07ab415e09b610fed5996",
+          "localPath": "schemas/b6bdf0b90dffc412ce89c6fae2d8a0ecda7ff5d694e07ab415e09b610fed5996"
+        }
+      }
     },
     {
       "version": "2.1.9",
@@ -951,7 +1146,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.9",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/5c51d5dae0a8c8940979db3eff5cc6be7bff9250",
+          "sha256": "58614fba90e48496559b9e5726a32ee204e17f34e974694f91ad0110d388ed72",
+          "localPath": "schemas/58614fba90e48496559b9e5726a32ee204e17f34e974694f91ad0110d388ed72"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/bcc88111ac14a8f0a7ff272de14939fc98d93ffd?recursive=1",
+          "sha256": "953eeed2da7a7eb49145644257adba71da627f73bfc2911475d576c6e4bb64da",
+          "localPath": "schemas/953eeed2da7a7eb49145644257adba71da627f73bfc2911475d576c6e4bb64da"
+        }
+      }
     },
     {
       "version": "2.1.10",
@@ -1004,7 +1212,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.10",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/de6735c386b2bc6cad2372f43881df7898fb13cb",
+          "sha256": "fb1a19ede013ffa68faabddccda3d6819e9af881cdcff808ca4d015c402ba998",
+          "localPath": "schemas/fb1a19ede013ffa68faabddccda3d6819e9af881cdcff808ca4d015c402ba998"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/3e2d87dcf213f92df58d3fb0c1e7c52bc2e738a0?recursive=1",
+          "sha256": "103f8aa141fd0302641f58ffaa7239c14724a4586a4d039ba587b979d96da265",
+          "localPath": "schemas/103f8aa141fd0302641f58ffaa7239c14724a4586a4d039ba587b979d96da265"
+        }
+      }
     },
     {
       "version": "2.1.11",
@@ -1057,7 +1278,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.11",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/e25d3b54354dc529a11a1ccbb19f6338aa027525",
+          "sha256": "9549f478aa87cc9184238162d94e0be8f3ba676667544986fa5ffb4ddd66b76d",
+          "localPath": "schemas/9549f478aa87cc9184238162d94e0be8f3ba676667544986fa5ffb4ddd66b76d"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/aa2619254312116af969b894b44d4442f9d013a0?recursive=1",
+          "sha256": "9f0267c1e228bfe2e8ded78e3a4068831c9c2349e2e9c3a8256580ed0fc62d46",
+          "localPath": "schemas/9f0267c1e228bfe2e8ded78e3a4068831c9c2349e2e9c3a8256580ed0fc62d46"
+        }
+      }
     },
     {
       "version": "2.1.12",
@@ -1110,7 +1344,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.12",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/273a952e6c03c3a5e6aaa666a00a3e275128776a",
+          "sha256": "938b1ff89b5faf54ff7ee2f328d1a1f173b812c111bc93bdbe01b83f9e113e4b",
+          "localPath": "schemas/938b1ff89b5faf54ff7ee2f328d1a1f173b812c111bc93bdbe01b83f9e113e4b"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/a0a3211ba68a3242e2b72b61c7bf487105aa465a?recursive=1",
+          "sha256": "cbbdd98bf95ed45c0de6c1f44f45fa8c063fd8fe202ec6ca1541f77818ec07f4",
+          "localPath": "schemas/cbbdd98bf95ed45c0de6c1f44f45fa8c063fd8fe202ec6ca1541f77818ec07f4"
+        }
+      }
     },
     {
       "version": "2.1.13",
@@ -1163,7 +1410,20 @@
           "format": "canonical-openapi-v3-source",
           "validated": true
         }
-      ]
+      ],
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/4803dfac1d45ec18df4c8a05de7a28b8e041ba7c",
+          "sha256": "82a53ba63dea07bb040393b023d604b2838196179b7f25e9662e48b2e6302526",
+          "localPath": "schemas/82a53ba63dea07bb040393b023d604b2838196179b7f25e9662e48b2e6302526"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/c2203afe5ee032b74719f5b5ea7395683ebefeec?recursive=1",
+          "sha256": "b20622bddc89074d0978593a572252bd50c06fba9a7841bdc146fdf1a5ee3cab",
+          "localPath": "schemas/b20622bddc89074d0978593a572252bd50c06fba9a7841bdc146fdf1a5ee3cab"
+        }
+      }
     },
     {
       "version": "2.1.14",
@@ -1216,7 +1476,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.14",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/836cde06baef111fa2d7fe157de5c199b16bcd2b",
+          "sha256": "37b775683dac1d502bcd9dd9e18a9e0f186a379dff4716e3acac1e0a394c6346",
+          "localPath": "schemas/37b775683dac1d502bcd9dd9e18a9e0f186a379dff4716e3acac1e0a394c6346"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/faa222abda7023e6c05e47735af4cd0bc752d381?recursive=1",
+          "sha256": "cde4a47fa746f4e543a2bb549681797fd8d85ccfe19a50744d4a33e919d71ffe",
+          "localPath": "schemas/cde4a47fa746f4e543a2bb549681797fd8d85ccfe19a50744d4a33e919d71ffe"
+        }
+      }
     },
     {
       "version": "2.1.15",
@@ -1269,7 +1542,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.15",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/52f917a18165416baa418822daae36c5f011e91f",
+          "sha256": "1a2a628ec5c32eb01c73b4fe9f2f0d2bcd376c80f38eabffeb0f36746f0fc68a",
+          "localPath": "schemas/1a2a628ec5c32eb01c73b4fe9f2f0d2bcd376c80f38eabffeb0f36746f0fc68a"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/96b45197162d361d1f4b14501ca323a5f8561dc6?recursive=1",
+          "sha256": "0f643869dd41c28fd5648371450f89c2a55bc64bbbd9f2923106a64889b764d3",
+          "localPath": "schemas/0f643869dd41c28fd5648371450f89c2a55bc64bbbd9f2923106a64889b764d3"
+        }
+      }
     },
     {
       "version": "2.1.16",
@@ -1322,7 +1608,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.1.16",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/903db5fe464032bd5a10bf32fe17639e76634c2a",
+          "sha256": "7303b6044f81bdb3a8eb1a663dc51b83fce56cc72ca96cf5fde6ccc29877e74a",
+          "localPath": "schemas/7303b6044f81bdb3a8eb1a663dc51b83fce56cc72ca96cf5fde6ccc29877e74a"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/faa312f069e378f28cf1ab9f5791cae84fb50edd?recursive=1",
+          "sha256": "b176073550a78aba92afe35545de678b22d5b1ee0aac3fa364ad49e8b2d5baeb",
+          "localPath": "schemas/b176073550a78aba92afe35545de678b22d5b1ee0aac3fa364ad49e8b2d5baeb"
+        }
+      }
     },
     {
       "version": "2.2.0",
@@ -1375,7 +1674,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.0",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/6da92a8e8103ce4145bb0fe2b7e952be79c9ff0a",
+          "sha256": "ccd3a1b57506b31edcd62c3f2a5902c4d87bc73b0685d986e9eeeed7d1631fba",
+          "localPath": "schemas/ccd3a1b57506b31edcd62c3f2a5902c4d87bc73b0685d986e9eeeed7d1631fba"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/f8f2cbdb1efa27f24fb3e4e8a4d9c8d277c13aed?recursive=1",
+          "sha256": "1463fb13cc156d116c42981aceff82a618cad0669293eb8f8e162f5510e3ff16",
+          "localPath": "schemas/1463fb13cc156d116c42981aceff82a618cad0669293eb8f8e162f5510e3ff16"
+        }
+      }
     },
     {
       "version": "2.2.1",
@@ -1428,7 +1740,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.1",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/122ecefc3abfe8b691a08d9f3cecf9a170cc8c37",
+          "sha256": "41fdfe23e84d689ee02fcba60e1deaabce6d27a314e6ec91e957a4c8d267108b",
+          "localPath": "schemas/41fdfe23e84d689ee02fcba60e1deaabce6d27a314e6ec91e957a4c8d267108b"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/c8609e8fdfcb4c891a3661164afbbdb163cc0244?recursive=1",
+          "sha256": "2d0703b329e699576f79c164c732722b43cd55b33755acb4d2cfe0140cba9a39",
+          "localPath": "schemas/2d0703b329e699576f79c164c732722b43cd55b33755acb4d2cfe0140cba9a39"
+        }
+      }
     },
     {
       "version": "2.2.2",
@@ -1481,7 +1806,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.2",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/03b17e0233e64787ffb5fcf65c740cc2a20822ba",
+          "sha256": "b7c9856817e7c249e133713a6225862c3ccdbdb6a1886f43be6386ee8d0f914f",
+          "localPath": "schemas/b7c9856817e7c249e133713a6225862c3ccdbdb6a1886f43be6386ee8d0f914f"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/734c0d1821653d37a62b87dbf9996b6be192f224?recursive=1",
+          "sha256": "36c5e48eeb5c917127be9bce9759021343f986f1a25962df216c1c7b0a8fb342",
+          "localPath": "schemas/36c5e48eeb5c917127be9bce9759021343f986f1a25962df216c1c7b0a8fb342"
+        }
+      }
     },
     {
       "version": "2.2.3",
@@ -1534,7 +1872,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.3",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/987f6659b88e656a8f6f8feef87f4dd467d53c44",
+          "sha256": "f23cd935d0d07d702ec1abdbfcda2de1620343714feed0a6dc0cbe299327c47d",
+          "localPath": "schemas/f23cd935d0d07d702ec1abdbfcda2de1620343714feed0a6dc0cbe299327c47d"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/2cc4e69a1c770ee2dfe6c61950f0257794f2b687?recursive=1",
+          "sha256": "064cafa5def85affad17fd66546197aa4648a97cdbb466bc16942c1c30903392",
+          "localPath": "schemas/064cafa5def85affad17fd66546197aa4648a97cdbb466bc16942c1c30903392"
+        }
+      }
     },
     {
       "version": "2.2.4",
@@ -1587,7 +1938,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.4",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/78d749ec88bea5a5e851fc48b9404fdf067192b6",
+          "sha256": "28e625062b3a911ee64962d5e9313ca58c15b8e135c08b9c951ba2ab78ec9374",
+          "localPath": "schemas/28e625062b3a911ee64962d5e9313ca58c15b8e135c08b9c951ba2ab78ec9374"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/ee9395be573d69e5e3e2e164728a3b49b512d94b?recursive=1",
+          "sha256": "a5222589ca3103f472bfa3514fbca79822328d4bba6e8ea884745f0eb8fa5185",
+          "localPath": "schemas/a5222589ca3103f472bfa3514fbca79822328d4bba6e8ea884745f0eb8fa5185"
+        }
+      }
     },
     {
       "version": "2.2.5",
@@ -1640,7 +2004,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.5",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/8f981ccfcf942a9eb00bc466649f8499ba0455f5",
+          "sha256": "725571dacbaa364844a3275bdd74ff368f47c0601f9e70f685ef9fbfba1b6605",
+          "localPath": "schemas/725571dacbaa364844a3275bdd74ff368f47c0601f9e70f685ef9fbfba1b6605"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/b6303229fb5551addd8d426b5a523fe625cb84df?recursive=1",
+          "sha256": "e3753db1b487b6ddccb03ada7b69088c67018fda3aef0687edaca79358d24c37",
+          "localPath": "schemas/e3753db1b487b6ddccb03ada7b69088c67018fda3aef0687edaca79358d24c37"
+        }
+      }
     },
     {
       "version": "2.2.6",
@@ -1693,7 +2070,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.6",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/2e550c3f0723daf94df7343b7c40f459aafd6fff",
+          "sha256": "7c894f489d65eae65608a18a590d49115d8746956db484ea7cecbc5595ae5f2a",
+          "localPath": "schemas/7c894f489d65eae65608a18a590d49115d8746956db484ea7cecbc5595ae5f2a"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/520606647783f873f055c22a611f893e984bb71c?recursive=1",
+          "sha256": "3da33160b210629b1d193f02a08b1b8658ba97954d1b6f2346db888d9dfa6950",
+          "localPath": "schemas/3da33160b210629b1d193f02a08b1b8658ba97954d1b6f2346db888d9dfa6950"
+        }
+      }
     },
     {
       "version": "2.2.7",
@@ -1746,7 +2136,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.7",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/b8e154f767412172bb0c2b41131460c34d2a0c73",
+          "sha256": "07bbf40bed5d30efa0bec1fed6d0776eba00b32d5ce442b44ef1f5fd744b0944",
+          "localPath": "schemas/07bbf40bed5d30efa0bec1fed6d0776eba00b32d5ce442b44ef1f5fd744b0944"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/0e01d731ce8ee45dd40f095aabd67c4cd11f5919?recursive=1",
+          "sha256": "109e019ec5884b18034c8444152331dc7be3b789e0080c8511d324cc0a53f37f",
+          "localPath": "schemas/109e019ec5884b18034c8444152331dc7be3b789e0080c8511d324cc0a53f37f"
+        }
+      }
     },
     {
       "version": "2.2.8",
@@ -1799,7 +2202,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.8",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/93d588c86e9740a5df3e5379a07593de28da0d1a",
+          "sha256": "317a8c8f055995f78dddedb9004b8b5207159e57de9202eed25996a3581a3d16",
+          "localPath": "schemas/317a8c8f055995f78dddedb9004b8b5207159e57de9202eed25996a3581a3d16"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/f1d499fc19b06822eac1d465d26220bbe382f16a?recursive=1",
+          "sha256": "38934f56478698b9056017de4d43dae4d29f152c54a3e78a6e3afd518c0ad7bc",
+          "localPath": "schemas/38934f56478698b9056017de4d43dae4d29f152c54a3e78a6e3afd518c0ad7bc"
+        }
+      }
     },
     {
       "version": "2.2.9",
@@ -1852,7 +2268,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.9",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/38755a4c1e5232aa2e6f80c062593c9f07da0757",
+          "sha256": "81317f5f01d3c4839b2cde15cd6ca1cc058515d277a8107d8e77a3dc43313268",
+          "localPath": "schemas/81317f5f01d3c4839b2cde15cd6ca1cc058515d277a8107d8e77a3dc43313268"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/118e63df3f730613eacceb61cfe6fb9619ea54dd?recursive=1",
+          "sha256": "8a00a68ceb2884c3faed348b9c833115ee0507626832ca8419520e2faa497070",
+          "localPath": "schemas/8a00a68ceb2884c3faed348b9c833115ee0507626832ca8419520e2faa497070"
+        }
+      }
     },
     {
       "version": "2.2.10",
@@ -1905,7 +2334,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.10",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/8db0e57b738ff5b0b276031573576fdc3498c04f",
+          "sha256": "682af3c9a8fbee6703cbf3c9418db7782ac68b17b65af4e355f420337e0bb20d",
+          "localPath": "schemas/682af3c9a8fbee6703cbf3c9418db7782ac68b17b65af4e355f420337e0bb20d"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/59a736f492d0b6edd7e5a22fdb75ebe35fa7ff19?recursive=1",
+          "sha256": "2d43c6120059ff1c5afe50541df565d0e9fe276f1aebe2efa1ad14cc109e59c9",
+          "localPath": "schemas/2d43c6120059ff1c5afe50541df565d0e9fe276f1aebe2efa1ad14cc109e59c9"
+        }
+      }
     },
     {
       "version": "2.2.11",
@@ -1958,7 +2400,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.11",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/aa3f3749f8d5f174d2e4cdd2cf14cf6f9ef55143",
+          "sha256": "e1758d7a2735fe7fe6ae0160313ebf4d615e5bc43fd3db3a26ca27d87cabc627",
+          "localPath": "schemas/e1758d7a2735fe7fe6ae0160313ebf4d615e5bc43fd3db3a26ca27d87cabc627"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/de95a4a7b0a529d19d981c3b4f858ad2969d8fc6?recursive=1",
+          "sha256": "7c9937476b37bb30d04469cb5bc3d3d2df64f04694df89642b8aba216634d92f",
+          "localPath": "schemas/7c9937476b37bb30d04469cb5bc3d3d2df64f04694df89642b8aba216634d92f"
+        }
+      }
     },
     {
       "version": "2.2.12",
@@ -2011,7 +2466,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.12",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/fd74756aebe30c9567ff904a1c138a828f533ede",
+          "sha256": "a9f3d0d8e1b77cdfc7a7a2a5212c62027518f71e5868bcf18b6852da77199ab7",
+          "localPath": "schemas/a9f3d0d8e1b77cdfc7a7a2a5212c62027518f71e5868bcf18b6852da77199ab7"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/98a459d4a564592942632a8bb66df48a3f198c99?recursive=1",
+          "sha256": "b156179a530e2f50abf875c861eac3c3fddc78efbedb672d2f87c7ef247a1f92",
+          "localPath": "schemas/b156179a530e2f50abf875c861eac3c3fddc78efbedb672d2f87c7ef247a1f92"
+        }
+      }
     },
     {
       "version": "2.2.13",
@@ -2064,7 +2532,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.13",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/c25f81cef435383cfe52c02cecfd2d006b25a18a",
+          "sha256": "7fab86693108ed95aa8a330698c836984192653ac667d2ffb8bf0f28968c447c",
+          "localPath": "schemas/7fab86693108ed95aa8a330698c836984192653ac667d2ffb8bf0f28968c447c"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/ad38a6d7e4b81a129cb758126596472ce959708e?recursive=1",
+          "sha256": "8765bdf63b8c7bc2674d4a398ff11405a8b38f7db1b18766a4ed77d087b6bed1",
+          "localPath": "schemas/8765bdf63b8c7bc2674d4a398ff11405a8b38f7db1b18766a4ed77d087b6bed1"
+        }
+      }
     },
     {
       "version": "2.2.14",
@@ -2117,7 +2598,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.14",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/4faaa02377ff19a86d893b6bc745699b9a898e5f",
+          "sha256": "0e82512bd97de6a3398beb9195b91cb3a0dd14392a4468f556d4fe102caa2fad",
+          "localPath": "schemas/0e82512bd97de6a3398beb9195b91cb3a0dd14392a4468f556d4fe102caa2fad"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/7f02a590c0e0b9a16b45189e5c4b71c2b7a371a3?recursive=1",
+          "sha256": "6306fe944cc845df0ee7ced81293ad21bb76c935aaf794f3733671f39e957b07",
+          "localPath": "schemas/6306fe944cc845df0ee7ced81293ad21bb76c935aaf794f3733671f39e957b07"
+        }
+      }
     },
     {
       "version": "2.2.15",
@@ -2170,7 +2664,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.15",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/b26224950abcd2a15d2f94c9adce941f4a9c2375",
+          "sha256": "c92c4c398f1f890250175ac846af3519058683808e42032f8e8a6e80355d1b66",
+          "localPath": "schemas/c92c4c398f1f890250175ac846af3519058683808e42032f8e8a6e80355d1b66"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/7329a4ea161eb5847566f1e8abe74f4b6e18ab13?recursive=1",
+          "sha256": "c9ef1b56a79e6c6be8d1b9b9536606f807efe8caf4e53bb492a9734e84a22446",
+          "localPath": "schemas/c9ef1b56a79e6c6be8d1b9b9536606f807efe8caf4e53bb492a9734e84a22446"
+        }
+      }
     },
     {
       "version": "2.2.16",
@@ -2223,7 +2730,20 @@
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.2.16",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "no-applicationset-manifest-path",
+        "rootTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/41828a5fb178bc485bcbb5d08fb3f07c80695114",
+          "sha256": "075e7a8386722b932e25963fff9c3e59049c7d14928cd63c9f588b812c550ecf",
+          "localPath": "schemas/075e7a8386722b932e25963fff9c3e59049c7d14928cd63c9f588b812c550ecf"
+        },
+        "manifestsTree": {
+          "url": "https://api.github.com/repos/argoproj/argo-cd/git/trees/e8622523f297977b77bde0046c8dca800dad1039?recursive=1",
+          "sha256": "cdb8e4d42be9655f4d5131cfc4ed3b9bb39f9cb7152ae70e48a4b4b13047874d",
+          "localPath": "schemas/cdb8e4d42be9655f4d5131cfc4ed3b9bb39f9cb7152ae70e48a4b4b13047874d"
+        }
+      }
     },
     {
       "version": "2.3.0",
@@ -2251,6 +2771,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/fe427802293b090f43f91f5839393174df6c3b3a/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/eab46ad3d633317279ddf3a56855823b0057a13e/manifests/install.yaml",
+          "sha256": "ab1290c72998e1050e8948ad3c26d1044c40b0c90561f3726e30044a874fcf2c",
+          "localPath": "schemas/ab1290c72998e1050e8948ad3c26d1044c40b0c90561f3726e30044a874fcf2c",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.0/manifests/install.yaml",
+            "tag": "v0.4.0",
+            "upstreamCommit": "eab46ad3d633317279ddf3a56855823b0057a13e",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.0",
+              "sha256": "fb783284123bb75d989afbcc481fa4700e584b62fbabb93724514d51073eb5e1",
+              "localPath": "schemas/fb783284123bb75d989afbcc481fa4700e584b62fbabb93724514d51073eb5e1"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/fe427802293b090f43f91f5839393174df6c3b3a/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "6eaa9a56011177e4df58d2bc3fbe776ccc24e2d5a936c3609402e58e900b041a",
+              "localPath": "schemas/6eaa9a56011177e4df58d2bc3fbe776ccc24e2d5a936c3609402e58e900b041a"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/eab46ad3d633317279ddf3a56855823b0057a13e/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.0/manifests/install.yaml",
+            "tag": "v0.4.0",
+            "upstreamCommit": "eab46ad3d633317279ddf3a56855823b0057a13e",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.0",
+              "sha256": "fb783284123bb75d989afbcc481fa4700e584b62fbabb93724514d51073eb5e1",
+              "localPath": "schemas/fb783284123bb75d989afbcc481fa4700e584b62fbabb93724514d51073eb5e1"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/fe427802293b090f43f91f5839393174df6c3b3a/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "6eaa9a56011177e4df58d2bc3fbe776ccc24e2d5a936c3609402e58e900b041a",
+              "localPath": "schemas/6eaa9a56011177e4df58d2bc3fbe776ccc24e2d5a936c3609402e58e900b041a"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2273,10 +2841,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/eab46ad3d633317279ddf3a56855823b0057a13e/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.0",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.0/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.1",
@@ -2304,6 +2885,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/b65c1699fa2a2daa031483a3890e6911eac69068/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/b65c1699fa2a2daa031483a3890e6911eac69068/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/b65c1699fa2a2daa031483a3890e6911eac69068/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2326,10 +2955,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.1",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.2",
@@ -2357,6 +2999,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ecc2af9dcaa12975e654cde8cbbeaffbb315f75c/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ecc2af9dcaa12975e654cde8cbbeaffbb315f75c/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ecc2af9dcaa12975e654cde8cbbeaffbb315f75c/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2379,10 +3069,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.2",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.3",
@@ -2410,6 +3113,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/07ac038a8f97a93b401e824550f0505400a8c84e/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/07ac038a8f97a93b401e824550f0505400a8c84e/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/07ac038a8f97a93b401e824550f0505400a8c84e/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2432,10 +3183,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.3",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.4",
@@ -2463,6 +3227,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ac8b7df9467ffcc0920b826c62c4b603a7bfed24/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ac8b7df9467ffcc0920b826c62c4b603a7bfed24/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/ac8b7df9467ffcc0920b826c62c4b603a7bfed24/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2485,10 +3297,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.4",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.5",
@@ -2516,6 +3341,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/1287d24bfe47bcaa6e791e5ff12fa1c1bf57a442/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/1287d24bfe47bcaa6e791e5ff12fa1c1bf57a442/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/1287d24bfe47bcaa6e791e5ff12fa1c1bf57a442/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2538,10 +3411,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.5",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.6",
@@ -2569,6 +3455,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0badce7840e3fdb9f6d94e13488bec358fd0472d/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0badce7840e3fdb9f6d94e13488bec358fd0472d/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0badce7840e3fdb9f6d94e13488bec358fd0472d/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2591,10 +3525,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.6",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.7",
@@ -2622,6 +3569,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/402da6f64cdbf4e9615acb3bf38d7342744ca871/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/402da6f64cdbf4e9615acb3bf38d7342744ca871/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/402da6f64cdbf4e9615acb3bf38d7342744ca871/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2644,10 +3639,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.7",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.8",
@@ -2675,6 +3683,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8b9ff390e8d06df0cedfded09341ea3a0da24e30/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8b9ff390e8d06df0cedfded09341ea3a0da24e30/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8b9ff390e8d06df0cedfded09341ea3a0da24e30/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2697,10 +3753,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.8",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.9",
@@ -2728,6 +3797,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cedd3a664e0037e42e53108f3eb1541cf0295fc1/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cedd3a664e0037e42e53108f3eb1541cf0295fc1/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cedd3a664e0037e42e53108f3eb1541cf0295fc1/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2750,10 +3867,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.9",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.10",
@@ -2781,6 +3911,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd3298e3b654d9f4445e6140a00f6d6aee5b05b7/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd3298e3b654d9f4445e6140a00f6d6aee5b05b7/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd3298e3b654d9f4445e6140a00f6d6aee5b05b7/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2803,10 +3981,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.10",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.11",
@@ -2834,6 +4025,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/3ef61d737cf5f1f2c1e3d97712bd6a1085c33399/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/3ef61d737cf5f1f2c1e3d97712bd6a1085c33399/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/3ef61d737cf5f1f2c1e3d97712bd6a1085c33399/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2856,10 +4095,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.11",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.12",
@@ -2887,6 +4139,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd6bac967cefdca3f4ebcfafd4c573a4ff9fab0f/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd6bac967cefdca3f4ebcfafd4c573a4ff9fab0f/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/cd6bac967cefdca3f4ebcfafd4c573a4ff9fab0f/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2909,10 +4209,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.12",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.13",
@@ -2940,6 +4253,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/eb7b8a47908e01f032a29a16eae782dac6702638/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/eb7b8a47908e01f032a29a16eae782dac6702638/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/eb7b8a47908e01f032a29a16eae782dac6702638/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -2962,10 +4323,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.13",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.14",
@@ -2993,6 +4367,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/181008e31066ea7cf2c8f6b0320ed8abfeb7426f/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/181008e31066ea7cf2c8f6b0320ed8abfeb7426f/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/181008e31066ea7cf2c8f6b0320ed8abfeb7426f/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -3015,10 +4437,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.14",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.15",
@@ -3046,6 +4481,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8c2e7e65660852e38bb4b207eed2d9c6964415b7/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8c2e7e65660852e38bb4b207eed2d9c6964415b7/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/8c2e7e65660852e38bb4b207eed2d9c6964415b7/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -3068,10 +4551,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.15",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.16",
@@ -3099,6 +4595,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0ae73513048a556282a20a7a371c1d896c756c8d/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0ae73513048a556282a20a7a371c1d896c756c8d/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/0ae73513048a556282a20a7a371c1d896c756c8d/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -3121,10 +4665,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.16",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.3.17",
@@ -3152,6 +4709,54 @@
           "url": "https://raw.githubusercontent.com/argoproj/argo-cd/2de6920da4eb8be2c0db13e2b5b185a2dd411fe5/LICENSE",
           "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
           "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60"
+        },
+        {
+          "path": "manifests/install.yaml",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml",
+          "sha256": "47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "localPath": "schemas/47727297b409483513253c91aa560f25667707434c372166c298ef454e86e298",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/2de6920da4eb8be2c0db13e2b5b185a2dd411fe5/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/LICENSE",
+          "sha256": "c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "localPath": "schemas/c996fc213c94f4a4a838407d355b081226caa7b103a4f239bb87fb8f1d8e3a60",
+          "origin": {
+            "repository": "argoproj/applicationset",
+            "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml",
+            "tag": "v0.4.1",
+            "upstreamCommit": "a5712ba564afaff0b23697135d6281d413e60345",
+            "tagRef": {
+              "url": "https://api.github.com/repos/argoproj/applicationset/git/ref/tags/v0.4.1",
+              "sha256": "3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76",
+              "localPath": "schemas/3d295aefa694a001b6cee707b837d189015d1a41ad0c68b821d85c2148e6fb76"
+            },
+            "tagObjects": [],
+            "kustomization": {
+              "path": "manifests/addons/applicationset/stable/kustomization.yaml",
+              "url": "https://raw.githubusercontent.com/argoproj/argo-cd/2de6920da4eb8be2c0db13e2b5b185a2dd411fe5/manifests/addons/applicationset/stable/kustomization.yaml",
+              "sha256": "7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56",
+              "localPath": "schemas/7b38025b603d5caf50794ccb65012717d62c4d7358a864e2b880ab2b75570a56"
+            }
+          }
         }
       ],
       "localRules": {
@@ -3174,10 +4779,23 @@
           "path": "internal/assets/schemas/18e812edea645f85f23ca8ac68347196028bcf5433e37696ef80be175ea171cd.json",
           "format": "canonical-openapi-v3-source",
           "validated": true
+        },
+        {
+          "apiVersion": "argoproj.io/v1alpha1",
+          "kind": "ApplicationSet",
+          "sha256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+          "path": "internal/assets/schemas/b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b.json",
+          "format": "canonical-openapi-v3-source",
+          "validated": true,
+          "sourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/a5712ba564afaff0b23697135d6281d413e60345/manifests/install.yaml"
         }
       ],
       "tagURL": "https://github.com/argoproj/argo-cd/tree/v2.3.17",
-      "inventoryStatus": "release-and-tag"
+      "inventoryStatus": "release-and-tag",
+      "applicationSetAddon": {
+        "status": "fixed-stable-addon",
+        "resourceURL": "https://raw.githubusercontent.com/argoproj/applicationset/v0.4.1/manifests/install.yaml"
+      }
     },
     {
       "version": "2.4.0",
@@ -24192,8 +25810,8 @@
     {
       "apiVersion": "argoproj.io/v1alpha1",
       "kind": "ApplicationSet",
-      "sha256": "be0fd15300fd2fba7558792aa603f7e6b3230830b5e5955aeba84abfdbb1315b",
-      "path": "internal/assets/schemas/be0fd15300fd2fba7558792aa603f7e6b3230830b5e5955aeba84abfdbb1315b.json",
+      "sha256": "af101d3abb21c5592484e379422d8c93fb02be6af55125b493e1daa8f7d18f43",
+      "path": "internal/assets/schemas/af101d3abb21c5592484e379422d8c93fb02be6af55125b493e1daa8f7d18f43.json",
       "format": "whole-release-anyof-shared-definitions",
       "validated": true
     }

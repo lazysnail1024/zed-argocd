@@ -14,6 +14,9 @@ def content(path,limit=128*1024*1024):
  return data
 def canonical(value):return (json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
 def write(path,data):path.write_bytes(data)
+def crd_legal_sources(catalog):
+ # Repeated identical declarations share IO; conflicting claims remain distinct.
+ return dict.fromkeys((source['localPath'],source['sha256'],source['path']) for target in catalog['versions'] for source in target['sources'] if source['path'] in ['LICENSE','NOTICE'])
 def main():
  ap=argparse.ArgumentParser();sub=ap.add_subparsers(dest='command',required=True)
  b=sub.add_parser('build');b.add_argument('--output',type=pathlib.Path,required=True);b.add_argument('--platform',required=True);b.add_argument('--mode',choices=['development','release'],default='development');b.add_argument('--version',default=(ROOT/'VERSION').read_text().strip()+'-dev');b.add_argument('--source-commit')
@@ -95,16 +98,14 @@ def main():
    for dep in metadata['Deps']:
     folder=ROOT/'vendor'/dep['Path'];found=False
     for source in sorted(folder.rglob('*')):
-     if source.is_file() and source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING']:
+     if source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING'] and source.is_file():
       rel=source.relative_to(ROOT).as_posix();legal['licenses/'+rel.removeprefix('vendor/')]=content(source);found=True
     if not found:raise ValueError('Missing legal inputs for linked module '+dep['Path'])
    catalog=json.loads(content(ROOT/'compat/catalog.lock.json'))
-   for target in catalog['versions']:
-    for source in target['sources']:
-     if source['path'] in ['LICENSE','NOTICE']:
-      data=content(ROOT/source['localPath'])
-      if digest(data)!=source['sha256']:raise ValueError('CRD legal input hash mismatch')
-      legal['licenses/argo-cd/'+source['sha256']+'/'+source['path']]=data
+   for localPath,claimedHash,sourcePath in crd_legal_sources(catalog):
+    data=content(ROOT/localPath)
+    if digest(data)!=claimedHash:raise ValueError('CRD legal input hash mismatch')
+    legal['licenses/argo-cd/'+claimedHash+'/'+sourcePath]=data
    legal['NOTICE.txt']=b'Original server: MIT, Copyright (c) 2026 snail (lazysnail1024).\nArgo CD embedded schemas are normalized derivatives of the pinned Apache-2.0 CRDs.\nVendored golang.org/x/text CJK character data uses equivalent Unicode escapes; a comment uses Unicode notation.\nGo standard-library/runtime, linked modules and native parser legal texts are included unchanged.\nThis native package does not contain the Rust Zed adapter.\n'
    # Keep legal bytes bound to the build; packaging compares current source legal inputs below.
    if windows:legal['NOTICE.txt']+=b'Windows runtime is statically linked from the fixed MinGW-Builds distribution; full MinGW, winpthreads and GCC runtime notices are included.\n'
@@ -146,14 +147,12 @@ def main():
     expectedLegal.update('licenses/windows-runtime/'+name for name in windows['legalFiles'])
    for dep in metadata['Deps']:
     for source in sorted((ROOT/'vendor'/dep['Path']).rglob('*')):
-     if source.is_file() and source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING']:expectedLegal.add('licenses/'+source.relative_to(ROOT/'vendor').as_posix())
+     if source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING'] and source.is_file():expectedLegal.add('licenses/'+source.relative_to(ROOT/'vendor').as_posix())
    catalog=json.loads(content(ROOT/'compat/catalog.lock.json'))
-   for target in catalog['versions']:
-    for source in target['sources']:
-     if source['path'] in ['LICENSE','NOTICE']:
-      value=content(ROOT/source['localPath'])
-      if digest(value)!=source['sha256']:raise ValueError('CRD legal source changed')
-      legalName='licenses/argo-cd/'+source['sha256']+'/'+source['path'];expectedLegal.add(legalName);crdLegal[legalName]=source['sha256']
+   for localPath,claimedHash,sourcePath in crd_legal_sources(catalog):
+    value=content(ROOT/localPath)
+    if digest(value)!=claimedHash:raise ValueError('CRD legal source changed')
+    legalName='licenses/argo-cd/'+claimedHash+'/'+sourcePath;expectedLegal.add(legalName);crdLegal[legalName]=claimedHash
    if set(m['legalInputs'])!=expectedLegal:raise ValueError('Legal inventory differs from actual included dependencies/assets')
    files={name:data}
    for path,expected in m['legalInputs'].items():

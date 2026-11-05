@@ -1,20 +1,20 @@
 {
   "formatVersion": 1,
-  "catalogSHA256": "99deed5a505e814c6d59471f3332bddb5e7e17e3838219b3dbe7cb000f30bacd",
+  "catalogSHA256": "41b164103035089467d4dcd29beeac4146bdbb6b48db048d36c5b7c8793186a3",
   "scope": "Local CRD declarations, editor queries and implemented static checks; no controller execution claim",
   "checks": {
     "fullMatrix": {
-      "reportPath": "artifacts/multi-version-query-filter/report.json",
-      "reportSHA256": "ba3efbcca75e080a7e0095cc0c1383fcef8272cf801549bb5d0644ff4f924324",
+      "reportPath": "artifacts/appset-alpha2-public/report.json",
+      "reportSHA256": "426ddb08526744f4403cfe6711e958c088cbf930e930c65c2ad9d73f99586346",
       "passed": true,
       "rows": 374,
-      "autoQueryScenarios": 12
+      "autoQueryScenarios": 16
     },
     "ablation": {
-      "reportPath": "artifacts/multi-version-query-ablation/report.json",
-      "reportSHA256": "b3063a62c51376356a3d3a2755e3389782dd4b99da82b5e24ff377193b9d0593",
+      "reportPath": "artifacts/appset-alpha2-ablation-final/report.json",
+      "reportSHA256": "43fd49138bc0417f74134e3b32e8be9c297b2219e85546a54ea12c467e827030",
       "passed": true,
-      "rows": 5,
+      "rows": 6,
       "variants": [
         {
           "id": "baseline",
@@ -23,13 +23,13 @@
           "timing": {
             "completed": true,
             "coldCLIThreeKindsMilliseconds": [
-              201.88,
-              177.64,
-              178.25,
-              179.65,
-              179.7
+              205.5,
+              225.35,
+              209.1,
+              191.17,
+              203.3
             ],
-            "medianMilliseconds": 179.65
+            "medianMilliseconds": 205.5
           },
           "schemaChanges": {},
           "queryPassed": true,
@@ -49,8 +49,8 @@
               "afterBytes": 479667
             },
             "ApplicationSet": {
-              "beforeBytes": 294996,
-              "afterBytes": 283744
+              "beforeBytes": 306320,
+              "afterBytes": 294546
             }
           }
         },
@@ -68,20 +68,20 @@
               "afterBytes": 491455
             },
             "ApplicationSet": {
-              "beforeBytes": 294996,
-              "afterBytes": 293316
+              "beforeBytes": 306320,
+              "afterBytes": 304556
             }
           }
         },
         {
           "id": "without-shared-definitions",
           "passed": true,
-          "acceptancePassed": true,
+          "acceptancePassed": null,
           "timing": {
             "completed": false,
-            "timeoutSeconds": 30,
-            "elapsedMilliseconds": 30058.57,
-            "coldCLIThreeKindsMilliseconds": []
+            "probe": "compatibility-cases",
+            "timeoutSeconds": 20,
+            "elapsedMilliseconds": 20037.14
           },
           "schemaChanges": {
             "AppProject": {
@@ -93,8 +93,8 @@
               "afterBytes": 3225794
             },
             "ApplicationSet": {
-              "beforeBytes": 294996,
-              "afterBytes": 5649210
+              "beforeBytes": 306320,
+              "afterBytes": 5757400
             }
           }
         },
@@ -112,7 +112,26 @@
             "missing-required-still-completes",
             "ordinary-type-errors-still-complete",
             "current-type-error-still-selects",
-            "array-selects-whole-version"
+            "array-selects-whole-version",
+            "appset-legacy-selects-whole-version",
+            "appset-current-selects-whole-version"
+          ]
+        },
+        {
+          "id": "without-historical-appset-addon",
+          "passed": true,
+          "acceptancePassed": false,
+          "schemaChanges": {
+            "ApplicationSet": {
+              "beforeBytes": 306320,
+              "afterBytes": 306236
+            }
+          },
+          "queryPassed": false,
+          "failedQueryCases": [
+            "appset-legacy-field",
+            "appset-legacy-selects-whole-version",
+            "appset-legacy-hover"
           ]
         }
       ]
@@ -121,33 +140,43 @@
       "reportPath": "artifacts/multi-version-readiness-identity/report.json",
       "reportSHA256": "2697fbea7285ba8a5e180f5269324ab45b923c8fe2db3dccb3ab13b26cef6eba",
       "passed": true,
-      "rows": 21
+      "rows": 21,
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "queries": {
       "reportPath": "artifacts/query-filter-strict-regression/report.json",
       "reportSHA256": "b882ad15361e1485cf95b0018f819be55e85b531424fd012ed2025e1229df9cd",
       "passed": true,
-      "rows": 100
+      "rows": 100,
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "appsetOverrides": {
       "reportPath": "artifacts/multi-version-appset/report.json",
       "reportSHA256": "934987cc72f33db3d99b1e9932435cfc01c4a8a24e607503779af6653d5f6cab",
       "passed": true,
-      "rows": 33
+      "rows": 33,
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "compiledConstraints": {
-      "outputSHA256": "5d4fb7dcd2499b7f2555bb4af0c9905c11e0a29273c45ce3b0c647b13340e4ca",
-      "output": "=== RUN   TestEveryReleaseSchemaConstraints\n    catalog_test.go:106: validated 370 releases, 58 distinct source schemas, 170411 constrained nodes\n--- PASS: TestEveryReleaseSchemaConstraints (12.98s)\n=== RUN   TestAutoWholeVersion\n=== RUN   TestAutoWholeVersion/legacy_ksonnet\n=== RUN   TestAutoWholeVersion/current_enabled\n=== RUN   TestAutoWholeVersion/new_field_wrong_type\n=== RUN   TestAutoWholeVersion/legacy_field_wrong_type\n=== RUN   TestAutoWholeVersion/impossible_version_combination\n--- PASS: TestAutoWholeVersion (0.17s)\n    --- PASS: TestAutoWholeVersion/legacy_ksonnet (0.00s)\n    --- PASS: TestAutoWholeVersion/current_enabled (0.00s)\n    --- PASS: TestAutoWholeVersion/new_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/legacy_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/impossible_version_combination (0.00s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/assets\t13.242s\n"
+      "outputSHA256": "ed2191a59a43635adcda0806b2adf1fc8db7346ea0b3940f1ee69dc4c6e25b73",
+      "output": "=== RUN   TestEveryReleaseSchemaConstraints\n    catalog_test.go:106: validated 370 releases, 59 distinct source schemas, 173002 constrained nodes\n--- PASS: TestEveryReleaseSchemaConstraints (8.48s)\n=== RUN   TestAutoWholeVersion\n=== RUN   TestAutoWholeVersion/Application/legacy_ksonnet\n=== RUN   TestAutoWholeVersion/Application/current_enabled\n=== RUN   TestAutoWholeVersion/Application/new_field_wrong_type\n=== RUN   TestAutoWholeVersion/Application/legacy_field_wrong_type\n=== RUN   TestAutoWholeVersion/Application/legacy_required_parameter_value\n=== RUN   TestAutoWholeVersion/Application/impossible_version_combination\n=== RUN   TestAutoWholeVersion/ApplicationSet/legacy_ksonnet\n=== RUN   TestAutoWholeVersion/ApplicationSet/current_enabled\n=== RUN   TestAutoWholeVersion/ApplicationSet/new_field_wrong_type\n=== RUN   TestAutoWholeVersion/ApplicationSet/legacy_field_wrong_type\n=== RUN   TestAutoWholeVersion/ApplicationSet/legacy_required_parameter_value\n=== RUN   TestAutoWholeVersion/ApplicationSet/impossible_version_combination\n--- PASS: TestAutoWholeVersion (0.22s)\n    --- PASS: TestAutoWholeVersion/Application/legacy_ksonnet (0.00s)\n    --- PASS: TestAutoWholeVersion/Application/current_enabled (0.00s)\n    --- PASS: TestAutoWholeVersion/Application/new_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/Application/legacy_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/Application/legacy_required_parameter_value (0.00s)\n    --- PASS: TestAutoWholeVersion/Application/impossible_version_combination (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/legacy_ksonnet (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/current_enabled (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/new_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/legacy_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/legacy_required_parameter_value (0.00s)\n    --- PASS: TestAutoWholeVersion/ApplicationSet/impossible_version_combination (0.00s)\n=== RUN   TestHistoricalApplicationSetSource\n--- PASS: TestHistoricalApplicationSetSource (0.00s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/assets\t8.753s\n",
+      "combinedLogPath": "artifacts/appset-addon-history/go-tests-public.log",
+      "combinedLogSHA256": "d14f7978d6828972cd8cbf7b2877f1b239658e89692f093b4cf6c3a02b9f113f",
+      "passed": true
     },
     "fieldQueries": {
-      "outputSHA256": "d54f9a3a9c73cba9486388c1f3bf097b3d79c1432abf5c9f0b222f3d6a54c8b2",
-      "output": "=== RUN   TestAutoQueriesCoverEveryDeclaredField\n    multi_version_test.go:133: covered 10516 field declarations at 2113 distinct paths across 58 source schemas\n--- PASS: TestAutoQueriesCoverEveryDeclaredField (1.11s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/analysis\t1.122s\n"
+      "outputSHA256": "34654612e63e1f000a6859b0f70c930d99c4aa06bc2a35ec203a0e8862dfa349",
+      "output": "=== RUN   TestAutoQueriesCoverEveryDeclaredField\n    multi_version_test.go:133: covered 10642 field declarations at 2155 distinct paths across 59 source schemas\n--- PASS: TestAutoQueriesCoverEveryDeclaredField (1.27s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/analysis\t1.283s\n",
+      "combinedLogPath": "artifacts/appset-addon-history/go-tests-public.log",
+      "combinedLogSHA256": "d14f7978d6828972cd8cbf7b2877f1b239658e89692f093b4cf6c3a02b9f113f",
+      "passed": true
     },
     "querySelection": {
       "reportPath": "artifacts/auto-query-fixed/report.json",
       "reportSHA256": "fafb688c5e2dabc842b0c253a228f27e3cca0e083b5493319e98276009e19b26",
       "passed": true,
-      "rows": 12
+      "rows": 12,
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "preFixQueryReproduction": {
       "reportPath": "artifacts/auto-query-before/report.json",
@@ -156,7 +185,8 @@
       "observedIncompatibleSuggestions": [
         "legacy-blocks-enabled",
         "current-blocks-ksonnet"
-      ]
+      ],
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "nativeLinuxInitial": {
       "reportPath": "artifacts/native-ci-linux-374d214/report.json",
@@ -181,7 +211,8 @@
       "workflowOnlyExternalChangesDuringRun": [
         ".github/workflows/release.yml",
         ".github/workflows/zed-release.yml"
-      ]
+      ],
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "appsetSchemaGroups": {
       "reportPath": "artifacts/appset-schema-groups-374d214/report.json",
@@ -215,14 +246,121 @@
         "sameReleaseBinary": true,
         "artifactSpanSeconds": 51.912,
         "timingScope": "First fixture write through final report write; excludes initial catalog loading"
-      }
+      },
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
     },
     "nativeRegressionMutations": {
       "reportPath": "artifacts/native-ci-linux-374d214/audit-regression-mutations/report.json",
       "reportSHA256": "604f9a17af7fd51c4245432089678117e05c45a7c4d644098195ee7728e93801",
       "completed": true,
       "passed": true,
-      "rows": 8
+      "rows": 8,
+      "applicability": "Historical alpha.1 evidence retained; not rerun for the current catalog."
+    },
+    "historicalApplicationSetSources": {
+      "passed": true,
+      "inventory": {
+        "id": "official-inventory",
+        "passed": true,
+        "errors": [],
+        "stableReleases": 364,
+        "stableTags": 370,
+        "tagOnly": [
+          "2.1.13",
+          "3.0.10",
+          "3.0.7",
+          "3.0.8",
+          "3.0.9",
+          "3.4.0"
+        ],
+        "historicalApplicationSetAddons": 18,
+        "withoutApplicationSetManifestPath": 40,
+        "distinctAssets": 207
+      },
+      "nativeCRDTargets": 312,
+      "fixedAddonTargets": 18,
+      "noApplicationSetManifestPathTargets": 40,
+      "totalApplicationSetTargets": 330,
+      "newDistinctSchemaSHA256": "b9131c7c7b2b762a3086e1850b083d8047000dc62b8ab7373817dc079e79f99b",
+      "fixedAddonCommits": [
+        "a5712ba564afaff0b23697135d6281d413e60345",
+        "eab46ad3d633317279ddf3a56855823b0057a13e"
+      ],
+      "provenance": "Every fixed addon retains its parent commit kustomization, external tag ref, immutable install manifest and original LICENSE. Earlier releases retain root/manifests Git tree evidence; no independent ApplicationSet version is guessed."
+    },
+    "historicalApplicationSetReproduction": {
+      "comparisonPath": "artifacts/appset-addon-history/comparison.json",
+      "comparisonSHA256": "fd46d4ed23cf2efbf6dff20e12cd47c64f13fd69c2f3444d55a9207422118b2d",
+      "scope": "Observed alpha.1 before the repair, using the published binary. This records the original defect, not current behavior.",
+      "publishedAlpha1RejectedKnownFieldAsWarning": {
+        "validUnderAddonOpenAPISchema": true,
+        "existingDistinctSchemasWithSamePath": [],
+        "processReturnCode": 0,
+        "diagnostics": [
+          {
+            "targetId": "root:auto",
+            "uri": "file:///workspace/scratch/13af109fc068/zed-argocd/artifacts/appset-addon-history/cli-workspace/legacy-ksonnet.yaml",
+            "range": {
+              "start": {
+                "line": 23,
+                "character": 10
+              },
+              "end": {
+                "line": 23,
+                "character": 19
+              }
+            },
+            "code": "SCHEMA_UNKNOWN_FIELD",
+            "source": "argocd-ls",
+            "severity": 2,
+            "message": "Field is not declared by this target Schema"
+          },
+          {
+            "targetId": "root:auto",
+            "uri": "file:///workspace/scratch/13af109fc068/zed-argocd/artifacts/appset-addon-history/cli-workspace/legacy-ksonnet.yaml",
+            "range": {
+              "start": {
+                "line": 19,
+                "character": 19
+              },
+              "end": {
+                "line": 19,
+                "character": 28
+              }
+            },
+            "code": "CD_APPSET_STATIC_FIELD",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "CD_PROJECT_UNRESOLVED: Project is not resolved in this local control-plane scope"
+          }
+        ],
+        "reportFile": "published-auto-probe.json"
+      },
+      "repairedBy": "fullMatrix"
+    },
+    "initialAlpha2Ablation": {
+      "reportPath": "artifacts/appset-alpha2-ablation/report.json",
+      "reportSHA256": "3e5f52c40fdb0e6f4c1e7bf9b428a817a615511e8dac23b260a00f7bf04e1231",
+      "passed": false,
+      "scope": "Initial runner outcome retained. The production baseline passed; only the definitions-inlining counterfactual exceeded the unchanged 20-second CLI limit before the old 30-second timing probe. The final runner records this as incomplete functional evidence and the expected performance counterfactual.",
+      "resolvedBy": "ablation"
     }
+  },
+  "previousCatalogSHA256": "99deed5a505e814c6d59471f3332bddb5e7e17e3838219b3dbe7cb000f30bacd",
+  "currentCatalogChecks": [
+    "fullMatrix",
+    "ablation",
+    "compiledConstraints",
+    "fieldQueries",
+    "historicalApplicationSetSources"
+  ],
+  "currentVerificationInputsSHA256": {
+    "tools/collect_catalog.py": "b4411f76cf500649c4ca6b9b4ba0550f92303e2e5dc20e70dc666d64cf400545",
+    "tools/normalize_schemas.py": "13f0c7adc98805897073b1334411ffa31ce50d8ab6d9311e6ec9414d7c0690ec",
+    "tests/multi_version_e2e.py": "7088babbed1c3e98c97b2510f4e64f5775b302f338324ec7508eaedee33ed234",
+    "tests/ablate_multi_version.py": "a4280134b24f7c31771268e0497476e891526c0f9182d4e66af6998262a8e550",
+    "internal/assets/catalog.go": "b0a3a76573f4df3923d692a3a17163b16fe1dbcdbec907a1a9faa781e8e5470f",
+    "internal/assets/catalog_test.go": "c291f4a3e12e5d0f2a6451e042cfa6055e89f863cc73088b36f9307c91c51278",
+    "internal/analysis/multi_version_test.go": "f50bb00cf6537cb4f28447ab5d23b45daa33186533c68f17629479c4e37ddf74"
   }
 }

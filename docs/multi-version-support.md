@@ -7,8 +7,9 @@ version still selects that version's collected schema and local static rules.
 ## Collected window
 
 The checked-in inventory covers every numeric stable tag from **2.0.0 through
-3.6.1**, across majors 2 and 3: **370 tags**, containing **58 distinct schemas** for
-Application, ApplicationSet and AppProject. Release metadata was captured at the
+3.6.1**, across majors 2 and 3: **370 tags**. Application and AppProject each cover
+370 targets; ApplicationSet covers 330 (312 bundled CRDs and 18 fixed optional
+addon references). There are 59 distinct source schemas. Release metadata was captured at the
 2026-11-05 cutoff. There are 364 matching GitHub Release records and six additional
 numeric tags without a corresponding Release record in the captured API pages:
 
@@ -26,11 +27,18 @@ recorded SHA-256 digest. `compat/catalog.lock.json` retains the complete provena
 `internal/assets/catalog.json` contains only the runtime projection.
 
 ApplicationSet was a separate upstream project before it was bundled in Argo CD.
-The earlier Argo CD tags that do not contain its CRD are recorded without that
-schema. We do not silently substitute a newer ApplicationSet schema into an older
-exact target. Automatic mode includes every ApplicationSet CRD present in the
-covered Argo CD tags. This catalog is not a separate version catalog for the old
-standalone ApplicationSet project.
+Alpha.2 also follows the fixed optional stable addon references in the covered
+Argo CD 2.3.x tags: 2.3.0 selects ApplicationSet v0.4.0, and the other collected
+2.3.x tags select v0.4.1. The install reference, resolved upstream commit and CRD
+digest remain in the catalog provenance. These historical schemas restore fields
+such as `ksonnet` in ApplicationSet templates.
+
+An exact target without either a bundled CRD or a fixed standalone installation
+reference remains without that schema. We do not silently substitute a newer
+ApplicationSet schema into an older exact target. Automatic mode includes the
+bundled and explicitly referenced ApplicationSet CRDs across the covered tags.
+This catalog is not a separate version catalog for the old standalone
+ApplicationSet project.
 
 ## What automatic mode means
 
@@ -62,7 +70,7 @@ names outside every covered schema remain `SCHEMA_UNKNOWN_FIELD` warnings. The
 original exact-version schemas are kept unchanged.
 
 The generated compatibility schemas share repeated nodes using local `$defs`.
-The three automatic assets total **854,610 bytes**. The server loads only the
+The three automatic assets totaled **854,610 bytes** in alpha.1. The server loads only the
 resource kind it needs, and query traversal deduplicates shared compiled nodes.
 It does not compile 370 independent schema sets at startup, fetch the network at
 runtime, or maintain a second constraint interpreter for completion.
@@ -121,9 +129,39 @@ The report records every group's representative and covered versions and checks
 that no eligible target was omitted or duplicated. The separate compatibility
 matrix continues to execute every exact tag.
 
-## Verification and ablation
+## Alpha.2 verification and ablation
 
-Local checks completed for this change:
+The corrected catalog contains 370 Application and AppProject targets, and 330
+ApplicationSet targets: 312 bundled CRDs plus 18 fixed 2.3.x addon references.
+The 40 earlier targets have immutable directory evidence showing no
+ApplicationSet manifest path. The 59 distinct source schemas produce 865,934
+bytes of automatic schemas, an increase of 11,324 bytes over alpha.1.
+
+Local validation passes all 374 matrix rows, 16 automatic LSP scenarios, 173,002
+constraint nodes and 10,642 field declarations at 2,155 paths. The evidence
+manifest records these results separately from the retained alpha.1 history.
+
+Six ablation groups include the passing baseline and five removals. Removing the
+historical addon branch loses valid old ApplicationSet diagnostics, completion
+and hover. Removing object boundaries, historical schemas or query filtering
+also breaks their respective behavior assertions. Removing shared definitions
+increases automatic schemas to 9,099,786 bytes and exhausts the existing
+20-second compatibility probe deadline; that variant's functional acceptance
+is explicitly incomplete, not reported as passing. These mechanisms remain.
+
+Native packaging now reads identical CRD legal declarations once. On the fixed
+alpha.1 comparison catalog, 370 legal reads become one and 246 irrelevant vendor
+file-type checks are removed. Packaging the same real native build before and
+after produces identical archive and package-manifest bytes. The complete
+packaging suite passes 40 checks, including rejection of a later conflicting
+hash for the same legal path. Windows timing remains subject to its native CI
+gate; the optimization does not increase its deadline.
+
+## Alpha.1 verification and ablation
+
+The following alpha.1 observations are retained unchanged. They predate the
+alpha.2 historical ApplicationSet correction; the acceptance artifacts from the
+alpha.2 release provide its own verification results and measurements.
 
 | Check | Result |
 | --- | --- |

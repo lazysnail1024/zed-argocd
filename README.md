@@ -3,13 +3,13 @@
 Local YAML diagnostics, completion, hover, navigation and safe edits for Argo CD.
 The Go language server works independently; the Zed extension is a thin adapter.
 
-**Alpha:** default support covers **2.0.0–3.6.1**, including the stable patch releases
+**Alpha `0.0.1-alpha.2`:** default support covers **2.0.0–3.6.1**, including the stable patch releases
 in that window. No project configuration or target version is needed.
 
 ## Install in Zed
 
-1. Download **[zed-argocd-0.0.1-alpha.1.zip](https://github.com/lazysnail1024/zed-argocd/releases/download/zed-v0.0.1-alpha.1/zed-argocd-0.0.1-alpha.1.zip)**
-   from the [Zed alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/zed-v0.0.1-alpha.1).
+1. Download **[zed-argocd-0.0.1-alpha.2.zip](https://github.com/lazysnail1024/zed-argocd/releases/download/zed-v0.0.1-alpha.2/zed-argocd-0.0.1-alpha.2.zip)**
+   from the [Zed alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/zed-v0.0.1-alpha.2).
 2. Close Zed, extract the ZIP, and copy its **`argocd-lsp`** folder into:
 
    | OS | Installation directory |
@@ -27,7 +27,8 @@ supports Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. This is a manua
 alpha installation; the extension is not yet in the Zed extension store.
 
 For an upgrade, keep a copy of the previous extension folder, close Zed, and replace
-it with the new release's folder. [Checksums, offline setup and troubleshooting](docs/distribution.md).
+it with the new release's folder. Also update a native server installed separately
+through `serverPath` or PATH. [Checksums, offline setup and troubleshooting](docs/distribution.md).
 
 ## Try it
 
@@ -59,7 +60,7 @@ still requests strict checking; remove that key to restore automatic compatibili
 
 ## Standalone CLI / other editors
 
-Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.1),
+Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.2),
 extract it, and run:
 
 ```sh

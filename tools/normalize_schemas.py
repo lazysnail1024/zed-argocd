@@ -87,13 +87,16 @@ def main():
             if source['sha256'] not in canonical_sources:
                 raw = (ROOT / source['localPath']).read_bytes()
                 assert hashlib.sha256(raw).hexdigest() == source['sha256']
-                crd = yaml.safe_load(raw)
-                assert crd['spec']['group'] == 'argoproj.io'
+                crds = [doc for doc in yaml.safe_load_all(raw)
+                        if isinstance(doc, dict) and doc.get('kind') == 'CustomResourceDefinition']
+                assert crds and all(crd['spec']['group'] == 'argoproj.io' for crd in crds)
                 canonical_sources[source['sha256']] = [
                     (crd['spec']['group'] + '/' + version['name'], crd['spec']['names']['kind'], version['schema']['openAPIV3Schema'])
-                    for version in crd['spec']['versions'] if version['served']]
+                    for crd in crds for version in crd['spec']['versions'] if version['served']]
             for api, kind, schema in canonical_sources[source['sha256']]:
                 entry = write_schema(schema, api, kind, 'canonical-openapi-v3-source')
+                if source.get('origin'):
+                    entry['sourceURL'] = source['url']
                 entry['validated'] = previous.get(entry['sha256'], False)
                 target['schemas'].append(entry)
     groups = {}

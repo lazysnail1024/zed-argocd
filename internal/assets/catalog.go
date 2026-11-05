@@ -17,6 +17,7 @@ type schemaEntry struct {
 	Kind       string `json:"kind"`
 	Path       string `json:"path"`
 	Hash       string `json:"sha256"`
+	SourceURL  string `json:"sourceURL,omitempty"`
 }
 type catalog struct {
 	DefaultVersion  string        `json:"defaultVersion"`
@@ -121,6 +122,11 @@ func SchemaSource(version, kind string) string {
 	}
 	for _, v := range c.Versions {
 		if v.Version == version {
+			for _, entry := range v.Schemas {
+				if entry.Kind == kind && entry.SourceURL != "" {
+					return entry.SourceURL
+				}
+			}
 			return "https://raw.githubusercontent.com/argoproj/argo-cd/" + v.UpstreamCommit + "/manifests/crds/" + name + "-crd.yaml"
 		}
 	}

@@ -79,11 +79,82 @@ def inventory(catalog):
         if not obj or obj['type'] != 'commit' or obj['sha'] != target['upstreamCommit']:
             errors.append('tag commit mismatch ' + target['version'])
     checked = set()
+    loaded = {}
+
+    def evidence(source):
+        path = ROOT / source['localPath']
+        if source['localPath'] not in loaded:
+            raw = path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != source['sha256']:
+                errors.append('source digest ' + source['localPath'])
+            loaded[source['localPath']] = raw
+        checked.add(source['sha256'])
+        return loaded[source['localPath']]
+
+    historical_addons = 0
+    without_appset_manifest = 0
     for target in catalog['versions']:
+        addon_resources = set()
         for source in target['sources']:
-            if target['upstreamCommit'] not in source['url']: errors.append('mutable source ' + source['url'])
-            if source['sha256'] not in checked and checksum(ROOT / source['localPath']) != source['sha256']: errors.append('source digest ' + source['localPath'])
-            checked.add(source['sha256'])
+            origin = source.get('origin')
+            if origin:
+                # An external CRD must be linked from this exact Argo CD
+                # commit's stable addon, then resolved through retained Git
+                # tag objects to its own immutable source commit.
+                repo = 'argoproj/applicationset'
+                api = 'https://api.github.com/repos/' + repo
+                tag = origin['tag']
+                resource = f'https://raw.githubusercontent.com/{repo}/{tag}/manifests/install.yaml'
+                kustomization = origin['kustomization']
+                kustomization_path = 'manifests/addons/applicationset/stable/kustomization.yaml'
+                expected_kustomization = f'https://raw.githubusercontent.com/argoproj/argo-cd/{target["upstreamCommit"]}/{kustomization_path}'
+                declared = re.findall(r'(?m)^\s*-\s*(https://raw\.githubusercontent\.com/argoproj/applicationset/\S+)\s*$', evidence(kustomization).decode())
+                if (origin['repository'] != repo or not re.fullmatch(r'v\d+\.\d+\.\d+', tag)
+                        or origin['resourceURL'] != resource or declared != [resource]
+                        or kustomization['path'] != kustomization_path or kustomization['url'] != expected_kustomization):
+                    errors.append('unproven stable addon reference ' + target['version'])
+                ref_source = origin['tagRef']
+                ref = json.loads(evidence(ref_source))
+                if ref_source['url'] != api + '/git/ref/tags/' + tag or ref['ref'] != 'refs/tags/' + tag:
+                    errors.append('external tag ref mismatch ' + target['version'])
+                obj = ref['object']
+                for tag_source in origin['tagObjects']:
+                    body = json.loads(evidence(tag_source))
+                    if obj['type'] != 'tag' or tag_source['url'] != api + '/git/tags/' + obj['sha'] or body['sha'] != obj['sha']:
+                        errors.append('external tag object mismatch ' + target['version'])
+                    obj = body['object']
+                if (obj['type'] != 'commit' or obj['sha'] != origin['upstreamCommit']
+                        or source['path'] not in ('manifests/install.yaml', 'LICENSE')
+                        or source['url'] != f'https://raw.githubusercontent.com/{repo}/{obj["sha"]}/{source["path"]}'):
+                    errors.append('external immutable source mismatch ' + target['version'])
+                addon_resources.add(resource)
+            elif source['url'] != f'https://raw.githubusercontent.com/argoproj/argo-cd/{target["upstreamCommit"]}/{source["path"]}':
+                errors.append('mutable source ' + source['url'])
+            evidence(source)
+        has_appset = any(entry['kind'] == 'ApplicationSet' for entry in target['schemas'])
+        addon = target.get('applicationSetAddon', {})
+        if addon_resources:
+            historical_addons += 1
+            if not has_appset or addon != {'status': 'fixed-stable-addon', 'resourceURL': next(iter(addon_resources))} or len(addon_resources) != 1:
+                errors.append('external addon inventory mismatch ' + target['version'])
+            expected_source = next(source['url'] for source in target['sources'] if source.get('origin') and source['path'] == 'manifests/install.yaml')
+            if not any(entry['kind'] == 'ApplicationSet' and entry.get('sourceURL') == expected_source for entry in target['schemas']):
+                errors.append('external schema source link mismatch ' + target['version'])
+        elif not has_appset:
+            without_appset_manifest += 1
+            if addon.get('status') != 'no-applicationset-manifest-path':
+                errors.append('unverified missing ApplicationSet ' + target['version'])
+            else:
+                root_tree = addon['rootTree']
+                manifests_tree = addon['manifestsTree']
+                root_body = json.loads(evidence(root_tree))
+                body = json.loads(evidence(manifests_tree))
+                manifest_entry = next(node for node in root_body['tree'] if node['path'] == 'manifests')
+                api = 'https://api.github.com/repos/argoproj/argo-cd/git/trees/'
+                if (root_tree['url'] != api + target['upstreamCommit'] or body['sha'] != manifest_entry['sha']
+                        or manifests_tree['url'] != api + manifest_entry['sha'] + '?recursive=1' or body.get('truncated')
+                        or any('applicationset' in node['path'].lower() for node in body['tree'])):
+                    errors.append('unproven ApplicationSet manifest absence ' + target['version'])
         for entry in target['schemas']:
             if entry['sha256'] not in checked and checksum(ROOT / entry['path']) != entry['sha256']: errors.append('schema digest ' + entry['path'])
             checked.add(entry['sha256'])
@@ -94,7 +165,7 @@ def inventory(catalog):
     projection = {key: catalog[key] for key in ('product','defaultVersion','latestVersion','supportedMajors','autoSchemas','ready')}
     projection['versions'] = [{key: value for key, value in target.items() if key in ('version','upstreamCommit','schemas','semanticsVerified','localRules')} for target in catalog['versions']]
     if runtime != projection: errors.append('embedded runtime catalog differs from verified inventory')
-    return {'id': 'official-inventory', 'passed': not errors, 'errors': errors, 'stableReleases': len(observed), 'stableTags': len(actual), 'tagOnly': sorted(actual - observed), 'distinctAssets': len(checked)}
+    return {'id': 'official-inventory', 'passed': not errors, 'errors': errors, 'stableReleases': len(observed), 'stableTags': len(actual), 'tagOnly': sorted(actual - observed), 'historicalApplicationSetAddons': historical_addons, 'withoutApplicationSetManifestPath': without_appset_manifest, 'distinctAssets': len(checked)}
 
 
 def run_cli(binary, out, target, kinds, bootstrap):
@@ -157,8 +228,20 @@ def cross_version(binary, out, bootstrap):
         ('unknown-warning', {'mystery': True}, ['SCHEMA_UNKNOWN_FIELD']),
     ]
     expected = {}
-    for name, fields, codes in cases:
-        value=sample('Application');value['spec'].update(fields);path=work/(name+'.yaml');path.write_text(json.dumps(value));expected[path.as_uri()]=codes
+    for kind in ('Application', 'ApplicationSet'):
+        for name, fields, codes in cases:
+            value = sample(kind)
+            application_spec = value['spec'] if kind == 'Application' else value['spec']['template']['spec']
+            application_spec.update(fields)
+            prefix = '' if kind == 'Application' else 'appset-'
+            path = work / (prefix + name + '.yaml')
+            path.write_text(json.dumps(value))
+            expected[path.as_uri()] = codes
+    value = sample('ApplicationSet')
+    value['spec']['template']['spec']['source']['ksonnet'] = {'parameters': [{'name': 'missing-value'}]}
+    path = work / 'appset-legacy-required.yaml'
+    path.write_text(json.dumps(value))
+    expected[path.as_uri()] = ['SCHEMA_REQUIRED']
     command=[str(binary),'check','--root',str(work),'--format','json']
     if bootstrap: command += ['--target-version','auto']
     process=subprocess.run(command,capture_output=True,timeout=20);(folder/'stdout.json').write_bytes(process.stdout);(folder/'stderr').write_bytes(process.stderr)
@@ -199,6 +282,16 @@ def lsp_auto(binary,out):
         ('unknown-sibling-repair',head+required+'  unknown: true\n'+current+source,['helm'],[]),
         ('conflicting-siblings-repair',head+required+current+'  source:\n    repoURL: x\n    ksonnet: {environment: dev}\n    hel|\n',['helm'],[]),
     ]
+    appset_head = ('apiVersion: argoproj.io/v1alpha1\nkind: ApplicationSet\nmetadata: {name: demo}\nspec:\n'
+                   '  generators: [{list: {elements: []}}]\n  template:\n    metadata: {name: child}\n    spec:\n')
+    appset_required = '      project: ""\n      destination: {}\n'
+    appset_legacy = '      source: {repoURL: x, ksonnet: {environment: dev}}\n'
+    appset_current = '      syncPolicy: {automated: {enabled: true}}\n'
+    cases += [
+        ('appset-legacy-field', appset_head + appset_required + '      source:\n        repoURL: x\n        kson|\n', ['ksonnet'], []),
+        ('appset-legacy-selects-whole-version', appset_head + appset_required + appset_legacy + '      syncPolicy:\n        automated:\n          |\n', ['prune'], ['enabled']),
+        ('appset-current-selects-whole-version', appset_head + appset_required + appset_current + '      source:\n        repoURL: x\n        |\n', ['helm'], ['ksonnet']),
+    ]
     try:
         for revision,(name,text,labels,forbidden) in enumerate(cases,1):
             point=text.index('|');plain=text.replace('|','');before=plain[:point];position={'line':before.count('\n'),'character':len(before.rsplit('\n',1)[-1])}
@@ -209,6 +302,17 @@ def lsp_auto(binary,out):
             result=client.request('textDocument/completion',{'textDocument':{'uri':path.as_uri()},'position':position})
             observed=[item['label'] for item in result.get('result') or []]
             rows.append({'id':name,'passed':not result.get('error') and set(labels)<=set(observed) and not set(forbidden)&set(observed),'expected':labels,'forbidden':forbidden,'observed':observed,'error':result.get('error')})
+        revision += 1
+        text = appset_head + appset_required + '      source:\n        repoURL: x\n        ksonnet:\n          environ|ment: dev\n'
+        point = text.index('|'); plain = text.replace('|', ''); before = plain[:point]
+        position = {'line': before.count('\n'), 'character': len(before.rsplit('\n', 1)[-1])}
+        (fixtures / 'appset-legacy-hover.yaml').write_text(text)
+        client.change(path, plain, revision)
+        diagnostics = client.diag(path, revision)
+        response = client.request('textDocument/hover', {'textDocument': {'uri': path.as_uri()}, 'position': position})
+        hover = ((response.get('result') or {}).get('contents') or {}).get('value', '')
+        rows.append({'id': 'appset-legacy-hover', 'passed': not response.get('error') and 'Type: string' in hover and 'Target: auto' in hover and not diagnostics,
+                     'hover': hover, 'diagnostics': diagnostics, 'error': response.get('error')})
     finally:client.close()
     return {'id':'auto-lsp-completion','passed':all(row['passed'] for row in rows) and client.proc.returncode==0,'rows':rows}
 

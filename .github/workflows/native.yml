@@ -1,6 +1,9 @@
 name: Native LSP acceptance and distribution
 permissions:
   contents: read
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   prepare:
     name: Resolve exact candidate source and version
@@ -81,6 +84,12 @@ jobs:
         python-version: 3.14.0
     - name: Build, package and execute actual native consumers
       run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
+    - name: Check every schema constraint and automatic query field
+      if: matrix.platform == 'linux/amd64'
+      shell: bash
+      run: |
+        set -o pipefail
+        go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis 2>&1 | tee artifacts/native-ci/go-tests.log
     - name: Test release staging and complete-platform aggregation
       run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e
     - name: Prove native release works without any editor checkout
