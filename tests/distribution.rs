@@ -103,6 +103,7 @@ struct FakeHost {
     permissions: Vec<PathBuf>,
     probes: Vec<PathBuf>,
     interrupted: Option<String>,
+    download_error: Option<(String, String)>,
     permission_error: bool,
     probe_error: bool,
     winner: Option<PathBuf>,
@@ -156,6 +157,11 @@ impl Host for FakeHost {
     }
     fn download(&mut self, url: &str, destination: &Path) -> Result<(), String> {
         self.downloads.push(url.to_owned());
+        if let Some((failed_url, message)) = &self.download_error {
+            if url == failed_url {
+                return Err(message.clone());
+            }
+        }
         let bytes = self
             .assets
             .get(url)
@@ -330,9 +336,10 @@ fn download_interruption_cleans_staging_and_retry_completes() {
     for interrupted in ["SHA256SUMS".to_owned(), target().asset(VERSION)] {
         let root = Scratch::new();
         let mut host = FakeHost::online(target(), VERSION);
-        host.interrupted = Some(interrupted);
+        host.interrupted = Some(interrupted.clone());
         let error = distribution::install(&mut host, &root.0, target(), VERSION).unwrap_err();
         assert!(error.contains("interrupted"));
+        assert!(error.contains(&format!("{BASE}/v{VERSION}/{interrupted}")));
         assert!(error.contains("settings.serverPath"));
         assert!(root.staging().is_empty());
         assert!(host.probes.is_empty());
@@ -340,6 +347,55 @@ fn download_interruption_cleans_staging_and_retry_completes() {
         assert!(distribution::install(&mut host, &root.0, target(), VERSION)
             .unwrap()
             .is_file());
+    }
+}
+
+#[test]
+fn download_failures_identify_the_exact_stage_and_preserve_offline_versions() {
+    for message in [
+        "HTTP 403 Forbidden",
+        "HTTP 404 Not Found",
+        "request timed out",
+    ] {
+        for (asset, phase) in [
+            ("SHA256SUMS".to_owned(), "checksum manifest"),
+            (target().asset("0.2.0"), "native server"),
+        ] {
+            let root = Scratch::new();
+            let mut old = FakeHost::online(target(), VERSION);
+            let old_path = distribution::install(&mut old, &root.0, target(), VERSION).unwrap();
+            let old_bytes = fs::read(&old_path).unwrap();
+            let url = format!("{BASE}/v0.2.0/{asset}");
+            let mut next = FakeHost::online(target(), "0.2.0");
+            next.download_error = Some((url.clone(), message.to_owned()));
+            let error = distribution::install(&mut next, &root.0, target(), "0.2.0").unwrap_err();
+            for detail in [
+                phase,
+                &url,
+                message,
+                "v0.2.0",
+                "linux-amd64",
+                "settings.serverPath",
+            ] {
+                assert!(error.contains(detail), "missing {detail:?}: {error}");
+            }
+            assert_eq!(next.downloads.last(), Some(&url));
+            assert!(next.permissions.is_empty());
+            assert!(next.probes.is_empty());
+            assert!(root.staging().is_empty());
+            assert!(root.generations(target(), "0.2.0").is_empty());
+            assert_eq!(fs::read(&old_path).unwrap(), old_bytes);
+            let mut offline = FakeHost::default();
+            assert_eq!(
+                distribution::install(&mut offline, &root.0, target(), VERSION).unwrap(),
+                old_path
+            );
+            assert!(offline.downloads.is_empty());
+            next.download_error = None;
+            let new_path = distribution::install(&mut next, &root.0, target(), "0.2.0").unwrap();
+            assert_eq!(fs::read(new_path).unwrap(), release("0.2.0"));
+            assert_eq!(fs::read(old_path).unwrap(), old_bytes);
+        }
     }
 }
 

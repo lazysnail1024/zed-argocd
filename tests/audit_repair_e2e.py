@@ -100,8 +100,8 @@ class LSP:
         self.send(method, params, ident)
         return self.wait(lambda m: m.get('id') == ident, timeout)
 
-    def open(self, path, text, version=1):
-        self.send('textDocument/didOpen', {'textDocument':{'uri':path.as_uri(),'languageId':'yaml','version':version,'text':text}})
+    def open(self, path, text, version=1, language_id='yaml'):
+        self.send('textDocument/didOpen', {'textDocument':{'uri':path.as_uri(),'languageId':language_id,'version':version,'text':text}})
 
     def change(self, path, text, version):
         self.send('textDocument/didChange', {'textDocument':{'uri':path.as_uri(),'version':version},'contentChanges':[{'text':text}]})

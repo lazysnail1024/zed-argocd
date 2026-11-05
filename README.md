@@ -131,10 +131,15 @@ Configuration changes refresh automatically; no cluster access is needed.
 ## Helm editing
 
 Pure YAML in a chart's `templates` directory receives ordinary Argo CD checks.
-Files containing Helm expressions show `HELM_UNRENDERED` in YAML mode. They need
+Files containing Helm expressions show `HELM_UNRENDERED`. They need
 an explicit render before final resource checks. Ordinary typing never runs Helm.
-The extension currently registers only YAML; Helm language mode integration has
-not been accepted in real Zed.
+The extension registers both `YAML` (`yaml`) and `Helm` (`helm`), using the Helm
+language provided by the separate [Helm extension](https://github.com/cabrinha/helm.zed).
+The native protocol acceptance suite checks those manifest mappings, unsaved
+template transitions, and closing/reopening the same URI with a different
+language ID. These stdio tests do not launch Zed. Actual Helm language selection,
+server attachment, and coexistence with YAML/Helm servers still require real Zed
+validation on each supported platform.
 
 Copy [the example task](examples/zed-tasks.json) into your project's `.zed/tasks.json`
 and merge it with existing tasks. Configure `ARGOCD_LS_BINARY`, `ARGOCD_CHART`,

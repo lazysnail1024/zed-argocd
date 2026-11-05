@@ -334,17 +334,18 @@ fn download_and_install<H: Host>(
     version: &str,
 ) -> Result<PathBuf, String> {
     let base = format!("https://github.com/{REPOSITORY}/releases/download/v{version}");
-    host.download(
-        &format!("{base}/SHA256SUMS"),
-        &staging.path.join("SHA256SUMS"),
-    )?;
+    let sums_url = format!("{base}/SHA256SUMS");
+    host.download(&sums_url, &staging.path.join("SHA256SUMS"))
+        .map_err(|error| format!("Cannot download checksum manifest from {sums_url}: {error}"))?;
     directory(&staging.path, false)?;
     let hash = checksum(
         &read_sums(&staging.path.join("SHA256SUMS"))?,
         &target.asset(version),
     )?;
     let binary = staging.path.join(target.executable);
-    host.download(&format!("{base}/{}", target.asset(version)), &binary)?;
+    let binary_url = format!("{base}/{}", target.asset(version));
+    host.download(&binary_url, &binary)
+        .map_err(|error| format!("Cannot download native server from {binary_url}: {error}"))?;
     directory(&staging.path, false)?;
     verify_bytes(&binary, &hash)?;
     host.executable(&binary)?;
