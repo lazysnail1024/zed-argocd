@@ -1,6 +1,9 @@
 name: Native LSP acceptance and distribution
 permissions:
   contents: read
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   prepare:
     name: Resolve exact candidate source and version

@@ -30,7 +30,6 @@ try:
  head=subprocess.run(['git','rev-parse','--verify','HEAD'],cwd=ROOT,capture_output=True);expectedCommit=head.stdout.decode().strip() if head.returncode==0 else None;expectedDirty=expectedCommit is None or bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=ROOT))
  real=invoke('development',ROOT,['build','--output',str(out/'development-build'),'--platform',a.platform]);assert real.get('passed'),'development tool unavailable'
  manifest=out/'development-build/manifest.json';m=json.loads(manifest.read_text());identity=m['identity'];record({'id':'real-development-identity','passed':identity['buildMode']=='development' and identity['dirty']==expectedDirty and identity['sourceCommit']==expectedCommit})
- invoke('repeat-development',ROOT,['build','--output',str(out/'development-repeat'),'--platform',a.platform]);repeat=json.loads((out/'development-repeat/manifest.json').read_text());record({'id':'repeat-native-bytes','passed':repeat['binarySHA256']==m['binarySHA256']})
  invoke('real-release-refused',ROOT,['build','--output',str(out/'real-release'),'--platform',a.platform,'--mode','release','--version','0.1.0'],2)
  invoke('wrong-platform',ROOT,['build','--output',str(out/'wrong-platform'),'--platform','unsupported/amd64'],2)
  invoke('unsafe-version',ROOT,['build','--output',str(out/'unsafe-version'),'--platform',a.platform,'--version','../escape'],2)
@@ -50,6 +49,10 @@ try:
  exclude.write_text(savedExclude+'\n'+''.join('/'+name+'\n' for _,name,_ in ignored));assert not subprocess.check_output(['git','status','--porcelain'],cwd=fixture)
  result=invoke('ignored-inputs',fixture,['build','--output',str(out/'ignored-inputs'),'--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit])
  actual=json.loads((out/'ignored-inputs/manifest.json').read_text()) if result.get('passed') else {}
+ # These independent release builds already compile identical declared inputs
+ # from different temporary snapshots. Use them for reproducibility as well as
+ # the ignored-input controls, avoiding another full development-mode rebuild.
+ record({'id':'repeat-native-bytes','firstBuild':'synthetic-release','repeatBuild':'ignored-inputs','passed':actual.get('binarySHA256')==rm['binarySHA256'] and actual.get('identity')==rm['identity'] and actual.get('sourceInputs')==rm['sourceInputs']})
  for label,name,_ in ignored:
   record({'id':'ignored-'+label+'-not-compiled','passed':actual.get('binarySHA256')==rm['binarySHA256'] and name not in actual.get('sourceInputs',{})})
   (fixture/name).unlink()
