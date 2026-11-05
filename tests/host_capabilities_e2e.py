@@ -24,7 +24,9 @@ def initialize_contract(client,label):
  }
  if client.edit:expected['codeActionProvider']={'resolveProvider':True}
  info=result.get('serverInfo',{})
- record('initialize-'+label,result.get('capabilities')==expected and info.get('name')=='argocd-ls' and bool(info.get('version')),result)
+ # JSON booleans and integers have different protocol types (Python == aliases them).
+ same=json.dumps(result.get('capabilities'),sort_keys=True)==json.dumps(expected,sort_keys=True)
+ record('initialize-'+label,same and info.get('name')=='argocd-ls' and isinstance(info.get('version'),str) and bool(info['version']),result)
 c=Client(out,[root])
 try:
  initialize_contract(c,'edit-watch')
