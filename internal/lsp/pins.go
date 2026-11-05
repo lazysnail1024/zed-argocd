@@ -29,7 +29,7 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 		}
 		uri = p.Data.URI
 	}
-	file, err := uriPath(uri)
+	file, err := workspace.PathFromURI(uri)
 	if err != nil || filepath.Base(file) != ".argocd-ls.yaml" {
 		return nil, 0, "", false
 	}
@@ -57,6 +57,10 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 	if input == nil {
 		return empty, 0, "", true
 	}
+	rescanRoots := make(map[string]bool, len(roots))
+	for _, root := range roots {
+		rescanRoots[root] = true
+	}
 	actions := []any{}
 	for _, pin := range workspace.Pins(ctx, *input, b.snapshot) {
 		r := pin.Plan.Replacements[0]
@@ -78,7 +82,7 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 			copied[uri] = value
 		}
 		copied[uri] = buffer{snapshot: next, version: b.version, revision: next.Revision()}
-		after := analyze(ctx, epoch, roots, copied, override, completed{}, true)
+		after := analyzeRoots(ctx, epoch, roots, copied, override, completed{}, rescanRoots)
 		if ctx.Err() != nil || after.err != nil || !pinSafe(latest, after, uri, pin) {
 			continue
 		}
@@ -99,7 +103,7 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 }
 
 func pinSafe(before, after completed, uri string, pin workspace.Pin) bool {
-	config, err := uriPath(uri)
+	config, err := workspace.PathFromURI(uri)
 	if err != nil {
 		return false
 	}
@@ -140,7 +144,7 @@ func pinSafe(before, after completed, uri string, pin workspace.Pin) bool {
 		}
 	}
 	for _, input := range after.inputs {
-		config, _ := uriPath(uri)
+		config, _ := workspace.PathFromURI(uri)
 		if input.Root != filepath.Dir(config) {
 			continue
 		}

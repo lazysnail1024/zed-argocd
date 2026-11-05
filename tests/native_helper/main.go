@@ -26,6 +26,18 @@ func main() {
 		fmt.Println("v3.19.0-test")
 		return
 	}
+	// Successful fixtures exercise the real report pipeline without spawning
+	// children or pretending that this helper evaluates Helm templates.
+	if mode == "application" || mode == "application-error" {
+		project := "team"
+		warning := "  mystery: true\n"
+		if mode == "application-error" {
+			project = "42"
+			warning = ""
+		}
+		fmt.Printf("apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: native-report\nspec:\n%s  project: %s\n  source: {repoURL: https://example.org/repo}\n  destination: {server: https://kubernetes.default.svc, namespace: default}\n", warning, project)
+		return
+	}
 	fmt.Println("renderer-started")
 	fmt.Fprintln(os.Stderr, "renderer-stderr")
 	if mode == "nonzero" {

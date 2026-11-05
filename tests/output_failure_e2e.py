@@ -3,7 +3,9 @@
 import hashlib,json,pathlib,signal,subprocess,sys,time
 import audit_repair_e2e as wire
 binary=pathlib.Path(sys.argv[1]).resolve();helm=pathlib.Path(sys.argv[2]).resolve();out=pathlib.Path(sys.argv[3]).resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
-root=out/'workspace';root.mkdir();wire.write(root,'project.yaml',wire.PROJECT);wire.write(root,'.argocd-ls.yaml',wire.CONFIG);app=wire.write(root,'app.yaml',wire.APP)
+# The chart is a renderer input, not a third resource in the two-resource check
+# fixture. Literal YAML templates are otherwise valid filesystem analysis inputs.
+root=out/'workspace';root.mkdir();wire.write(root,'project.yaml',wire.PROJECT);wire.write(root,'.argocd-ls.yaml',wire.CONFIG+'exclude: ["chart/**"]\n');app=wire.write(root,'app.yaml',wire.APP)
 chart=root/'chart';wire.write(chart,'Chart.yaml','apiVersion: v2\nname: output-proof\nversion: 0.1.0\n');wire.write(chart,'templates/app.yaml',wire.APP)
 cases=[('help',['help'],0),('help-short',['-h'],0),('version-human',['version'],0),('version-json',['version','--json'],0),('explain',['explain-config','--root',str(root)],0)]
 for fmt in ['json','human']:

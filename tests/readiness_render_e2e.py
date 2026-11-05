@@ -10,6 +10,16 @@ for name,text,code,complete,codes,flags in [('clean',wire.APP,0,True,['CD_PROJEC
  try:
   p=subprocess.run(command,capture_output=True,timeout=40);stdout,stderr,status=p.stdout,p.stderr,p.returncode;r=json.loads(stdout);checks={'exit':status==code,'complete':r['analysisComplete']==complete,'codes':sorted(x['code'] for x in r['diagnostics'])==sorted(codes),'input':'helm-generated'==r['inputSource'],'renderer':r['renderer']['exit']==0 and r['renderer']['binarySHA256']==wire.hash_file(helm),'target':len(r['targets'])==1 and r['targets'][0]['version']=='3.5.6' and r['targets'][0]['complete']==complete,'counts':r['resourcesAnalyzed']==(1 if complete else 0)}
   if name=='renderer-cycle':checks.update(renderer=r['renderer']['exit']==1 and r['renderer']['binarySHA256']==wire.hash_file(helm),target=r['targets']==[],reason=[x['code'] for x in r['configurationErrors']]==['RENDER_FAILED'])
+  else:
+   # Compare actual public reports; rendering must not alter analysis facts or
+   # turn typed diagnostics into a different JSON shape at an internal boundary.
+   direct=[str(binary),'check','--root',str(folder/'generated'),'--file',str(folder/'generated/generated.yaml'),'--target-version',r['targets'][0]['version'],'--format','json']+flags
+   checked=subprocess.run(direct,capture_output=True,timeout=15);(folder/'check.stdout').write_bytes(checked.stdout);(folder/'check.stderr').write_bytes(checked.stderr)
+   comparable=lambda report:{k:v for k,v in report.items() if k not in ['renderer','inputSource','elapsedMilliseconds']}
+   checks['sameAnalysisReport']=checked.returncode==code and comparable(json.loads(checked.stdout))==comparable(r)
+   for label,args in [('render',command),('check',direct)]:
+    human=list(args);human[human.index('--format')+1]='human';delivered=subprocess.run(human,capture_output=True,timeout=40);(folder/(label+'.human.stdout')).write_bytes(delivered.stdout);(folder/(label+'.human.stderr')).write_bytes(delivered.stderr)
+    output=delivered.stdout.decode();checks[label+'HumanExit']=delivered.returncode==code;checks[label+'HumanDiagnostics']=all(d['code'] in output and d['message'] in output for d in r['diagnostics']);checks[label+'HumanConfiguration']=all(e['code'] in output and e['message'] in output for e in r['configurationErrors']);checks[label+'HumanDelivery']=bool(output) and delivered.stderr==b''
   rows.append({'id':name,'command':command,'exit':status,'checks':checks,'passed':all(checks.values())})
  except Exception as e:
   if isinstance(e,subprocess.TimeoutExpired):stdout,stderr=e.stdout or b'',e.stderr or b''

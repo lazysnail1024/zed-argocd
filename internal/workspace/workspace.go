@@ -92,10 +92,6 @@ func Load(ctx context.Context, root, selectedScope, selectedFile, override strin
 	remaining := MaxRetainedText
 	return load(ctx, root, selectedScope, selectedFile, override, nil, nil, nil, &remaining)
 }
-func LoadWithConfig(ctx context.Context, root, scope, file, target string, config *string) (Input, error) {
-	remaining := MaxRetainedText
-	return load(ctx, root, scope, file, target, config, nil, nil, &remaining)
-}
 
 // LoadBuffers applies immutable open text before disk reads, using one file policy.
 func LoadBuffers(ctx context.Context, root, target string, config *string, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, error) {
@@ -535,38 +531,6 @@ func helmTemplate(root, file string) bool {
 // Ordinary YAML in a chart is analyzed normally; templates are never executed.
 func IsHelmTemplate(root, file string, snapshot source.Snapshot) bool {
 	return strings.Contains(snapshot.Text(), "{{") && helmTemplate(root, file)
-}
-
-// TargetForFile assigns an already canonical local buffer to its root scope.
-func TargetForFile(input Input, file string) (Target, error) {
-	if !inside(input.Root, file) {
-		return Target{}, failure("INPUT_INCOMPLETE", "buffer escapes root")
-	}
-	rel, _ := filepath.Rel(input.Root, file)
-	rel = filepath.ToSlash(rel)
-	owner := "root"
-	if len(input.Config.Scopes) > 0 {
-		owner = "unassigned"
-	}
-	count := 0
-	for _, s := range input.Config.Scopes {
-		for _, g := range s.Include {
-			if match(g, rel) {
-				owner = s.Name
-				count++
-				break
-			}
-		}
-	}
-	if count > 1 {
-		return Target{}, failure("SCOPE_OVERLAP", "buffer belongs to multiple scopes")
-	}
-	for _, t := range input.Targets {
-		if t.Scope == owner {
-			return t, nil
-		}
-	}
-	return Target{}, failure("SCOPE_UNKNOWN", "buffer scope is unavailable")
 }
 
 // Config input is restricted to bounded regular files. Open buffers bypass this
