@@ -98,6 +98,9 @@ jobs:
         run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-wasip2
       - name: Test the production installer and offline recovery
         run: cargo test --locked
+      - name: Prove identity guards reject incompatible servers
+        if: matrix.platform == 'linux/amd64'
+        run: python tests/ablate_identity.py --output artifacts/native-ci/identity-ablation
       - name: Build and verify the development bundle
         run: python tests/dev_bundle_e2e.py --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/dev-bundle-e2e
       - name: Produce installable development bundle

@@ -37,6 +37,11 @@ python3 tests/schema_queries_e2e.py build/argocd-ls artifacts/schema-queries
 
 Reports and protocol transcripts are retained under `artifacts/`. Native CLI/LSP verification and real Zed acceptance are separate: a successful native job does not demonstrate the editor UI on that platform. Keep evidence bound to the actual source and artifact identities.
 
+The [November ablation record](docs/ablation-2026-11.md) documents independent
+baseline/variant experiments, accepted simplifications, rejected removals and
+the behavior and workload checks that remain required. The identity guard
+mutation consumer uses the pinned Rust toolchain and runs in Linux amd64 CI.
+
 ## Source provenance
 
 The static local rule subset is checked across the catalog using [fixed upstream source provenance](compat/local-rules-sources.json). Raw CRDs retain upstream bytes; embedded schemas are normalized derivatives. Distribution must retain the licenses and applicable notices for actual bundled components, including the native runtime. See [acknowledgments](README.md#license-and-acknowledgments).
