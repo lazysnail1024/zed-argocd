@@ -12,8 +12,7 @@ import sys
 
 
 def exercise(invoke, record, fixture, inputs, output, common, wasm_inputs):
-    prefix = "tools" if (fixture / "tools/candidate.py").is_file() else "scripts"
-    tool = [sys.executable, fixture / prefix / "candidate.py"]
+    tool = [sys.executable, fixture / "tools/candidate.py"]
     version, commit = common[1], common[3]
     invoke("candidate-version-without-tag", tool + ["version", "--source-commit", commit])
     invoke("candidate-requested-version-mismatch", tool + ["version", "--source-commit", commit,
