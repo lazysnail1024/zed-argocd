@@ -14,7 +14,6 @@ import (
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
-	protocol "github.com/tliron/glsp/protocol_3_16"
 	"io"
 	"os"
 	"path/filepath"
@@ -420,13 +419,24 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
-				yes := true
-				var codeActionOptions any
-				if canEdit {
-					codeActionOptions = &protocol.CodeActionOptions{ResolveProvider: &yes}
+				capabilities := map[string]any{
+					"textDocumentSync":       map[string]any{"openClose": true, "change": 2, "save": true},
+					"hoverProvider":          true,
+					"definitionProvider":     true,
+					"referencesProvider":     true,
+					"documentSymbolProvider": true,
+					"completionProvider":     map[string]any{},
+					"workspace": map[string]any{
+						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
+					},
 				}
-				kind := protocol.TextDocumentSyncKindIncremental
-				reply(m.ID, protocol.InitializeResult{Capabilities: protocol.ServerCapabilities{TextDocumentSync: protocol.TextDocumentSyncOptions{OpenClose: &yes, Change: &kind, Save: true}, HoverProvider: true, DefinitionProvider: true, ReferencesProvider: true, DocumentSymbolProvider: true, CompletionProvider: &protocol.CompletionOptions{}, CodeActionProvider: codeActionOptions, Workspace: &protocol.ServerCapabilitiesWorkspace{WorkspaceFolders: &protocol.WorkspaceFoldersServerCapabilities{Supported: &yes, ChangeNotifications: &protocol.BoolOrString{Value: true}}}}, ServerInfo: &protocol.InitializeResultServerInfo{Name: "argocd-ls", Version: &buildinfo.ServerVersion}})
+				if canEdit {
+					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+				}
+				reply(m.ID, map[string]any{
+					"capabilities": capabilities,
+					"serverInfo":   map[string]any{"name": "argocd-ls", "version": buildinfo.ServerVersion},
+				})
 				continue
 			}
 			if !initialized {
