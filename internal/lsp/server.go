@@ -192,7 +192,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		ready = debounce.C
 	}
 	rootForURI := func(uri string) string {
-		path, _ := uriPath(uri)
+		path, _ := workspace.PathFromURI(uri)
 		return workspace.Owner(roots, path)
 	}
 	fitsBuffer := func(uri string, size int) bool {
@@ -401,11 +401,11 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				roots = nil
 				if len(p.WorkspaceFolders) > 0 {
 					for _, f := range p.WorkspaceFolders {
-						if path, e := uriPath(f.URI); e == nil {
+						if path, e := workspace.PathFromURI(f.URI); e == nil {
 							roots = append(roots, path)
 						}
 					}
-				} else if path, e := uriPath(p.RootURI); e == nil {
+				} else if path, e := workspace.PathFromURI(p.RootURI); e == nil {
 					roots = append(roots, path)
 				}
 				if len(roots) == 0 {
@@ -479,7 +479,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if json.Unmarshal(m.Params, &p) != nil {
 					continue
 				}
-				if _, e := uriPath(p.TextDocument.URI); e != nil {
+				if _, e := workspace.PathFromURI(p.TextDocument.URI); e != nil {
 					continue
 				}
 				if old, ok := buffers[p.TextDocument.URI]; ok && p.TextDocument.Version <= old.version {
@@ -577,7 +577,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				if valid {
 					buffers[p.TextDocument.URI] = buffer{snapshot: snapshot, version: p.TextDocument.Version, revision: snapshot.Revision()}
-					path, _ := uriPath(p.TextDocument.URI)
+					path, _ := workspace.PathFromURI(p.TextDocument.URI)
 					var rescanRoots []string
 					if filepath.Base(path) == ".argocd-ls.yaml" {
 						rescanRoots = append(rescanRoots, workspace.Owner(roots, path))
@@ -609,11 +609,11 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				_ = json.Unmarshal(m.Params, &event)
 				changedRoots := map[string]bool{}
 				if event.TextDocument.URI != "" {
-					p, _ := uriPath(event.TextDocument.URI)
+					p, _ := workspace.PathFromURI(event.TextDocument.URI)
 					changedRoots[workspace.Owner(roots, p)] = true
 				}
 				for _, change := range event.Changes {
-					p, _ := uriPath(change.URI)
+					p, _ := workspace.PathFromURI(change.URI)
 					changedRoots[workspace.Owner(roots, p)] = true
 				}
 				if len(changedRoots) == 0 {
@@ -643,7 +643,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					continue
 				}
 				for _, f := range p.Event.Removed {
-					path, e := uriPath(f.URI)
+					path, e := workspace.PathFromURI(f.URI)
 					if e != nil {
 						continue
 					}
@@ -656,7 +656,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					roots = remaining
 				}
 				for _, f := range p.Event.Added {
-					path, e := uriPath(f.URI)
+					path, e := workspace.PathFromURI(f.URI)
 					if e != nil {
 						continue
 					}
@@ -766,16 +766,6 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	}
 }
 
-func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, fullScan bool) completed {
-	rescanRoots := map[string]bool{}
-	if fullScan {
-		for _, root := range roots {
-			rescanRoots[root] = true
-		}
-	}
-	return analyzeRoots(ctx, epoch, roots, buffers, override, previous, rescanRoots)
-}
-
 func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, rescanRoots map[string]bool) completed {
 	result := completed{epoch: epoch, failures: map[string]error{}}
 	result.stats.FullScan = len(rescanRoots) > 0
@@ -796,7 +786,7 @@ func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map
 	openFiles := map[string]source.Snapshot{}
 	for uri, b := range buffers {
 		if b.unavailable != "" {
-			file, _ := uriPath(uri)
+			file, _ := workspace.PathFromURI(uri)
 			root := workspace.Owner(roots, file)
 			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
 			v := b.version
@@ -809,7 +799,7 @@ func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map
 			result.failureURI = uri
 			return result
 		}
-		if file, e := uriPath(uri); e == nil {
+		if file, e := workspace.PathFromURI(uri); e == nil {
 			openFiles[file] = b.snapshot
 		}
 	}
@@ -828,7 +818,7 @@ rootLoop:
 		checkpoint := rootCheckpoint{len(result.inputs), len(result.scopes), len(result.publications)}
 		configURI := workspace.FileURI(filepath.Join(root, ".argocd-ls.yaml"))
 		var config *string
-		configPath, _ := uriPath(configURI)
+		configPath, _ := workspace.PathFromURI(configURI)
 		if snapshot, ok := openFiles[configPath]; ok {
 			// Filesystem identity selects authority; replies retain the client's URI.
 			configURI = string(snapshot.URI())
@@ -879,18 +869,17 @@ rootLoop:
 			}
 		}
 
-		files := map[string]workspace.File{}
 		fileIndices := map[source.URI]int{}
 		for i, f := range input.Files {
 			fileIndices[f.Snapshot.URI()] = i
-			files[string(f.Snapshot.URI())] = f
 		}
 
 		scopeFiles := map[string][]workspace.File{}
 		for _, target := range input.Targets {
 			scopeFiles[target.Scope] = nil
 		}
-		for uri, f := range files {
+		for _, f := range input.Files {
+			uri := string(f.Snapshot.URI())
 			if !seen[uri] {
 				seen[uri] = true
 				scopeFiles[f.Target.Scope] = append(scopeFiles[f.Target.Scope], f)
@@ -996,7 +985,7 @@ rootLoop:
 				var e error
 				reusedFile := false
 				if priorScope != nil {
-					if oldFile, ok := priorFiles[f.Snapshot.URI()]; ok && sameScopeFiles([]workspace.File{oldFile}, []workspace.File{f}) {
+					if oldFile, ok := priorFiles[f.Snapshot.URI()]; ok && sameFile(oldFile, f) {
 						if old, ok := priorScope.checked[f.Snapshot.URI()]; ok && analyzer.ReuseProjections(old.Documents) {
 							checked = old
 							reusedFile = true
@@ -1035,8 +1024,8 @@ rootLoop:
 					// from this root before continuing with independent inputs.
 					result.failRoot(checkpoint, root, uri, buffers, e)
 					remaining = beforeRemaining
-					for uri := range files {
-						delete(seen, uri)
+					for _, f := range input.Files {
+						delete(seen, string(f.Snapshot.URI()))
 					}
 					analyzer = retainedAnalyzer(previous, result.scopes)
 					continue rootLoop
@@ -1087,7 +1076,7 @@ rootLoop:
 	}
 	// Open skipped documents still receive an explicit empty replacement.
 	for uri, b := range buffers {
-		path, err := uriPath(uri)
+		path, err := workspace.PathFromURI(uri)
 		if err != nil || workspace.Owner(roots, path) == "" {
 			continue
 		}
@@ -1164,21 +1153,17 @@ func sameScopeFiles(before, after []workspace.File) bool {
 	if len(before) != len(after) {
 		return false
 	}
-	old := make(map[source.URI]workspace.File, len(before))
-	for _, f := range before {
-		old[f.Snapshot.URI()] = f
-	}
-	for _, f := range after {
-		prior, ok := old[f.Snapshot.URI()]
-		if !ok || prior.Path != f.Path || prior.Target != f.Target || prior.Output != f.Output || prior.Snapshot.Revision() != f.Snapshot.Revision() || prior.Snapshot.Text() != f.Snapshot.Text() {
+	// Both slices come from analyzeRoots' URI-sorted scope membership.
+	for i := range before {
+		if !sameFile(before[i], after[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func uriPath(uri string) (string, error) {
-	return workspace.PathFromURI(uri)
+func sameFile(before, after workspace.File) bool {
+	return before.Snapshot.URI() == after.Snapshot.URI() && before.Path == after.Path && before.Target == after.Target && before.Output == after.Output && before.Snapshot.Revision() == after.Snapshot.Revision() && before.Snapshot.Text() == after.Snapshot.Text()
 }
 func readMessage(reader *bufio.Reader) (message, error) {
 	var m message
@@ -1241,21 +1226,17 @@ func replacementEdit(snapshot source.Snapshot, span source.Span, text string) an
 	return analysis.TextEdit{Range: analysis.Range{Start: analysis.Position{Line: a.Line, Character: a.UTF16Column}, End: analysis.Position{Line: b.Line, Character: b.UTF16Column}}, NewText: text}
 }
 
-func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string) (answer any, code int, why string) {
+func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string) (any, int, string) {
 	if result, status, message, handled := pinRequest(ctx, m, latest, buffers, epoch, canEdit, roots, override); handled {
 		return result, status, message
 	}
-	reply := func(_ json.RawMessage, value any) { answer = value }
-	reject := func(_ json.RawMessage, c int, text string) { code, why = c, text }
 	switch m.Method {
 	case "textDocument/codeAction":
 		if !canEdit {
-			reply(m.ID, []any{})
-			return
+			return []any{}, 0, ""
 		}
 		if latest.epoch != epoch || latest.err != nil {
-			reject(m.ID, -32801, "analysis changed")
-			return
+			return nil, -32801, "analysis changed"
 		}
 		var p struct {
 			TextDocument struct {
@@ -1264,13 +1245,11 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 			Range analysis.Range `json:"range"`
 		}
 		if json.Unmarshal(m.Params, &p) != nil {
-			reject(m.ID, -32602, "invalid codeAction params")
-			return
+			return nil, -32602, "invalid codeAction params"
 		}
 		b, ok := buffers[p.TextDocument.URI]
 		if !ok {
-			reply(m.ID, []any{})
-			return
+			return []any{}, 0, ""
 		}
 		actions := []any{}
 		for _, scope := range latest.scopes {
@@ -1285,9 +1264,7 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 				}
 				for _, fix := range analysis.FixCandidatesInRange(ctx, doc, scope.documents, scope.options, source.Span{Start: rangeStart, End: rangeEnd}) {
 					replacement := fix.Plan.Replacements[0]
-					rangeStart, e1 := doc.Snapshot.Offset(source.Position{Line: p.Range.Start.Line, UTF16Column: p.Range.Start.Character})
-					rangeEnd, e2 := doc.Snapshot.Offset(source.Position{Line: p.Range.End.Line, UTF16Column: p.Range.End.Character})
-					if e1 != nil || e2 != nil || replacement.Span.Start > rangeEnd || replacement.Span.End < rangeStart {
+					if replacement.Span.Start > rangeEnd || replacement.Span.End < rangeStart {
 						continue
 					}
 					data := fixData{URI: p.TextDocument.URI, Epoch: latest.editGeneration, Revision: uint64(b.snapshot.Revision()), Target: doc.Target, FixCode: fix.Code, Start: replacement.Span.Start, End: replacement.Span.End, NewText: replacement.NewText}
@@ -1295,21 +1272,19 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 				}
 			}
 		}
-		reply(m.ID, actions)
+		return actions, 0, ""
 	case "codeAction/resolve":
 		var action map[string]any
 		var envelope struct {
 			Data fixData `json:"data"`
 		}
 		if json.Unmarshal(m.Params, &action) != nil || json.Unmarshal(m.Params, &envelope) != nil {
-			reject(m.ID, -32602, "invalid action")
-			return
+			return nil, -32602, "invalid action"
 		}
 		data := envelope.Data
 		b, ok := buffers[data.URI]
 		if !canEdit || !ok || data.Epoch != latest.editGeneration || latest.epoch != epoch || latest.err != nil || data.Revision != uint64(b.snapshot.Revision()) {
-			reject(m.ID, -32801, "code action is stale")
-			return
+			return nil, -32801, "code action is stale"
 		}
 		matched := false
 		for _, scope := range latest.scopes {
@@ -1327,12 +1302,11 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 			}
 		}
 		if !matched {
-			reject(m.ID, -32801, "action is no longer safe")
-			return
+			return nil, -32801, "action is no longer safe"
 		}
-		reply(m.ID, action)
+		return action, 0, ""
 	}
-	return
+	return nil, 0, ""
 }
 
 func readRequest(ctx context.Context, m message, latest completed, epoch uint64) (answer any, code int, why string) {
@@ -1437,7 +1411,7 @@ func queryInput(ctx context.Context, m message, latest completed, buffers map[st
 	if json.Unmarshal(m.Params, &p) != nil {
 		return latest
 	}
-	file, err := uriPath(p.TextDocument.URI)
+	file, err := workspace.PathFromURI(p.TextDocument.URI)
 	if err != nil {
 		return latest
 	}
@@ -1529,7 +1503,7 @@ func queryMembershipChanged(latest completed, buffers map[string]buffer, root st
 			if !ok || b.unavailable != "" {
 				continue
 			}
-			path, err := uriPath(string(b.snapshot.URI()))
+			path, err := workspace.PathFromURI(string(b.snapshot.URI()))
 			if err != nil || path != f.Path {
 				return true
 			}
@@ -1545,7 +1519,7 @@ func queryMembershipChanged(latest completed, buffers map[string]buffer, root st
 			if !ok || b.unavailable != "" {
 				continue
 			}
-			path, err := uriPath(string(b.snapshot.URI()))
+			path, err := workspace.PathFromURI(string(b.snapshot.URI()))
 			if err != nil || !workspace.IsHelmTemplate(root, path, b.snapshot) {
 				return true
 			}
@@ -1597,7 +1571,7 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 	if json.Unmarshal(m.Params, &p) != nil {
 		return nil
 	}
-	path, err := uriPath(p.TextDocument.URI)
+	path, err := workspace.PathFromURI(p.TextDocument.URI)
 	if err != nil {
 		return nil
 	}
@@ -1636,14 +1610,14 @@ func (proof *readProof) valid(current map[string]buffer, roots []string, overrid
 		return false
 	}
 	relevant := func(uri string) bool {
-		p, err := uriPath(uri)
+		p, err := workspace.PathFromURI(uri)
 		return err == nil && workspace.Owner(roots, p) == proof.root && (proof.files[uri] || filepath.Base(p) == ".argocd-ls.yaml")
 	}
 	same := func(a, b buffer) bool {
 		return a.revision == b.revision && a.version == b.version && a.unavailable == b.unavailable && a.snapshot.Text() == b.snapshot.Text()
 	}
 	for uri := range proof.files {
-		p, err := uriPath(uri)
+		p, err := workspace.PathFromURI(uri)
 		if err != nil || workspace.Owner(roots, p) != proof.root {
 			return false
 		}
@@ -1657,7 +1631,7 @@ func (proof *readProof) valid(current map[string]buffer, roots []string, overrid
 		}
 	}
 	for uri, b := range current {
-		p, err := uriPath(uri)
+		p, err := workspace.PathFromURI(uri)
 		if err != nil || workspace.Owner(roots, p) != proof.root {
 			continue
 		}
