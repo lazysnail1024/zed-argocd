@@ -1,5 +1,4 @@
-// Package assets resolves only exact, compiled-in catalog identities. Collection
-// does not imply that the local editing contract has been behaviorally verified.
+// Package assets resolves the immutable release inventory embedded in this binary.
 package assets
 
 import (
@@ -7,20 +6,29 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
-	"strconv"
-	"strings"
 	"sync"
 )
 
 //go:embed catalog.json
 var catalogBytes []byte
 
+type schemaEntry struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Path       string `json:"path"`
+	Hash       string `json:"sha256"`
+}
 type catalog struct {
-	Versions []struct {
-		UpstreamCommit string            `json:"upstreamCommit"`
-		Version        string            `json:"version"`
-		Verified       bool              `json:"semanticsVerified"`
-		Schemas        []json.RawMessage `json:"schemas"`
+	DefaultVersion  string        `json:"defaultVersion"`
+	LatestVersion   string        `json:"latestVersion"`
+	SupportedMajors []int         `json:"supportedMajors"`
+	AutoSchemas     []schemaEntry `json:"autoSchemas"`
+	Ready           bool          `json:"ready"`
+	Versions        []struct {
+		UpstreamCommit string        `json:"upstreamCommit"`
+		Version        string        `json:"version"`
+		Verified       bool          `json:"semanticsVerified"`
+		Schemas        []schemaEntry `json:"schemas"`
 		LocalRules     struct {
 			SingleSourceRefs bool `json:"singleSourceRefs"`
 		} `json:"localRules"`
@@ -38,11 +46,14 @@ func catalogData() (catalog, error) {
 
 func CatalogHash() string { h := sha256.Sum256(catalogBytes); return hex.EncodeToString(h[:]) }
 
-// Known reports inventory membership without claiming behavior acceptance.
+// Known accepts auto or an exact collected stable version; it never guesses a patch.
 func Known(version string) bool {
 	c, err := catalogData()
 	if err != nil {
 		return false
+	}
+	if version == "auto" {
+		return len(c.AutoSchemas) > 0
 	}
 	for _, v := range c.Versions {
 		if v.Version == version {
@@ -52,37 +63,54 @@ func Known(version string) bool {
 	return false
 }
 
-func BundleHash(version string) string {
+func schemaEntries(version string) []schemaEntry {
 	c, err := catalogData()
 	if err != nil {
-		return ""
+		return nil
 	}
-	for _, target := range c.Versions {
-		if target.Version == version {
-			b, _ := json.Marshal(target.Schemas)
-			h := sha256.Sum256(b)
-			return hex.EncodeToString(h[:])
+	if version == "auto" {
+		return c.AutoSchemas
+	}
+	for _, v := range c.Versions {
+		if v.Version == version {
+			return v.Schemas
 		}
 	}
-	return ""
+	return nil
 }
 
-// SingleSourceRefs is pinned from the selected upstream GetRefSources behavior.
+func BundleHash(version string) string {
+	entries := schemaEntries(version)
+	if len(entries) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(entries)
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+// SingleSourceRefs follows the selected release, or any covered release in auto.
 func SingleSourceRefs(version string) bool {
 	c, err := catalogData()
 	if err != nil {
 		return false
 	}
 	for _, target := range c.Versions {
-		if target.Version == version {
-			return target.LocalRules.SingleSourceRefs
+		if target.Version == version || version == "auto" {
+			if target.LocalRules.SingleSourceRefs {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// SchemaSource identifies the immutable official CRD used by an exact target.
+// SchemaSource links exact targets to immutable official source. Auto cites its
+// complete, content-addressed catalog rather than suggesting one release was chosen.
 func SchemaSource(version, kind string) string {
+	if version == "auto" {
+		return "https://github.com/lazysnail1024/zed-argocd/blob/main/compat/catalog.lock.json"
+	}
 	name := map[string]string{"Application": "application", "AppProject": "appproject", "ApplicationSet": "applicationset"}[kind]
 	if name == "" {
 		return ""
@@ -99,53 +127,23 @@ func SchemaSource(version, kind string) string {
 	return ""
 }
 
-// DefaultVersion selects the highest exact locally verified target in this binary.
+// DefaultVersion never requires a workspace pin for supported stable releases.
 func DefaultVersion() string {
 	c, err := catalogData()
-	if err != nil {
+	if err != nil || !c.Ready {
 		return ""
 	}
-	best := ""
-	var bestParts [3]int
-	for _, target := range c.Versions {
-		if !target.Verified {
-			continue
-		}
-		parts := strings.Split(target.Version, ".")
-		if len(parts) != 3 {
-			continue
-		}
-		var current [3]int
-		valid := true
-		for i, part := range parts {
-			n, e := strconv.Atoi(part)
-			if e != nil || n < 0 {
-				valid = false
-				break
-			}
-			current[i] = n
-		}
-		if !valid {
-			continue
-		}
-		for i := range current {
-			if best == "" || current[i] > bestParts[i] {
-				best, bestParts = target.Version, current
-				break
-			}
-			if current[i] < bestParts[i] {
-				break
-			}
-		}
-	}
-	return best
+	return c.DefaultVersion
 }
 
-// Verified describes this product's local editing contract, not controller execution.
+// Verified covers this product's tested local editing contract, not controller execution.
 func Verified(version string) bool {
 	c, err := catalogData()
 	if err != nil {
 		return false
+	}
+	if version == "auto" {
+		return c.Ready
 	}
 	for _, target := range c.Versions {
 		if target.Version == version {
@@ -153,4 +151,19 @@ func Verified(version string) bool {
 		}
 	}
 	return false
+}
+
+type SupportWindow struct {
+	Min          string `json:"min"`
+	Max          string `json:"max"`
+	Majors       []int  `json:"majors"`
+	ReleaseCount int    `json:"releaseCount"`
+}
+
+func SupportedVersions() SupportWindow {
+	c, err := catalogData()
+	if err != nil || len(c.Versions) == 0 {
+		return SupportWindow{}
+	}
+	return SupportWindow{c.Versions[0].Version, c.LatestVersion, c.SupportedMajors, len(c.Versions)}
 }

@@ -1,16 +1,4 @@
-name: Native candidate build and behavior
-on:
-  pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
-  workflow_call:
-    inputs:
-      release_version:
-        description: Stable server version for a clean tagged release build
-        type: string
-        required: false
-        default: ''
+name: Native LSP acceptance and distribution
 permissions:
   contents: read
 jobs:
@@ -21,56 +9,55 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.14.0'
-      - name: Validate clean source and matching stable manifests without requiring a tag
-        id: version
-        env:
-          REQUESTED_VERSION: ${{ inputs.release_version }}
-          SOURCE_COMMIT: ${{ github.sha }}
-        run: python tools/candidate.py version --source-commit "$SOURCE_COMMIT" --requested-version "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
-
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Validate the independent LSP VERSION and clean source
+      id: version
+      env:
+        REQUESTED_VERSION: ${{ inputs.release_version }}
+        SOURCE_COMMIT: ${{ github.sha }}
+      run: python tools/release.py version --source-commit "$SOURCE_COMMIT" --requested-version "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
   native:
     needs: prepare
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            platform: linux/amd64
-            artifact: linux-amd64
-            bundle: linux-amd64
-            cc: gcc-13
-            compiler: '13.3.0'
-          - runner: ubuntu-24.04-arm
-            platform: linux/arm64
-            artifact: linux-arm64
-            bundle: linux-arm64
-            cc: gcc-13
-            compiler: '13.3.0'
-          - runner: macos-15-intel
-            platform: darwin/amd64
-            artifact: macos-amd64
-            bundle: darwin-amd64
-            cc: clang
-            compiler: 'Apple clang version 17.0.0'
-          - runner: macos-15
-            platform: darwin/arm64
-            artifact: macos-arm64
-            bundle: darwin-arm64
-            cc: clang
-            compiler: 'Apple clang version 17.0.0'
-          - runner: windows-2025
-            platform: windows/amd64
-            artifact: windows-amd64
-            bundle: windows-amd64
-            cc: gcc
-            compiler: '15.2.0'
+        - runner: ubuntu-24.04
+          platform: linux/amd64
+          artifact: linux-amd64
+          bundle: linux-amd64
+          cc: gcc-13
+          compiler: 13.3.0
+        - runner: ubuntu-24.04-arm
+          platform: linux/arm64
+          artifact: linux-arm64
+          bundle: linux-arm64
+          cc: gcc-13
+          compiler: 13.3.0
+        - runner: macos-15-intel
+          platform: darwin/amd64
+          artifact: macos-amd64
+          bundle: darwin-amd64
+          cc: clang
+          compiler: Apple clang version 17.0.0
+        - runner: macos-15
+          platform: darwin/arm64
+          artifact: macos-arm64
+          bundle: darwin-arm64
+          cc: clang
+          compiler: Apple clang version 17.0.0
+        - runner: windows-2025
+          platform: windows/amd64
+          artifact: windows-amd64
+          bundle: windows-amd64
+          cc: gcc
+          compiler: 15.2.0
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
@@ -80,101 +67,97 @@ jobs:
       GOTOOLCHAIN: local
       MACOSX_DEPLOYMENT_TARGET: '13.0'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: false
-          cache: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.14.0'
-      - name: Build, package and execute actual native consumers
-        run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
-      - name: Prepare pinned Rust adapter toolchain
-        run: rustup toolchain install 1.99.1 --profile minimal --target wasm32-wasip2
-      - name: Test the production installer and offline recovery
-        run: cargo test --locked
-      - name: Prove identity guards reject incompatible servers
-        if: matrix.platform == 'linux/amd64'
-        run: python tests/ablate_identity.py --output artifacts/native-ci/identity-ablation
-      - name: Build and verify the development bundle
-        run: python tests/dev_bundle_e2e.py --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/dev-bundle-e2e
-      - name: Produce installable development bundle
-        run: python tools/dev_bundle.py --manifest artifacts/native-ci/build/manifest.json --platform "${{ matrix.platform }}" --output artifacts/native-ci/dev-bundle
-      - name: Build the actual adapter without native payload
-        run: cargo build --locked --release --target wasm32-wasip2 --manifest-path artifacts/native-ci/dev-bundle/zed-argocd-dev-${{ matrix.bundle }}/extension/Cargo.toml
-      - name: Test release staging and complete-platform aggregation
-        run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e --wasm developer-package=artifacts/native-ci/dev-bundle/zed-argocd-dev-${{ matrix.bundle }}/extension/target/wasm32-wasip2/release/zed_argocd.wasm
-      - name: Stage verified release assets
-        run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}"
-      - name: Validate and stage traceable adapter candidates without native payloads
-        run: python tools/candidate.py adapter --native-assets artifacts/native-ci/release-assets --platform "${{ matrix.platform }}" --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --wasm developer-package=artifacts/native-ci/dev-bundle/zed-argocd-dev-${{ matrix.bundle }}/extension/target/wasm32-wasip2/release/zed_argocd.wasm --output artifacts/native-ci/adapter-candidate
-      - name: Retain adapter candidate inputs
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: argocd-adapter-${{ matrix.bundle }}
-          path: artifacts/native-ci/adapter-candidate/
-          if-no-files-found: error
-          retention-days: 30
-      - name: Retain per-platform release assets
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: argocd-release-${{ matrix.bundle }}
-          path: artifacts/native-ci/release-assets/
-          if-no-files-found: error
-          retention-days: 30
-      - name: Retain successful and failed native evidence
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: argocd-native-${{ matrix.artifact }}
-          path: artifacts/native-ci/
-          if-no-files-found: error
-          retention-days: 30
-
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version-file: go.mod
+        check-latest: false
+        cache: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Build, package and execute actual native consumers
+      run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
+    - name: Test release staging and complete-platform aggregation
+      run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e
+    - name: Prove native release works without any editor checkout
+      if: matrix.platform == 'linux/amd64'
+      run: python tests/native_isolation.py --output artifacts/native-isolation
+    - name: Verify compatibility mechanisms by isolated removal
+      if: matrix.platform == 'linux/amd64'
+      run: python tests/ablate_multi_version.py artifacts/native-ci/build/argocd-ls artifacts/native-ci/multi-version-ablation
+    - name: Stage verified release assets
+      run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}"
+    - name: Retain per-platform release assets
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-release-${{ matrix.bundle }}
+        path: artifacts/native-ci/release-assets/
+        if-no-files-found: error
+        retention-days: 30
+    - name: Retain successful and failed native evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-native-${{ matrix.artifact }}
+        path: artifacts/native-ci/
+        if-no-files-found: error
+        retention-days: 30
   candidate:
-    name: Verify complete distribution candidate (no publication)
-    needs: [prepare, native]
+    name: Verify complete native distribution
+    needs:
+    - prepare
+    - native
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.14.0'
-      - name: Download native assets from this exact workflow run
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: argocd-release-*
-          path: artifacts/candidate-inputs/native
-      - name: Download corresponding adapter candidates
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: argocd-adapter-*
-          path: artifacts/candidate-inputs/adapters
-      - name: Verify five real platforms, licenses, source identity and all SHA-256 inventories
-        run: python tools/candidate.py collect --native-inputs artifacts/candidate-inputs/native --adapter-inputs artifacts/candidate-inputs/adapters --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/distribution-candidate
-      - name: Retain validated candidate for review (not an installation channel)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: argocd-distribution-candidate-${{ needs.prepare.outputs.version }}-${{ github.sha }}
-          path: artifacts/distribution-candidate/
-          if-no-files-found: error
-          retention-days: 30
-      - name: State the remaining publication and editor gates
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          ## Distribution candidate verified
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Download native assets from this exact workflow run
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: argocd-release-*
+        path: artifacts/candidate-inputs/native
+    - name: Verify all native platforms, original licenses, source identity and checksums
+      run: python tools/release.py collect --inputs artifacts/candidate-inputs/native --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/native-distribution
+    - name: Retain the complete verified native distribution
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-native-distribution-${{ needs.prepare.outputs.version }}-${{ github.sha }}
+        path: artifacts/native-distribution/
+        if-no-files-found: error
+        retention-days: 30
+    - name: Summarize the native acceptance boundary
+      run: 'cat >> "$GITHUB_STEP_SUMMARY" <<''EOF''
 
-          Five native release-mode builds and portable WASM adapter evidence belong to this exact commit.
-          SHA-256 inventories, native legal archives and source identity passed the existing release collector.
-          Actions artifacts expire after 30 days. No tag, GitHub Release or Zed store installation channel was created.
-          Real Zed editor acceptance on all five platforms and official registry review remain required.
-          EOF
+        ## Native LSP distribution verified
+
+
+        Five native hosts executed CLI/LSP consumers and verified the exact source identity,
+
+        original licenses, packaged bytes and SHA-256 inventories.
+
+        The Zed adapter has its own workflow and release lifecycle.
+
+        EOF'
+'on':
+  pull_request: null
+  push:
+    branches:
+    - main
+  workflow_dispatch: null
+  workflow_call:
+    inputs:
+      release_version:
+        description: Exact independent LSP version (including alpha releases)
+        type: string
+        required: false
+        default: ''

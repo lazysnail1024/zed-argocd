@@ -30,37 +30,22 @@ func CompileSchema(value map[string]any) (*schema.Schema, error) {
 }
 
 func SchemaData(version, apiVersion, kind string) (map[string]any, error) {
-	c, err := catalogData()
-	if err != nil {
-		return nil, err
-	}
-	for _, v := range c.Versions {
-		if v.Version == version {
-			for _, raw := range v.Schemas {
-				var s struct {
-					APIVersion string `json:"apiVersion"`
-					Kind       string `json:"kind"`
-					Path       string `json:"path"`
-				}
-				if err := json.Unmarshal(raw, &s); err != nil {
-					return nil, err
-				}
-				if s.APIVersion == apiVersion && s.Kind == kind {
-					b, err := schemas.ReadFile("schemas/" + path.Base(s.Path))
-					if err != nil {
-						return nil, err
-					}
-					var value any
-					if err = json.Unmarshal(b, &value); err != nil {
-						return nil, err
-					}
-					if err = checkKeywords(value); err != nil {
-						return nil, err
-					}
-					return value.(map[string]any), nil
-				}
-			}
+	for _, entry := range schemaEntries(version) {
+		if entry.APIVersion != apiVersion || entry.Kind != kind {
+			continue
 		}
+		b, err := schemas.ReadFile("schemas/" + path.Base(entry.Path))
+		if err != nil {
+			return nil, err
+		}
+		var value map[string]any
+		if err = json.Unmarshal(b, &value); err != nil {
+			return nil, err
+		}
+		if err = checkKeywords(value); err != nil {
+			return nil, err
+		}
+		return value, nil
 	}
 	return nil, fmt.Errorf("no collected schema for %s %s %s", version, apiVersion, kind)
 }

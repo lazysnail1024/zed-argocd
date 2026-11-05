@@ -76,10 +76,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--platform", choices=sorted(PLATFORMS), required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--wasm", action="append", help="Existing compiled variant=path; required by CI candidate acceptance")
     args = parser.parse_args()
-    if args.wasm:
-        args.wasm = [name + "=" + str(Path(path).absolute()) for name, path in (item.split("=", 1) for item in args.wasm)]
     output = args.output.absolute()
     output.mkdir(parents=True, exist_ok=False)
     rows, completed = [], False
@@ -123,8 +120,7 @@ def main():
                         ["git", "-c", "commit.gpgsign=false", "commit", "-m", "Synthetic release E2E source history only"]):
             subprocess.run(command, cwd=fixture, env=env, check=True, capture_output=True)
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=fixture, text=True).strip()
-        import tomllib
-        version = tomllib.loads((fixture / "Cargo.toml").read_text())["package"]["version"]
+        version = (fixture / "VERSION").read_text().strip()
         tool = [sys.executable, fixture / "tools/release.py"]
         common = ["--version", version, "--source-commit", commit]
         invoke("stable-tag", tool + ["version", "--tag", "v" + version, "--source-commit", commit])
@@ -181,9 +177,6 @@ def main():
         record("complete-checksum-manifest", {"allFifteenAssets": len(lines) == len(values) == 15,
                                                "everyDigestMatches": all(sha((combined / name).read_bytes()) == digest for name, digest in values.items()),
                                                "noSelfDigest": "SHA256SUMS" not in values})
-        if args.wasm:
-            from candidate_controls import exercise
-            exercise(invoke, record, fixture, inputs, output, common, args.wasm)
         chosen = inputs / "linux-amd64"
         held = output / "held-platform"
         chosen.rename(held)

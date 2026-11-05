@@ -76,7 +76,7 @@ func Pins(ctx context.Context, input Input, snapshot source.Snapshot) []Pin {
 				version = t.Version
 			}
 		}
-		if version == "" {
+		if version == "" || version == "auto" {
 			return
 		}
 		existing := field(m, "targetVersion")

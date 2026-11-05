@@ -8,7 +8,7 @@ for name,text,code,complete,codes,flags in [('clean',wire.APP,0,True,['CD_PROJEC
  command=[str(binary),'render-check','--root',str(root),'--chart',str(chart),'--helm-binary',str(helm),'--output',str(folder/'generated'),'--format','json']+flags
  stdout=stderr=b'';status=None
  try:
-  p=subprocess.run(command,capture_output=True,timeout=40);stdout,stderr,status=p.stdout,p.stderr,p.returncode;r=json.loads(stdout);checks={'exit':status==code,'complete':r['analysisComplete']==complete,'codes':sorted(x['code'] for x in r['diagnostics'])==sorted(codes),'input':'helm-generated'==r['inputSource'],'renderer':r['renderer']['exit']==0 and r['renderer']['binarySHA256']==wire.hash_file(helm),'target':len(r['targets'])==1 and r['targets'][0]['version']=='3.5.6' and r['targets'][0]['complete']==complete,'counts':r['resourcesAnalyzed']==(1 if complete else 0)}
+  p=subprocess.run(command,capture_output=True,timeout=40);stdout,stderr,status=p.stdout,p.stderr,p.returncode;r=json.loads(stdout);checks={'exit':status==code,'complete':r['analysisComplete']==complete,'codes':sorted(x['code'] for x in r['diagnostics'])==sorted(codes),'input':'helm-generated'==r['inputSource'],'renderer':r['renderer']['exit']==0 and r['renderer']['binarySHA256']==wire.hash_file(helm),'target':len(r['targets'])==1 and r['targets'][0]['version']=='auto' and r['targets'][0]['complete']==complete,'counts':r['resourcesAnalyzed']==(1 if complete else 0)}
   if name=='renderer-cycle':checks.update(renderer=r['renderer']['exit']==1 and r['renderer']['binarySHA256']==wire.hash_file(helm),target=r['targets']==[],reason=[x['code'] for x in r['configurationErrors']]==['RENDER_FAILED'])
   else:
    # Compare actual public reports; rendering must not alter analysis facts or

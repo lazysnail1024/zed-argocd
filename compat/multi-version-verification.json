@@ -1,0 +1,228 @@
+{
+  "formatVersion": 1,
+  "catalogSHA256": "99deed5a505e814c6d59471f3332bddb5e7e17e3838219b3dbe7cb000f30bacd",
+  "scope": "Local CRD declarations, editor queries and implemented static checks; no controller execution claim",
+  "checks": {
+    "fullMatrix": {
+      "reportPath": "artifacts/multi-version-query-filter/report.json",
+      "reportSHA256": "ba3efbcca75e080a7e0095cc0c1383fcef8272cf801549bb5d0644ff4f924324",
+      "passed": true,
+      "rows": 374,
+      "autoQueryScenarios": 12
+    },
+    "ablation": {
+      "reportPath": "artifacts/multi-version-query-ablation/report.json",
+      "reportSHA256": "b3063a62c51376356a3d3a2755e3389782dd4b99da82b5e24ff377193b9d0593",
+      "passed": true,
+      "rows": 5,
+      "variants": [
+        {
+          "id": "baseline",
+          "passed": true,
+          "acceptancePassed": true,
+          "timing": {
+            "completed": true,
+            "coldCLIThreeKindsMilliseconds": [
+              201.88,
+              177.64,
+              178.25,
+              179.65,
+              179.7
+            ],
+            "medianMilliseconds": 179.65
+          },
+          "schemaChanges": {},
+          "queryPassed": true,
+          "failedQueryCases": []
+        },
+        {
+          "id": "without-object-closure",
+          "passed": true,
+          "acceptancePassed": false,
+          "schemaChanges": {
+            "AppProject": {
+              "beforeBytes": 66143,
+              "afterBytes": 64664
+            },
+            "Application": {
+              "beforeBytes": 493471,
+              "afterBytes": 479667
+            },
+            "ApplicationSet": {
+              "beforeBytes": 294996,
+              "afterBytes": 283744
+            }
+          }
+        },
+        {
+          "id": "newest-schema-only",
+          "passed": true,
+          "acceptancePassed": false,
+          "schemaChanges": {
+            "AppProject": {
+              "beforeBytes": 66143,
+              "afterBytes": 65219
+            },
+            "Application": {
+              "beforeBytes": 493471,
+              "afterBytes": 491455
+            },
+            "ApplicationSet": {
+              "beforeBytes": 294996,
+              "afterBytes": 293316
+            }
+          }
+        },
+        {
+          "id": "without-shared-definitions",
+          "passed": true,
+          "acceptancePassed": true,
+          "timing": {
+            "completed": false,
+            "timeoutSeconds": 30,
+            "elapsedMilliseconds": 30058.57,
+            "coldCLIThreeKindsMilliseconds": []
+          },
+          "schemaChanges": {
+            "AppProject": {
+              "beforeBytes": 66143,
+              "afterBytes": 116592
+            },
+            "Application": {
+              "beforeBytes": 493471,
+              "afterBytes": 3225794
+            },
+            "ApplicationSet": {
+              "beforeBytes": 294996,
+              "afterBytes": 5649210
+            }
+          }
+        },
+        {
+          "id": "without-query-version-filter",
+          "passed": true,
+          "acceptancePassed": true,
+          "schemaChanges": {},
+          "queryPassed": false,
+          "failedQueryCases": [
+            "legacy-selects-whole-version",
+            "current-selects-whole-version",
+            "active-legacy-field-excluded",
+            "active-current-field-excluded",
+            "missing-required-still-completes",
+            "ordinary-type-errors-still-complete",
+            "current-type-error-still-selects",
+            "array-selects-whole-version"
+          ]
+        }
+      ]
+    },
+    "readiness": {
+      "reportPath": "artifacts/multi-version-readiness-identity/report.json",
+      "reportSHA256": "2697fbea7285ba8a5e180f5269324ab45b923c8fe2db3dccb3ab13b26cef6eba",
+      "passed": true,
+      "rows": 21
+    },
+    "queries": {
+      "reportPath": "artifacts/query-filter-strict-regression/report.json",
+      "reportSHA256": "b882ad15361e1485cf95b0018f819be55e85b531424fd012ed2025e1229df9cd",
+      "passed": true,
+      "rows": 100
+    },
+    "appsetOverrides": {
+      "reportPath": "artifacts/multi-version-appset/report.json",
+      "reportSHA256": "934987cc72f33db3d99b1e9932435cfc01c4a8a24e607503779af6653d5f6cab",
+      "passed": true,
+      "rows": 33
+    },
+    "compiledConstraints": {
+      "outputSHA256": "5d4fb7dcd2499b7f2555bb4af0c9905c11e0a29273c45ce3b0c647b13340e4ca",
+      "output": "=== RUN   TestEveryReleaseSchemaConstraints\n    catalog_test.go:106: validated 370 releases, 58 distinct source schemas, 170411 constrained nodes\n--- PASS: TestEveryReleaseSchemaConstraints (12.98s)\n=== RUN   TestAutoWholeVersion\n=== RUN   TestAutoWholeVersion/legacy_ksonnet\n=== RUN   TestAutoWholeVersion/current_enabled\n=== RUN   TestAutoWholeVersion/new_field_wrong_type\n=== RUN   TestAutoWholeVersion/legacy_field_wrong_type\n=== RUN   TestAutoWholeVersion/impossible_version_combination\n--- PASS: TestAutoWholeVersion (0.17s)\n    --- PASS: TestAutoWholeVersion/legacy_ksonnet (0.00s)\n    --- PASS: TestAutoWholeVersion/current_enabled (0.00s)\n    --- PASS: TestAutoWholeVersion/new_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/legacy_field_wrong_type (0.00s)\n    --- PASS: TestAutoWholeVersion/impossible_version_combination (0.00s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/assets\t13.242s\n"
+    },
+    "fieldQueries": {
+      "outputSHA256": "d54f9a3a9c73cba9486388c1f3bf097b3d79c1432abf5c9f0b222f3d6a54c8b2",
+      "output": "=== RUN   TestAutoQueriesCoverEveryDeclaredField\n    multi_version_test.go:133: covered 10516 field declarations at 2113 distinct paths across 58 source schemas\n--- PASS: TestAutoQueriesCoverEveryDeclaredField (1.11s)\nPASS\nok  \tgithub.com/lazysnail1024/zed-argocd/internal/analysis\t1.122s\n"
+    },
+    "querySelection": {
+      "reportPath": "artifacts/auto-query-fixed/report.json",
+      "reportSHA256": "fafb688c5e2dabc842b0c253a228f27e3cca0e083b5493319e98276009e19b26",
+      "passed": true,
+      "rows": 12
+    },
+    "preFixQueryReproduction": {
+      "reportPath": "artifacts/auto-query-before/report.json",
+      "reportSHA256": "747c44e369592c1baf655dd78ff5c734006e3dcdcdacabddfb325e57d3dc8d3e",
+      "binarySHA256": "f3d40acbf3d826f9d102ccf3b43ec26c93b6a84ffc08c7df1577cbfd40055053",
+      "observedIncompatibleSuggestions": [
+        "legacy-blocks-enabled",
+        "current-blocks-ksonnet"
+      ]
+    },
+    "nativeLinuxInitial": {
+      "reportPath": "artifacts/native-ci-linux-374d214/report.json",
+      "reportSHA256": "0a37f002d25886c089706b38092525c75e2305a4e742a3adc3bd32ae2b2bb776",
+      "completed": true,
+      "passed": false,
+      "rows": 31,
+      "passedSteps": 30,
+      "provenance": {
+        "sourceCommit": "374d21407d48989c8e6b03bb38c56bda22463368",
+        "dirty": false,
+        "buildMode": "release"
+      },
+      "failedSteps": [
+        {
+          "id": "appset-overrides",
+          "exit": "timeout",
+          "elapsedSeconds": 480.0474063799993
+        }
+      ],
+      "resolvedBy": "appsetSchemaGroups",
+      "workflowOnlyExternalChangesDuringRun": [
+        ".github/workflows/release.yml",
+        ".github/workflows/zed-release.yml"
+      ]
+    },
+    "appsetSchemaGroups": {
+      "reportPath": "artifacts/appset-schema-groups-374d214/report.json",
+      "reportSHA256": "1477570f5961970e211194d2522c7fdb9aa590d49f50badf98beccbb3470ea27",
+      "passed": true,
+      "rows": 198,
+      "coverage": {
+        "reportPath": "artifacts/appset-schema-groups-374d214/coverage.json",
+        "reportSHA256": "4ba3a0df7c5a67562dcac9875fcc65084b4e6f0d12f181c4e300ee73ff6cad80",
+        "passed": true,
+        "runnerReportSHA256": "1477570f5961970e211194d2522c7fdb9aa590d49f50badf98beccbb3470ea27",
+        "catalogSHA256": "99deed5a505e814c6d59471f3332bddb5e7e17e3838219b3dbe7cb000f30bacd",
+        "eligibleExactTargets": 180,
+        "distinctSchemaRuleGroups": 17,
+        "testedTargetsIncludingAuto": 18,
+        "scenarioCount": 198,
+        "caseIDs": [
+          "dynamic-patch-unknown",
+          "generator-adds-policy",
+          "generator-empty-list-inherits",
+          "generator-empty-map-inherits",
+          "generator-empty-scalar-inherits",
+          "generator-removes-policy",
+          "patch-adds-policy",
+          "patch-empty-list-clears",
+          "patch-null-list-deletes",
+          "patch-project-protected",
+          "patch-removes-policy"
+        ],
+        "independentExactVersionGateTargets": 370,
+        "sameReleaseBinary": true,
+        "artifactSpanSeconds": 51.912,
+        "timingScope": "First fixture write through final report write; excludes initial catalog loading"
+      }
+    },
+    "nativeRegressionMutations": {
+      "reportPath": "artifacts/native-ci-linux-374d214/audit-regression-mutations/report.json",
+      "reportSHA256": "604f9a17af7fd51c4245432089678117e05c45a7c4d644098195ee7728e93801",
+      "completed": true,
+      "passed": true,
+      "rows": 8
+    }
+  }
+}

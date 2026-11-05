@@ -182,11 +182,13 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			}
 			a.schemas[key] = prepared
 		}
+		unknownPaths := map[string]bool{}
 		document := Document{ProjectionNodes: projected.Nodes, Snapshot: s, Root: root, Value: object(value), Origin: projected.Origin, Kind: resourceKind, Target: target, SchemaData: prepared.data, CompiledSchema: prepared.compiled}
 		a.ReuseProjections([]Document{document})
 		if document.Value != nil {
 			result.Documents = append(result.Documents, document)
 			for _, unknown := range UnknownFields(document) {
+				unknownPaths[strings.Join(unknown.Path, "/")] = true
 				d := diagnostic(document, unknown.Path, "SCHEMA_UNKNOWN_FIELD", 2, "Field is not declared by this target Schema")
 				d.Range = nodeRange(document, unknown.Key)
 				result.Diagnostics = append(result.Diagnostics, d)
@@ -198,11 +200,23 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			if !ok {
 				return result, err
 			}
+			if target == "auto" {
+				validation = closestVersionError(validation, unknownPaths)
+			}
 			var collect func(*schema.ValidationError)
 			collect = func(e *schema.ValidationError) {
 				if len(e.Causes) > 0 {
 					for _, child := range e.Causes {
 						collect(child)
+					}
+					return
+				}
+				if extra, ok := e.ErrorKind.(*kind.AdditionalProperties); ok && target == "auto" {
+					for _, name := range extra.Properties {
+						parts := appendPath(e.InstanceLocation, name)
+						if !unknownPaths[strings.Join(parts, "/")] {
+							emit(document.location(parts), "SCHEMA_VERSION_COMBINATION", "This field combination is not declared by any supported Argo CD release")
+						}
 					}
 					return
 				}
@@ -227,6 +241,49 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 		}
 	}
 	return result, nil
+}
+
+// Root compatibility failure contains one cause per whole-release variant.
+// Report the closest variant's actionable errors rather than hundreds of copies.
+// Unknown names already have their own warning and do not influence selection.
+func closestVersionError(e *schema.ValidationError, unknown map[string]bool) *schema.ValidationError {
+	if _, ok := e.ErrorKind.(*kind.AnyOf); ok && len(e.InstanceLocation) == 0 && len(e.Causes) > 0 {
+		best := e.Causes[0]
+		score := versionErrorScore(best, unknown)
+		for _, cause := range e.Causes[1:] {
+			if current := versionErrorScore(cause, unknown); current < score {
+				best, score = cause, current
+			}
+		}
+		return best
+	}
+	for i, child := range e.Causes {
+		e.Causes[i] = closestVersionError(child, unknown)
+	}
+	return e
+}
+
+func versionErrorScore(e *schema.ValidationError, unknown map[string]bool) int {
+	if len(e.Causes) > 0 {
+		total := 0
+		for _, child := range e.Causes {
+			total += versionErrorScore(child, unknown)
+		}
+		return total
+	}
+	if extra, ok := e.ErrorKind.(*kind.AdditionalProperties); ok {
+		total := 0
+		for _, name := range extra.Properties {
+			if !unknown[strings.Join(appendPath(e.InstanceLocation, name), "/")] {
+				total += 100
+			}
+		}
+		return total
+	}
+	if required, ok := e.ErrorKind.(*kind.Required); ok {
+		return len(required.Missing)
+	}
+	return 1
 }
 
 // Early ownership hints require unique literal keys. An unresolved key might

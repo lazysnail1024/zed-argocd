@@ -209,6 +209,7 @@ func Complete(doc Document, p Position) []Completion {
 		}
 		return fieldCompletions(doc, parts[:len(parts)-1], prefix, Range{Position{a.Line, a.UTF16Column}, Position{b.Line, b.UTF16Column}}, "", parts[len(parts)-1])
 	} else {
+		doc = automaticQueryDocument(doc, parts)
 		facets := queryAt(doc, parts)
 		values := []any{}
 		seen := map[string]bool{}

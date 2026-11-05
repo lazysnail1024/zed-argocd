@@ -27,8 +27,8 @@ try:
  text='schemaVersion: 1\ntargetVersion: "3.0.0"\ncontrolPlaneNamespace: argocd\nscopes:\n  - name: dev # keep\n    include: ["apps/**"]\n'
  c.open(config,text,1);assert not any(d.get('severity') in [1,2] for d in c.diag(config,1));action=next(a for a in actions(c,uri,4)['result'] if a['data']['fixCode']=='FIX_PIN_VERSION');resolved=c.request('codeAction/resolve',action)['result'];change=resolved['edit']['documentChanges'][0];edited=apply(text,change);assert edited==text.replace('  - name: dev # keep\n','  - name: dev # keep\n    targetVersion: "3.0.0"\n');assert change['textDocument']['version']==1
  c.change(config,edited,2);c.diag(config,2);assert not actions(c,uri,4).get('result')
- defaultText='schemaVersion: 1\n';c.change(config,defaultText,3);c.diag(config,3);defaultAction=next(a for a in actions(c,uri,0)['result'] if a['data']['fixCode']=='FIX_PIN_VERSION');defaultResolved=c.request('codeAction/resolve',defaultAction)['result'];defaultChange=defaultResolved['edit']['documentChanges'][0];assert apply(defaultText,defaultChange)=='schemaVersion: 1\ntargetVersion: \"3.5.6\"\n';assert defaultChange['textDocument']['version']==3
- e.record(name,{'scope':'exact insertion after name; only dev scope','verifiedDefault':'persist current verified 3.5.6 with current buffer version'}, {'before':text,'after':edited,'resolved':resolved},True,root,c)
+ defaultText='schemaVersion: 1\n';c.change(config,defaultText,3);c.diag(config,3);defaultActions=actions(c,uri,0)['result'];assert not [a for a in defaultActions if a.get('data',{}).get('fixCode')=='FIX_PIN_VERSION'],'automatic mode must not offer an unnecessary pin'
+ e.record(name,{'scope':'exact insertion after name; only dev scope','verifiedDefault':'automatic mode requires no persisted pin'}, {'before':text,'after':edited,'resolved':resolved},True,root,c)
 except Exception as ex:c.close();e.record(name,{'scopePin':True},{'exception':repr(ex)},False,root)
 name='root-insertion-close-and-invalid-target';out,root=e.setup(name);file=e.write(root,'app.yaml',e.APP);config=root/'.argocd-ls.yaml';uri=config.as_uri();c=e.LSP(out,[root])
 try:

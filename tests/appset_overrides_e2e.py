@@ -1,8 +1,30 @@
 #!/usr/bin/env python3
-"""Static override controls across each pinned target, using real CLI processes."""
+"""Static overrides across distinct schema/rule combinations, using real CLI processes."""
 import argparse,json,pathlib,subprocess,sys
 import audit_repair_e2e as w
-p=argparse.ArgumentParser();p.add_argument('binary',type=pathlib.Path);p.add_argument('output',type=pathlib.Path);p.add_argument('--all-targets',action='store_true');a=p.parse_args();binary=a.binary.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);catalog=json.loads((pathlib.Path(__file__).resolve().parents[1]/'compat/catalog.lock.json').read_text());versions=[v['version'] for v in catalog['versions']] if a.all_targets else ['3.0.0','3.5.6'];rows=[]
+p=argparse.ArgumentParser();p.add_argument('binary',type=pathlib.Path);p.add_argument('output',type=pathlib.Path);p.add_argument('--all-targets',action='store_true',help='Cover every eligible target through its distinct ApplicationSet schema and local-rule group');a=p.parse_args();binary=a.binary.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);catalog=json.loads((pathlib.Path(__file__).resolve().parents[1]/'compat/catalog.lock.json').read_text());versions=[];groups={}
+for target in catalog['versions']:
+ entry=next((s for s in target['schemas'] if s['kind']=='ApplicationSet'),None)
+ if entry is None:continue
+ data=json.loads((pathlib.Path(__file__).resolve().parents[1]/entry['path']).read_text())
+ # This oracle exercises templatePatch and goTemplate, which were introduced
+ # after ApplicationSet's initial releases. Missing features are covered by the
+ # exact-release schema matrix, not treated as implemented controller behavior.
+ if {'templatePatch','goTemplate'} <= set(data['properties']['spec']['properties']):
+  versions.append(target['version'])
+  # The complete exact-target matrix independently checks every tag. These deep
+  # fixtures need one execution per identical schema and local-rule contract.
+  key=(entry['sha256'],json.dumps(target['localRules'],sort_keys=True))
+  group=groups.setdefault(key,{'representative':target['version'],'schemaSHA256':entry['sha256'],'localRules':target['localRules'],'versions':[]})
+  group['versions'].append(target['version'])
+eligible_versions=list(versions)
+if a.all_targets:
+ versions=[group['representative'] for group in groups.values()]
+ covered=[version for group in groups.values() for version in group['versions']]
+ assert len(covered)==len(set(covered)) and set(covered)==set(eligible_versions)
+ assert len(versions)==len(groups) and set(versions)<=set(eligible_versions)
+else:versions=[v for v in ['3.0.0',catalog['latestVersion']] if v in versions]
+versions.append('auto');rows=[]
 base={'apiVersion':'argoproj.io/v1alpha1','kind':'ApplicationSet','metadata':{'name':'set'},'spec':{'goTemplate':True,'generators':[{'list':{'elements':[]}}],'template':{'metadata':{'name':'child'},'spec':{'project':'team','source':{'repoURL':'x'},'destination':{'server':'https://kubernetes.default.svc','namespace':'dev'}}}}}
 project=w.PROJECT.replace('namespace: "*"','namespace: prod')
 for version in versions:
@@ -24,4 +46,4 @@ for version in versions:
    if name=='dynamic-patch-unknown':assert any(x['code']=='CD_APPSET_DYNAMIC_FIELD' for x in ds) and report['notEvaluated']
   except Exception as e:error=repr(e)
   rows.append(dict(version=version,id=name,command=cmd,exit=q.returncode,passed=error is None,error=error))
-(out/'report.json').write_text(json.dumps({'binarySHA256':w.hash_file(binary),'runnerSHA256':w.hash_file(pathlib.Path(__file__)),'rows':rows,'inputAndArtifactSHA256':{str(f.relative_to(out)):w.hash_file(f) for f in out.rglob('*') if f.is_file()}},indent=2));print(json.dumps({'count':len(rows),'failed':[x for x in rows if not x['passed']]}));sys.exit(not rows or not all(x['passed'] for x in rows))
+(out/'report.json').write_text(json.dumps({'binarySHA256':w.hash_file(binary),'runnerSHA256':w.hash_file(pathlib.Path(__file__)),'selection':{'mode':'schema-and-local-rules' if a.all_targets else 'smoke','eligibleVersions':eligible_versions,'testedVersions':versions,'groups':list(groups.values()) if a.all_targets else []},'rows':rows,'inputAndArtifactSHA256':{str(f.relative_to(out)):w.hash_file(f) for f in out.rglob('*') if f.is_file()}},indent=2));print(json.dumps({'count':len(rows),'failed':[x for x in rows if not x['passed']]}));sys.exit(not rows or not all(x['passed'] for x in rows))

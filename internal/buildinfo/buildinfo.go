@@ -11,24 +11,26 @@ const Product = "argo-cd"
 const Server = "argocd-ls"
 
 // These variables may be set by an explicit go build -ldflags invocation.
-var ServerVersion = "0.1.0-dev"
+var ServerVersion = "0.0.1-alpha.1"
 var SourceCommit = ""
 var Dirty = "true"
 var BuildMode = "development"
 
 type Info struct {
-	Product                string  `json:"product"`
-	ServerVersion          string  `json:"serverVersion"`
-	AdapterContractVersion int     `json:"adapterContractVersion"`
-	ConfigSchemaVersions   []int   `json:"configSchemaVersions"`
-	ReportSchemaVersions   []int   `json:"reportSchemaVersions"`
-	PackFormatVersions     []int   `json:"packFormatVersions"`
-	ToolkitVersion         *string `json:"toolkitVersion"`
-	CatalogHash            *string `json:"catalogHash"`
-	SourceCommit           *string `json:"sourceCommit"`
-	Dirty                  bool    `json:"dirty"`
-	BuildMode              string  `json:"buildMode"`
-	AnalysisReady          bool    `json:"analysisReady"`
+	Product                string               `json:"product"`
+	ServerVersion          string               `json:"serverVersion"`
+	AdapterContractVersion int                  `json:"adapterContractVersion"`
+	ConfigSchemaVersions   []int                `json:"configSchemaVersions"`
+	ReportSchemaVersions   []int                `json:"reportSchemaVersions"`
+	PackFormatVersions     []int                `json:"packFormatVersions"`
+	ToolkitVersion         *string              `json:"toolkitVersion"`
+	CatalogHash            *string              `json:"catalogHash"`
+	SourceCommit           *string              `json:"sourceCommit"`
+	Dirty                  bool                 `json:"dirty"`
+	BuildMode              string               `json:"buildMode"`
+	AnalysisReady          bool                 `json:"analysisReady"`
+	DefaultTargetVersion   string               `json:"defaultTargetVersion"`
+	SupportedVersions      assets.SupportWindow `json:"supportedVersions"`
 }
 
 func Current() Info {
@@ -49,6 +51,7 @@ func Current() Info {
 	}
 	return Info{
 		Product: Product, ServerVersion: ServerVersion, AdapterContractVersion: 1,
+		DefaultTargetVersion: assets.DefaultVersion(), SupportedVersions: assets.SupportedVersions(),
 		ConfigSchemaVersions: []int{1}, ReportSchemaVersions: []int{1}, PackFormatVersions: []int{},
 		SourceCommit: commit, Dirty: Dirty != "false", BuildMode: BuildMode,
 		AnalysisReady: assets.DefaultVersion() != "", CatalogHash: &catalogHash, ToolkitVersion: toolkitVersion,

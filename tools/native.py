@@ -16,7 +16,7 @@ def canonical(value):return (json.dumps(value,sort_keys=True,indent=2)+'\n').enc
 def write(path,data):path.write_bytes(data)
 def main():
  ap=argparse.ArgumentParser();sub=ap.add_subparsers(dest='command',required=True)
- b=sub.add_parser('build');b.add_argument('--output',type=pathlib.Path,required=True);b.add_argument('--platform',required=True);b.add_argument('--mode',choices=['development','release'],default='development');b.add_argument('--version',default='0.1.0-dev');b.add_argument('--source-commit')
+ b=sub.add_parser('build');b.add_argument('--output',type=pathlib.Path,required=True);b.add_argument('--platform',required=True);b.add_argument('--mode',choices=['development','release'],default='development');b.add_argument('--version',default=(ROOT/'VERSION').read_text().strip()+'-dev');b.add_argument('--source-commit')
  p=sub.add_parser('package');p.add_argument('--output',type=pathlib.Path,required=True);p.add_argument('--manifest',type=pathlib.Path,required=True)
  args=ap.parse_args();out=args.output.absolute();report={'passed':False,'command':sys.argv,'steps':[]};created=False
  # Trust selected tools/system SDK, not inherited compiler flags or search paths.
@@ -36,7 +36,7 @@ def main():
   if args.command=='build':
    if args.platform not in PLATFORMS:raise ValueError('Unsupported native platform')
    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?',args.version):raise ValueError('Unsafe or invalid server version')
-   if args.mode=='release' and not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',args.version):raise ValueError('Release requires an explicit stable server version')
+   if args.mode=='release' and not re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.(?:0|[1-9][0-9]*))?',args.version):raise ValueError('Release requires a stable or alpha/beta/rc server version')
    expectedGo='go'+next(x.split()[1] for x in (ROOT/'go.mod').read_text().splitlines() if x.startswith('go '))
    ge=json.loads(run([go,'env','-json','GOHOSTOS','GOHOSTARCH','GOOS','GOARCH','GOVERSION','GOROOT','CC']).stdout)
    if ge['GOVERSION']!=expectedGo or args.platform!=ge['GOHOSTOS']+'/'+ge['GOHOSTARCH'] or args.platform!=ge['GOOS']+'/'+ge['GOARCH']:raise ValueError('Toolchain or actual native host platform mismatch')
@@ -134,7 +134,7 @@ def main():
    if metadata!=m['goBuild'] or metadata['Main']['Path']!=MODULE or settings['GOOS']+'/'+settings['GOARCH']!=platform:raise ValueError('Embedded Go platform/module/build metadata mismatch')
    if json.loads(run([str(binary),'version','--json']).stdout)!=identity or identity['product']!='argo-cd':raise ValueError('Native identity mismatch')
    if identity['buildMode'] not in ['development','release']:raise ValueError('Unknown build mode')
-   if identity['buildMode']=='release' and (identity['dirty'] or not re.fullmatch('[0-9a-f]{40}',identity.get('sourceCommit') or '') or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version)):raise ValueError('Invalid release provenance')
+   if identity['buildMode']=='release' and (identity['dirty'] or not re.fullmatch('[0-9a-f]{40}',identity.get('sourceCommit') or '') or not re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:alpha|beta|rc)\.(?:0|[1-9][0-9]*))?',version)):raise ValueError('Invalid release provenance')
    actualGo=json.loads(run([go,'env','-json','GOROOT','GOVERSION']).stdout)
    expectedGo='go'+next(x.split()[1] for x in (ROOT/'go.mod').read_text().splitlines() if x.startswith('go '))
    if actualGo['GOVERSION']!=expectedGo or metadata['GoVersion']!=expectedGo:raise ValueError('Legal source toolchain version differs from pinned build')
