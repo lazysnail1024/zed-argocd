@@ -76,40 +76,64 @@ Release. Publish corrections under a new version and update the adapter pin.
 
 ## Cache, offline operation and recovery
 
-All managed files live under Zed's extension work directory. A slot such as
-`servers/v0.1.0-linux-amd64/` contains the executable and its exact `SHA256SUMS`.
+All managed files live under Zed's extension work directory. New installations
+publish complete directories such as
+`servers/v0.1.0-linux-amd64.gen-<timestamp>-<sequence>/`, containing the executable
+and its exact `SHA256SUMS`. The version and platform prefix must match exactly;
+staging directories, other versions/platforms and malformed generation names are
+never executable candidates. A valid legacy `servers/v0.1.0-linux-amd64/` slot is
+still checked first and reused without migration. Otherwise, the adapter checks
+matching generations, newest first.
+
 The adapter derives the **absolute host executable path** from the extension work
 directory for both its identity probe and language-server command; it does not
-assume that the Zed host process shares the WASI working directory.
-
-A valid slot is reused without network access. Each startup still verifies the
-checksum and identity, so a cached filename or old in-memory path cannot bypass
-verification. Offline first installation requires a previously installed
-compatible executable through `serverPath` or `PATH`; a missing or damaged cache
-cannot become verified while offline.
+assume that the Zed host process shares the WASI working directory. A valid cache
+is reused without network access. Each startup verifies the checksum, reapplies
+executable permissions through Zed's API, and checks identity. This preserves
+offline recovery of lost execute bits. Offline first installation requires a
+previously installed compatible executable through `serverPath` or `PATH`; a
+missing or damaged cache cannot become verified while offline.
 
 Each attempt downloads into a uniquely reserved staging directory. Interrupted
-or failed attempts remove only their own staging data. Abandoned staging data
-from process termination is never a candidate executable and does not prevent a
-new attempt. A complete staging directory is activated only after checksum,
-executable-permission and identity checks succeed. If another Zed process has
-already installed the same version, its verified slot is reused. A broken current
-slot is moved aside before promotion; an unsuccessful promotion attempts to
-restore it. Permission errors, file locks and cleanup errors remain visible.
+or failed attempts remove only the staging data they still own. Abandoned
+staging from process termination is never a candidate executable and does not
+prevent another attempt. There are no persistent lock directories that could
+block recovery after a crash.
 
-The installer does not overwrite a running binary in place. Windows antivirus or
-file locks may still prevent replacement; close Zed and retry if the error asks
-for it. It does not remove unrelated files or all older slots in an attempt to
-recover. Cache directory and file symlinks are refused. Local permission and
-symlink defenses are not a guarantee against a process that can concurrently
-modify the user's extension work directory.
+Only a complete, nonempty staging directory that has passed checksum, executable
+permission and identity checks can be published, using one directory rename to a
+new generation. A final cache lookup can reuse another installer's completed
+work, but it is only an optimization: correctness does not depend on another
+process remaining idle between that lookup and publication. Two Zed processes
+may publish different generations of the same pinned release; both returned
+paths remain valid. A nonempty destination cannot be replaced by directory
+rename on Unix or Windows. If a destination collision occurs, the adapter
+revalidates and reuses the winner, or selects a fresh generation name if that
+entry is invalid. It handles collision errors by inspecting the destination,
+including Windows cases reported as permission errors.
 
-Version changes use separate slots. A failed upgrade preserves previous versions
-but returns an error instead of silently running an old server. Roll back by
-installing the previous adapter version or deliberately selecting a compatible
-known-good server through `serverPath`. Old cache slots are retained for that
-purpose; close Zed before removing obsolete slots manually. Restart the language
-server after restoring network access to retry a failed install.
+Published directory paths and executable contents are never renamed, replaced,
+removed or pruned by this installer, including corrupt generations and the
+legacy slot. Repair downloads into a new generation instead of moving a broken
+slot aside. Once a rename succeeds, the installer relinquishes ownership of its
+former staging pathname and never cleans it up: another process may have
+reserved that same pathname already. Permission reapplication on a verified
+cache remains supported; it does not replace its contents or location.
+
+Windows antivirus or file locks may still prevent a new publication. Such a
+failure leaves existing generations intact and reports an error; retry after
+resolving the access problem. Cleanup errors for still-owned redundant staging
+are logged without failing an already verified cache result. Cache directory and
+file symlinks are refused. These checks do not defend against a separate process
+that can arbitrarily modify the user's cache bytes or remove published paths.
+
+Version changes use separate namespaces. A failed upgrade preserves previous
+versions but returns an error instead of silently running an old server. Roll
+back by installing the previous adapter version or deliberately selecting a
+compatible known-good server through `serverPath`. All published generations are
+retained, including superseded and corrupt ones; close all Zed instances before
+manually removing obsolete generations. Restart the language server after
+restoring network access to retry a failed download.
 
 ## Reused build and publication pipeline
 
@@ -144,7 +168,9 @@ contract, and do not upload new bytes over an already published version.
 ## Automated acceptance and its limits
 
 The Rust acceptance suite calls the production installer with real temporary
-files and fake Zed transport, permission and process boundaries. It checks:
+files and fake Zed transport, permission and process boundaries. A publication
+hook interleaves another installer immediately before an actual filesystem
+rename, after the final cache lookup. It checks:
 
 - Exact mapping for all five platforms; unsupported host and unsafe pin refusal.
 - Strict checksum parsing, wrong or missing asset, duplicate/truncated manifest,
@@ -153,9 +179,17 @@ files and fake Zed transport, permission and process boundaries. It checks:
   failures, exact release identity and permissive valid developer identity.
 - Offline cache reuse, per-startup revalidation, corrupted or absent cache repair,
   wrong cached version, upgrade failure, explicit rollback and path priority.
-- Concurrent completed installation reuse, preserved cache on failed replacement,
-  and abandoned staging. Unix tests additionally exercise unsafe symlinks; Windows
-  GUI/junction/antivirus behavior remains a manual acceptance concern.
+- A competitor completing after the final cache check on a fresh cache, corrupt
+  legacy slot and corrupt generation; both returned paths and the competitor's
+  sentinel remain intact. These cases exercise the activation race itself,
+  separately from the earlier during-download winner test.
+- Exact-destination collisions using real directory renames, including a
+  permission-error variant; invalid collision preservation, failed publication,
+  a former staging pathname reused after successful publication, strict
+  generation-name selection and offline reuse of repaired generations.
+- Abandoned staging and legacy cache compatibility. Unix tests additionally
+  exercise unsafe symlinks; Windows GUI/junction/antivirus behavior remains a
+  manual acceptance concern.
 
 The Python developer-package suite reuses real native packaging and executes the
 actual separate Go executable. It checks deterministic archives, exact hashes,
@@ -199,11 +233,19 @@ commit with no local override, then complete these cases:
    and interrupt or fail that upgrade. Confirm no older server starts silently,
    then test deliberate rollback and recovery. Do not overwrite production tags
    to create failure cases; use a maintainer-controlled test build/fixture server.
-5. Check valid and invalid `serverPath`, including paths with spaces and Windows
+5. Start two independent Zed processes against an empty extension cache, then
+   repeat after corrupting the cached executable with both editors closed.
+   Arrange overlapping installation attempts and confirm both editors' selected
+   executable paths remain usable after either installer finishes. Restart both
+   offline and verify reuse of a valid generation without downloads. On Windows,
+   keep the first server running while the second process installs or repairs.
+   Record both paths and the outcome; this concurrent-editor case remains
+   **pending on all five platforms**, separately from the automated interleavings.
+6. Check valid and invalid `serverPath`, including paths with spaces and Windows
    drive/UNC paths; confirm explicit settings retain priority. On Windows test a
    running server and antivirus/file-lock recovery. On macOS verify downloaded
    executable permissions and any OS security prompts.
-6. Confirm diagnostics update after edit/save/watch events and the existing
+7. Confirm diagnostics update after edit/save/watch events and the existing
    reconciliation behavior; keep the general YAML server enabled and note any
    duplicate schema diagnostics.
 

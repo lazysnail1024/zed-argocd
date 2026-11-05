@@ -1,6 +1,7 @@
 //! Acceptance tests use the production installer and real temporary files.
-//! Only Zed's network, chmod and process boundary is substituted. Native process
-//! execution remains covered by the existing native/dev-package consumers.
+//! Zed's network, chmod and process boundary is substituted. Publication hooks
+//! interleave another installer immediately before real filesystem renames.
+//! Native process execution remains covered by the existing package consumers.
 #[path = "../src/distribution.rs"]
 mod distribution;
 #[path = "../src/identity.rs"]
@@ -10,9 +11,11 @@ use distribution::{Host, Target};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -40,6 +43,19 @@ impl Scratch {
         self.0
             .join("servers")
             .join(format!("v{version}-{}", target.platform))
+    }
+    fn generations(&self, target: Target, version: &str) -> Vec<PathBuf> {
+        let prefix = format!("v{version}-{}.gen-", target.platform);
+        fs::read_dir(self.0.join("servers"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| {
+                p.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with(&prefix)
+            })
+            .collect()
     }
     fn staging(&self) -> Vec<PathBuf> {
         fs::read_dir(self.0.join("servers"))
@@ -92,7 +108,7 @@ struct FakeHost {
     winner: Option<PathBuf>,
     vanished_staging: bool,
     staged_directory: Option<PathBuf>,
-    obstruct_backup: bool,
+    publisher: Option<Box<dyn FnMut(&Path, &Path) -> std::io::Result<()>>>,
     #[cfg(unix)]
     replace_stage_with_symlink: Option<PathBuf>,
     #[cfg(unix)]
@@ -132,6 +148,12 @@ impl FakeHost {
     }
 }
 impl Host for FakeHost {
+    fn publish_directory(&mut self, staging: &Path, destination: &Path) -> std::io::Result<()> {
+        match &mut self.publisher {
+            Some(publisher) => publisher(staging, destination),
+            None => fs::rename(staging, destination),
+        }
+    }
     fn download(&mut self, url: &str, destination: &Path) -> Result<(), String> {
         self.downloads.push(url.to_owned());
         let bytes = self
@@ -193,11 +215,6 @@ impl Host for FakeHost {
                 .unwrap();
                 fs::write(winner.join("winner-marker"), b"another Zed process").unwrap();
             }
-            if self.obstruct_backup {
-                let backup = path.parent().unwrap().with_extension("old");
-                fs::create_dir(&backup).unwrap();
-                fs::write(backup.join("in-use"), b"held").unwrap();
-            }
         } else if self.vanished_staging {
             if let Some(stage) = self.staged_directory.take() {
                 fs::remove_dir_all(stage).unwrap();
@@ -221,7 +238,11 @@ fn all_five_platforms_install_the_exact_asset_and_reuse_cache_offline() {
         let root = Scratch::new();
         let mut host = FakeHost::online(target, VERSION);
         let installed = distribution::install(&mut host, &root.0, target, VERSION).unwrap();
-        assert_eq!(installed, root.slot(target, VERSION).join(exe));
+        assert!(root
+            .generations(target, VERSION)
+            .contains(&installed.parent().unwrap().to_owned()));
+        assert_eq!(installed.file_name().unwrap(), exe);
+        assert!(!root.slot(target, VERSION).exists());
         assert!(installed.is_absolute());
         assert_eq!(fs::read(&installed).unwrap(), release(VERSION));
         assert_eq!(
@@ -279,6 +300,7 @@ fn bad_checksums_never_make_the_binary_executable_or_probe_it() {
         assert!(host.permissions.is_empty(), "{name} reached chmod");
         assert!(host.probes.is_empty(), "{name} reached process execution");
         assert!(!root.slot(target(), VERSION).exists());
+        assert!(root.generations(target(), VERSION).is_empty());
         assert!(root.staging().is_empty());
         if name != "wrong-sha" {
             assert_eq!(host.downloads.len(), 1, "{name}");
@@ -333,6 +355,7 @@ fn missing_release_or_denied_download_is_actionable_and_does_not_leave_an_instal
     );
     assert!(host.probes.is_empty());
     assert!(!root.slot(target(), VERSION).exists());
+    assert!(root.generations(target(), VERSION).is_empty());
     assert!(root.staging().is_empty());
 }
 
@@ -345,6 +368,7 @@ fn chmod_or_process_failure_never_activates_staging_and_can_be_retried() {
         host.probe_error = !permission_error;
         assert!(distribution::install(&mut host, &root.0, target(), VERSION).is_err());
         assert!(!root.slot(target(), VERSION).exists());
+        assert!(root.generations(target(), VERSION).is_empty());
         assert!(root.staging().is_empty());
         assert_eq!(host.probes.is_empty(), permission_error);
         host.permission_error = false;
@@ -373,6 +397,7 @@ fn managed_identity_is_exact_while_custom_development_identity_remains_supported
         );
         assert_eq!(host.probes.len(), 1);
         assert!(!root.slot(target(), VERSION).exists());
+        assert!(root.generations(target(), VERSION).is_empty());
         assert!(root.staging().is_empty());
     }
     let mut development: serde_json::Value = serde_json::from_slice(&release(VERSION)).unwrap();
@@ -403,12 +428,20 @@ fn corrupt_or_missing_cache_is_not_executed_and_is_repaired_on_retry() {
             "{fault}"
         );
         assert!(offline.probes.is_empty(), "{fault} cache was executed");
+        let old_binary = fs::read(&path).ok();
+        let old_sums = fs::read(&sum).ok();
         let mut repair = FakeHost::online(target(), VERSION);
+        let repaired = distribution::install(&mut repair, &root.0, target(), VERSION).unwrap();
+        assert_ne!(repaired, path);
+        assert_eq!(fs::read(&repaired).unwrap(), release(VERSION));
+        assert_eq!(fs::read(&path).ok(), old_binary);
+        assert_eq!(fs::read(&sum).ok(), old_sums);
+        let mut offline_repaired = FakeHost::default();
         assert_eq!(
-            distribution::install(&mut repair, &root.0, target(), VERSION).unwrap(),
-            path
+            distribution::install(&mut offline_repaired, &root.0, target(), VERSION).unwrap(),
+            repaired
         );
-        assert_eq!(fs::read(path).unwrap(), release(VERSION));
+        assert!(offline_repaired.downloads.is_empty());
         assert_eq!(repair.downloads.len(), 2);
         assert_eq!(repair.probes.len(), 1);
         assert!(root.staging().is_empty());
@@ -472,21 +505,29 @@ fn an_existing_verified_concurrent_winner_is_reused_without_replacing_it() {
 }
 
 #[test]
-fn failed_invalid_cache_replacement_preserves_it_and_retry_can_repair() {
+fn failed_generation_publication_preserves_invalid_legacy_cache_and_retry_can_repair() {
     let root = Scratch::new();
     let slot = root.slot(target(), VERSION);
     fs::create_dir_all(&slot).unwrap();
     fs::write(slot.join("preserved"), b"old bytes").unwrap();
     let mut host = FakeHost::online(target(), VERSION);
-    host.obstruct_backup = true;
+    host.publisher = Some(Box::new(|_, _| {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "publication denied",
+        ))
+    }));
     assert!(distribution::install(&mut host, &root.0, target(), VERSION)
         .unwrap_err()
-        .contains("Cannot replace invalid cache"));
+        .contains("Cannot publish verified server generation"));
     assert_eq!(fs::read(slot.join("preserved")).unwrap(), b"old bytes");
-    // A stale quarantine from the failed attempt cannot collide with a new
-    // staging name. Retrying repairs only the requested version slot.
+    assert!(root.staging().is_empty());
+    assert!(root.generations(target(), VERSION).is_empty());
+    // Retrying publishes a sibling and never moves or deletes the legacy slot.
     let mut retry = FakeHost::online(target(), VERSION);
-    assert!(distribution::install(&mut retry, &root.0, target(), VERSION).is_ok());
+    let repaired = distribution::install(&mut retry, &root.0, target(), VERSION).unwrap();
+    assert_ne!(repaired.parent().unwrap(), slot);
+    assert_eq!(fs::read(slot.join("preserved")).unwrap(), b"old bytes");
 }
 
 #[test]
@@ -497,7 +538,9 @@ fn abandoned_staging_does_not_block_a_new_attempt_or_get_selected() {
     fs::write(stale.join("argocd-ls"), b"partial download").unwrap();
     let mut host = FakeHost::online(target(), VERSION);
     let path = distribution::install(&mut host, &root.0, target(), VERSION).unwrap();
-    assert_eq!(path, root.slot(target(), VERSION).join("argocd-ls"));
+    assert!(root
+        .generations(target(), VERSION)
+        .contains(&path.parent().unwrap().to_owned()));
     assert_eq!(
         fs::read(stale.join("argocd-ls")).unwrap(),
         b"partial download"
@@ -637,4 +680,263 @@ fn cache_and_download_symlinks_are_refused_without_touching_external_data() {
         assert_eq!(fs::read(&sentinel).unwrap(), b"untouched");
         assert_eq!(fs::read(&external_binary).unwrap(), release(VERSION));
     }
+}
+
+fn seed_legacy(root: &Scratch, target: Target, version: &str) -> PathBuf {
+    let slot = root.slot(target, version);
+    fs::create_dir_all(&slot).unwrap();
+    fs::write(
+        slot.join("SHA256SUMS"),
+        sums(target, version, &release(version)),
+    )
+    .unwrap();
+    let binary = slot.join(target.executable);
+    fs::write(&binary, release(version)).unwrap();
+    binary
+}
+
+#[test]
+fn a_valid_legacy_slot_still_requests_permission_and_identity_checks_offline() {
+    let root = Scratch::new();
+    let legacy = seed_legacy(&root, target(), VERSION);
+    let sentinel = legacy.parent().unwrap().join("legacy-owner");
+    fs::write(&sentinel, b"preserved legacy path").unwrap();
+    let mut offline = FakeHost::default();
+    assert_eq!(
+        distribution::install(&mut offline, &root.0, target(), VERSION).unwrap(),
+        legacy
+    );
+    assert!(offline.downloads.is_empty());
+    assert_eq!(offline.permissions, [legacy.clone()]);
+    assert_eq!(offline.probes, [legacy]);
+    assert_eq!(fs::read(sentinel).unwrap(), b"preserved legacy path");
+    assert!(root.generations(target(), VERSION).is_empty());
+}
+
+#[test]
+fn a_competitor_publishing_after_the_last_cache_check_keeps_its_returned_path() {
+    for damaged in ["fresh", "legacy", "generation"] {
+        let root = Scratch::new();
+        let damaged_path = match damaged {
+            "legacy" => Some(seed_legacy(&root, target(), VERSION)),
+            "generation" => Some(
+                distribution::install(
+                    &mut FakeHost::online(target(), VERSION),
+                    &root.0,
+                    target(),
+                    VERSION,
+                )
+                .unwrap(),
+            ),
+            _ => None,
+        };
+        if let Some(path) = &damaged_path {
+            fs::write(path, b"corrupt published bytes").unwrap();
+            fs::write(path.parent().unwrap().join("old-owner"), b"do not remove").unwrap();
+        }
+        let winner_path = Rc::new(RefCell::new(None::<PathBuf>));
+        let recorded = Rc::clone(&winner_path);
+        let shared_root = root.0.clone();
+        let mut interleaved = false;
+        let mut first = FakeHost::online(target(), VERSION);
+        first.publisher = Some(Box::new(move |staging, destination| {
+            // This hook is after A's last cache lookup and target-existence
+            // check. Run B all the way through install() and return, then put a
+            // sentinel at B's returned location before A's actual rename.
+            if !interleaved {
+                interleaved = true;
+                let mut second = FakeHost::online(target(), VERSION);
+                let winner =
+                    distribution::install(&mut second, &shared_root, target(), VERSION).unwrap();
+                fs::write(
+                    winner.parent().unwrap().join("winner-returned"),
+                    b"B already returned this path",
+                )
+                .unwrap();
+                *recorded.borrow_mut() = Some(winner);
+            }
+            fs::rename(staging, destination)
+        }));
+        let first_path = distribution::install(&mut first, &root.0, target(), VERSION).unwrap();
+        let second_path = winner_path.borrow().clone().unwrap();
+        assert_eq!(
+            fs::read(&first_path).unwrap(),
+            release(VERSION),
+            "{damaged}: A path"
+        );
+        assert_eq!(
+            fs::read(&second_path).unwrap(),
+            release(VERSION),
+            "{damaged}: B path"
+        );
+        assert_eq!(
+            fs::read(second_path.parent().unwrap().join("winner-returned")).unwrap(),
+            b"B already returned this path",
+            "{damaged}"
+        );
+        if let Some(path) = damaged_path {
+            assert_eq!(fs::read(&path).unwrap(), b"corrupt published bytes");
+            assert_eq!(
+                fs::read(path.parent().unwrap().join("old-owner")).unwrap(),
+                b"do not remove"
+            );
+        }
+        let mut offline = FakeHost::default();
+        let warm = distribution::install(&mut offline, &root.0, target(), VERSION).unwrap();
+        assert!(warm == first_path || warm == second_path);
+        assert_eq!(fs::read(warm).unwrap(), release(VERSION));
+        assert!(offline.downloads.is_empty());
+        assert!(root.staging().is_empty());
+    }
+}
+
+#[test]
+fn an_exact_destination_collision_revalidates_the_nonempty_winner_for_all_error_kinds() {
+    for permission_denied in [false, true] {
+        let root = Scratch::new();
+        let returned = Rc::new(RefCell::new(None::<PathBuf>));
+        let recorded = Rc::clone(&returned);
+        let mut host = FakeHost::online(target(), VERSION);
+        host.publisher = Some(Box::new(move |staging, destination| {
+            // Force a collision that timestamp uniqueness normally avoids. A
+            // second complete directory is really renamed into A's exact target
+            // after A observed it absent; no empty published reservation exists.
+            let second_stage = staging.with_extension("second");
+            fs::create_dir(&second_stage).unwrap();
+            for file in ["SHA256SUMS", "argocd-ls"] {
+                fs::copy(staging.join(file), second_stage.join(file)).unwrap();
+            }
+            fs::rename(&second_stage, destination).unwrap();
+            let winner = destination.join("argocd-ls");
+            fs::write(destination.join("winner-returned"), b"collision winner").unwrap();
+            *recorded.borrow_mut() = Some(winner);
+            let actual = fs::rename(staging, destination).unwrap_err();
+            if permission_denied {
+                // Windows can use PermissionDenied for a nonempty destination.
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    actual,
+                ))
+            } else {
+                Err(actual)
+            }
+        }));
+        let selected = distribution::install(&mut host, &root.0, target(), VERSION).unwrap();
+        assert_eq!(Some(selected.clone()), *returned.borrow());
+        assert_eq!(fs::read(&selected).unwrap(), release(VERSION));
+        assert_eq!(
+            fs::read(selected.parent().unwrap().join("winner-returned")).unwrap(),
+            b"collision winner"
+        );
+        assert_eq!(host.probes.len(), 2); // staged bytes, then the exact winner
+        assert!(root.staging().is_empty());
+        let mut offline = FakeHost::default();
+        assert_eq!(
+            distribution::install(&mut offline, &root.0, target(), VERSION).unwrap(),
+            selected
+        );
+        assert!(offline.downloads.is_empty());
+    }
+}
+
+#[test]
+fn an_invalid_nonempty_collision_is_preserved_while_a_fresh_generation_is_published() {
+    let root = Scratch::new();
+    let collided = Rc::new(RefCell::new(None::<PathBuf>));
+    let recorded = Rc::clone(&collided);
+    let mut first = true;
+    let mut host = FakeHost::online(target(), VERSION);
+    host.publisher = Some(Box::new(move |staging, destination| {
+        if first {
+            first = false;
+            fs::create_dir(destination).unwrap();
+            fs::write(
+                destination.join("unrelated-owner"),
+                b"do not delete invalid collision",
+            )
+            .unwrap();
+            *recorded.borrow_mut() = Some(destination.to_owned());
+        }
+        fs::rename(staging, destination)
+    }));
+    let selected = distribution::install(&mut host, &root.0, target(), VERSION).unwrap();
+    let collided = collided.borrow().clone().unwrap();
+    assert_ne!(selected.parent().unwrap(), collided);
+    assert_eq!(
+        fs::read(collided.join("unrelated-owner")).unwrap(),
+        b"do not delete invalid collision"
+    );
+    assert_eq!(fs::read(selected).unwrap(), release(VERSION));
+    assert!(root.staging().is_empty());
+}
+
+#[test]
+fn a_successful_rename_relinquishes_the_former_staging_path_before_cleanup() {
+    let root = Scratch::new();
+    let reused = Rc::new(RefCell::new(None::<PathBuf>));
+    let recorded = Rc::clone(&reused);
+    let mut host = FakeHost::online(target(), VERSION);
+    host.publisher = Some(Box::new(move |staging, destination| {
+        fs::rename(staging, destination)?;
+        // B reserves the now-unused staging pathname before A resumes. Its
+        // partial data must not be removed by A's successful-install cleanup.
+        fs::create_dir(staging).unwrap();
+        fs::write(
+            staging.join("next-installer"),
+            b"B owns this staging directory",
+        )
+        .unwrap();
+        *recorded.borrow_mut() = Some(staging.to_owned());
+        Ok(())
+    }));
+    let selected = distribution::install(&mut host, &root.0, target(), VERSION).unwrap();
+    let reused = reused.borrow().clone().unwrap();
+    assert_eq!(
+        fs::read(reused.join("next-installer")).unwrap(),
+        b"B owns this staging directory"
+    );
+    assert_eq!(fs::read(&selected).unwrap(), release(VERSION));
+    let mut offline = FakeHost::default();
+    assert_eq!(
+        distribution::install(&mut offline, &root.0, target(), VERSION).unwrap(),
+        selected
+    );
+    assert!(offline.downloads.is_empty());
+    assert!(reused.join("next-installer").is_file());
+}
+
+#[test]
+fn cache_enumeration_only_accepts_exact_version_platform_and_complete_generation_names() {
+    let root = Scratch::new();
+    fs::create_dir(root.0.join("servers")).unwrap();
+    for name in [
+        "v0.2.0-linux-amd64.gen-1-0",
+        "v0.1.0-linux-arm64.gen-1-0",
+        "v0.1.0-linux-amd64.gen-1",
+        "v0.1.0-linux-amd64.gen--0",
+        "v0.1.0-linux-amd64.gen-1-0-extra",
+        "v0.1.0-linux-amd64.gen-+1-0",
+        ".stage-v0.1.0-linux-amd64.gen-1-0",
+        "v0.1.0-linux-amd64.gen-9999999999999999999999999999999999999999-0",
+    ] {
+        let candidate = root.0.join("servers").join(name);
+        fs::create_dir(&candidate).unwrap();
+        fs::write(
+            candidate.join("SHA256SUMS"),
+            sums(target(), VERSION, &release(VERSION)),
+        )
+        .unwrap();
+        fs::write(candidate.join("argocd-ls"), release(VERSION)).unwrap();
+    }
+    let mut offline = FakeHost::default();
+    assert!(distribution::install(&mut offline, &root.0, target(), VERSION).is_err());
+    assert!(offline.probes.is_empty());
+    let mut online = FakeHost::online(target(), VERSION);
+    let repaired = distribution::install(&mut online, &root.0, target(), VERSION).unwrap();
+    let mut warm = FakeHost::default();
+    assert_eq!(
+        distribution::install(&mut warm, &root.0, target(), VERSION).unwrap(),
+        repaired
+    );
+    assert!(warm.downloads.is_empty());
 }
