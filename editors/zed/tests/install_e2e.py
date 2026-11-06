@@ -89,6 +89,11 @@ def main():
             cases.append({"case": label, "exitCode": result.returncode,
                           "expectedSuccess": expected_success,
                           "output": (result.stdout + result.stderr)[-800:]})
+            if args.report:
+                args.report.mkdir(parents=True, exist_ok=True)
+                (args.report / "report.json").write_text(json.dumps(
+                    {"repository": REPO, "platform": sys.platform, "cases": cases},
+                    indent=2) + "\n")
             assert successful == expected_success, f"{label}: {result.stdout}\n{result.stderr}"
             assert not list(state_dir.glob(f".{ID}.install.*")), f"{label}: staging was not cleaned"
             assert sorted(p.name for p in installed.iterdir()) == [ID], (
@@ -116,7 +121,9 @@ def main():
         assets = root / "actual release assets"
         download(VERSION, assets)
         result = run("idempotent-reinstall", *opts(assets))
-        assert "Already installed" in result.stdout
+        assert "Already installed" in result.stdout, (
+            f"Idempotence was not detected: {result.stdout!r} {result.stderr!r}; "
+            f"same tree: {snapshot(target) == original}; backup: {previous.exists()}")
         assert snapshot(target) == original and not previous.exists()
         assert (target / "extension.wasm").stat().st_mtime_ns == original_timestamp
 
