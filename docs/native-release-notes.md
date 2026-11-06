@@ -1,34 +1,27 @@
-# Argo CD language server — 0.0.1-alpha.2
+# Argo CD language server — 0.0.1-alpha.3
 
-This prerelease before `0.0.1` corrects historical ApplicationSet schema coverage.
+This prerelease fixes open-file diagnostics in large workspaces, including one
+Zed window with several Git repositories under a shared parent directory.
 
-Argo CD 2.3.x's optional stable ApplicationSet addon manifests reference a
-standalone CRD. The catalog now includes those historical CRDs with
-their pinned upstream sources and
-[provenance](https://github.com/lazysnail1024/zed-argocd/blob/v0.0.1-alpha.2/compat/catalog.lock.json).
-Automatic compatibility accepts
-legacy fields such as `ksonnet` in ApplicationSet templates, correcting the false
-unknown-field diagnostics caused by the alpha.1 omission. No project configuration
-or target version is needed.
+- Open Argo CD YAML buffers are analyzed first, independently of the full
+  workspace scan. Schema errors, hover and field completion can arrive even when
+  a sibling repository contains an oversized or unparseable YAML file.
+- A failed or timed-out workspace scan reports incomplete analysis without
+  clearing diagnostics already validated against current open-buffer contents.
+- Cross-file navigation and edits still require a sufficiently complete index;
+  nested Git repositories remain in the declared workspace scope.
+- Analysis logs can distinguish document and workspace phases. See
+  [diagnostics and limitations](https://github.com/lazysnail1024/zed-argocd/blob/main/docs/workspace-diagnostics.md).
 
-Exact targets without an upstream ApplicationSet CRD or a fixed installation
-reference do not receive an assumed standalone-project schema.
+The zero-configuration Argo CD compatibility window remains **2.0.0–3.6.1**.
+This includes the historical ApplicationSet CRD correction from alpha.2.
 
-- Default zero-configuration compatibility window: **2.0.0–3.6.1**.
-- Independent native Go language server and CLI; standard `serve --stdio` interface.
-- Native artifacts for Linux amd64/arm64, macOS amd64/arm64, and Windows amd64.
-- SHA256SUMS, original dependency/schema/runtime legal texts, and exact source provenance.
+Native binaries and archives cover Linux amd64/arm64, macOS amd64/arm64 and
+Windows amd64. Each artifact is supplied with verification records and
+`SHA256SUMS`. The separately versioned Zed adapter
+`zed-v0.0.1-alpha.3` pins this native release.
 
-Choose the archive for your platform and retain its legal notices. Raw executable
-assets are provided for the Zed adapter's verified downloader. The precompiled
-Zed adapter has a separate `zed-v0.0.1-alpha.2` release and its own version lifecycle.
-That adapter pins the corrected native `v0.0.1-alpha.2` release. Update any native
-executable supplied separately through `serverPath` or PATH when upgrading.
-
-Published `v0.0.1-alpha.1` and `zed-v0.0.1-alpha.1` tags, releases and assets are
-immutable and remain unchanged. This correction is distributed as new alpha.2
-artifacts; it does not replace an existing download.
-
-This alpha does local static analysis. It does not execute Argo controllers or
-infer a deployment's runtime version. Automated native CLI/LSP and package tests
-are separate from real Zed GUI acceptance; no Zed store publication is claimed.
+Previous alpha releases and downloads are unchanged. The tests cover native
+CLI/LSP, real stdio protocol behavior, six-repository workspaces, version
+compatibility and package distribution. They do **not** constitute real Zed
+GUI acceptance or publication to the Zed extension store.

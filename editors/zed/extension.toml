@@ -1,6 +1,6 @@
 id = "argocd-lsp"
 name = "Argo CD Language Server"
-version = "0.0.1-alpha.2"
+version = "0.0.1-alpha.3"
 schema_version = 1
 snippets = ["snippets/yaml.json"]
 authors = ["snail (lazysnail1024)"]
