@@ -1,6 +1,6 @@
 # Installs only the precompiled Zed adapter; the adapter manages its own native LSP.
 param(
-    [string]$Version = '0.0.1-alpha.2',
+    [string]$Version = '0.0.1-alpha.3',
     [string]$AssetsDir = '',
     [switch]$Rollback
 )

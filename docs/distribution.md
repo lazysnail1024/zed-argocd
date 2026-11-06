@@ -4,19 +4,21 @@
 
 | Component | Tag | Download |
 | --- | --- | --- |
-| Native LSP / CLI | `v0.0.1-alpha.2` | Platform executable and archive, source/build records, `SHA256SUMS` |
-| Zed adapter | `zed-v0.0.1-alpha.2` | `zed-argocd-0.0.1-alpha.2.zip`, adapter record, `SHA256SUMS` |
+| Native LSP / CLI | `v0.0.1-alpha.3` | Platform executable and archive, source/build records, `SHA256SUMS` |
+| Zed adapter | `zed-v0.0.1-alpha.3` | `zed-argocd-0.0.1-alpha.3.zip`, adapter record, `SHA256SUMS` |
 
 Both are GitHub **prereleases** before the first `0.0.1`. The adapter uses its
 explicit `native-server-version` pin and direct release URL; it never relies on
 GitHub's latest-stable-release endpoint. Published versions are not overwritten.
 Corrections receive a new alpha number.
 
-Alpha.2 restores historical ApplicationSet fields, including `ksonnet` in
+Alpha.2 restored historical ApplicationSet fields, including `ksonnet` in
 ApplicationSet templates, from the standalone CRDs referenced by Argo CD 2.3.x's
-optional stable addon manifests. The automatic compatibility window remains 2.0.0–3.6.1.
-The published alpha.1 tags, releases and assets remain unchanged; use alpha.2 for
-this correction. See the [native release notes](native-release-notes.md).
+optional stable addon manifests. Alpha.3 additionally protects current-file
+diagnostics when workspace analysis times out or encounters malformed sibling
+YAML. The automatic compatibility window remains 2.0.0–3.6.1. Published alpha.1
+and alpha.2 releases remain unchanged. See the
+[native release notes](native-release-notes.md).
 
 ## Release automation
 
@@ -130,9 +132,9 @@ on PATH, or configure its absolute path in Zed settings:
 Use a Windows absolute path and `.exe` suffix on Windows. Restore execute bits
 with `chmod +x argocd-ls` after ZIP extraction on POSIX systems when necessary.
 Existing custom `serverPath` or PATH installations retain priority on upgrades.
-When upgrading from alpha.1, replace those separately installed executables with
-the alpha.2 native release as well. Managed downloads use the new adapter's
-alpha.2 pin automatically and preserve the older cache.
+When upgrading from older alpha versions, replace those separately installed
+executables with the alpha.3 native release as well. Managed downloads use the
+new adapter's alpha.3 pin automatically and preserve the older cache.
 
 ## Troubleshooting and acceptance boundary
 
