@@ -37,14 +37,16 @@ function Test-PathSafe([string]$path) {
 }
 
 function Test-SameTree([string]$left, [string]$right) {
-    $files = @(Get-ChildItem -LiteralPath $left -Recurse -File)
-    $otherFiles = @(Get-ChildItem -LiteralPath $right -Recurse -File)
+    # -Name returns paths relative to the queried directory. Avoid slicing
+    # FullName: Windows can expand an 8.3 parent path to a different spelling.
+    $files = @(Get-ChildItem -LiteralPath $left -Recurse -File -Name)
+    $otherFiles = @(Get-ChildItem -LiteralPath $right -Recurse -File -Name)
     if ($files.Count -ne $otherFiles.Count) { return $false }
-    foreach ($file in $files) {
-        $relative = $file.FullName.Substring($left.Length + 1)
+    foreach ($relative in $files) {
+        $file = Join-Path $left $relative
         $other = Join-Path $right $relative
         if (-not (Test-Path -LiteralPath $other -PathType Leaf)) { return $false }
-        if ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -ne
+        if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne
             (Get-FileHash -LiteralPath $other -Algorithm SHA256).Hash) { return $false }
     }
     return $true
