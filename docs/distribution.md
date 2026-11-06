@@ -41,6 +41,42 @@ the pinned native release becomes available.
 
 ## Precompiled Zed installation
 
+The quickest route is the one-command Linux/macOS or Windows installer in the
+root README. Close Zed first and restart it afterwards. Re-running the installer
+upgrades the adapter without touching Zed's downloaded native LSP cache.
+
+The installer selects Zed's documented `extensions/installed` directory for the
+current user, downloads the exact `zed-v<version>` release's ZIP and
+`SHA256SUMS`, verifies SHA-256, checks the ZIP's extension identity and stages
+the files beside the active directory before renaming. Reinstalling identical
+files does nothing. The previous version is retained once under
+`extensions/.alpha-installer/argocd-lsp.previous` (outside the
+`installed` scan directory); a failed replacement restores the previous state,
+including an older backup when present.
+
+To undo the most recent install or upgrade, close Zed and use:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/lazysnail1024/zed-argocd/main/editors/zed/install.sh | sh -s -- --rollback
+```
+
+On Windows, download `editors/zed/install.ps1` and run
+`powershell -ExecutionPolicy Bypass -File ./install.ps1 -Rollback` from its
+download directory. A second rollback swaps the two versions back.
+
+For an offline install, download the exact release ZIP and `SHA256SUMS` into
+one directory, then run `sh install.sh --assets-dir /path/to/assets` on
+Linux/macOS or `./install.ps1 -AssetsDir C:/path/to/assets` in Windows
+PowerShell. `--version VERSION` / `-Version VERSION` selects an older published
+adapter Release; defaults follow the current alpha release in the script.
+If an interrupted upgrade left no active directory but a previous backup exists,
+the next run restores it first.
+
+The automated E2E uses isolated HOME/XDG/LOCALAPPDATA and actual public Release
+bytes on Linux, macOS and Windows. It tests installation, idempotence, replacement,
+checksum/ZIP rejection, rollback and injected activation failure, **not** a real
+Zed GUI session. GUI activation remains a separate manual acceptance step.
+
 The portable ZIP contains `argocd-lsp/extension.toml`, `extension.wasm`, snippets and
 licenses. With Zed closed, place that folder below its `extensions/installed`
 directory as shown in the root README. This matches Zed's installed extension

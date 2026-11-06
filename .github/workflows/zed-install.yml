@@ -1,0 +1,40 @@
+name: Zed alpha installer E2E (filesystem only)
+
+on:
+  pull_request:
+    paths: ['editors/zed/install.*', 'editors/zed/tests/install_e2e.py', '.github/workflows/zed-install.yml', 'README.md', 'docs/distribution.md']
+  push:
+    branches: [main]
+    paths: ['editors/zed/install.*', 'editors/zed/tests/install_e2e.py', '.github/workflows/zed-install.yml', 'README.md', 'docs/distribution.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: Real Release file-install E2E (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14.0'
+      - name: Install, upgrade, roll back and fault-inject using public Release assets
+        shell: bash
+        run: python editors/zed/tests/install_e2e.py --report artifacts/zed-installer
+      - name: Retain file-install evidence (not a Zed GUI test)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
+        with:
+          name: zed-installer-${{ matrix.runner }}
+          path: artifacts/zed-installer/
+          if-no-files-found: ignore
+          retention-days: 30
