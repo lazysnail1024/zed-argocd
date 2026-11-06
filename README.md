@@ -8,27 +8,32 @@ in that window. No project configuration or target version is needed.
 
 ## Install in Zed
 
-1. Download **[zed-argocd-0.0.1-alpha.2.zip](https://github.com/lazysnail1024/zed-argocd/releases/download/zed-v0.0.1-alpha.2/zed-argocd-0.0.1-alpha.2.zip)**
-   from the [Zed alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/zed-v0.0.1-alpha.2).
-2. Close Zed, extract the ZIP, and copy its **`argocd-lsp`** folder into:
+Close Zed, then run one command:
 
-   | OS | Installation directory |
-   | --- | --- |
-   | Linux | `$XDG_DATA_HOME/zed/extensions/installed/` (default `~/.local/share/zed/extensions/installed/`) |
-   | macOS | `~/Library/Application Support/Zed/extensions/installed/` |
-   | Windows | `%LOCALAPPDATA%\Zed\extensions\installed\` |
+Linux / macOS:
 
-3. Start Zed and open a project folder containing Argo CD YAML. The adapter downloads
-   the matching native server and checks its SHA-256 and identity. Subsequent starts
-   work offline. Keep Zed's general YAML support enabled.
+```sh
+curl -fsSL https://raw.githubusercontent.com/lazysnail1024/zed-argocd/main/editors/zed/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/lazysnail1024/zed-argocd/main/editors/zed/install.ps1 | iex
+```
+
+Restart Zed and open a project containing Argo CD YAML. **Run the same command to
+upgrade.** The installer verifies the release ZIP against `SHA256SUMS`, preserves
+one previous installation for rollback, and leaves Zed's native-server cache alone.
+If you prefer to inspect a script before running it, download it from
+[`editors/zed/`](editors/zed/) first.
 
 This precompiled package needs **no Rust or Go installation**. The native download
 supports Linux amd64/arm64, macOS amd64/arm64 and Windows amd64. This is a manual
 alpha installation; the extension is not yet in the Zed extension store.
 
-For an upgrade, keep a copy of the previous extension folder, close Zed, and replace
-it with the new release's folder. Also update a native server installed separately
-through `serverPath` or PATH. [Checksums, offline setup and troubleshooting](docs/distribution.md).
+If using a native server installed separately via `serverPath` or PATH, update it
+independently. [Rollback, manual/offline installation and troubleshooting](docs/distribution.md).
 
 ## Try it
 
