@@ -16,6 +16,13 @@ Changing `VERSION` on `main` starts the complete native release gate. Only after
 it passes does the workflow create the version tag at that exact commit and
 publish its artifacts. Matching tag pushes and manual runs remain available.
 
+Open-document diagnostics run before workspace acquisition with a separate
+budget. Their partial facts never become the editable workspace index. Background
+failure preserves current document checks while reporting incomplete cross-file
+analysis; Git subdirectories do not implicitly change the declared workspace
+scope. See [workspace diagnostics](workspace-diagnostics.md) for publication
+semantics, regression tests and the GUI acceptance boundary.
+
 ## Zed adapter
 
 `editors/zed/` is an independent Rust crate with its own lockfile, toolchain,

@@ -82,7 +82,7 @@ def apply_edits(text, edits):
 def diagnostics_since(client, path, version, start):
     def matches(message):
         params = message.get("params", {})
-        return message.get("method") == "textDocument/publishDiagnostics" and params.get("uri") == path.as_uri() and params.get("version") == version
+        return message.get("method") == "textDocument/publishDiagnostics" and params.get("uri") == path.as_uri() and params.get("version") == version and params.get("x-argocd-analysis-scope", "workspace") == "workspace"
     for entry in client.messages[start:]:
         if matches(entry["message"]):
             return entry["message"]["params"]["diagnostics"]

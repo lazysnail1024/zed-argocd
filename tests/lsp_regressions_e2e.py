@@ -49,7 +49,7 @@ def publications(client, path, since=0):
 
 def wait_diagnostics(client, path, version, since=0, predicate=lambda ds: True):
     def matches(params):
-        return params.get('version') == version and predicate(params['diagnostics'])
+        return params.get('version') == version and params.get('x-argocd-analysis-scope', 'workspace') == 'workspace' and predicate(params['diagnostics'])
     for params in reversed(publications(client, path, since)):
         if matches(params):
             return params['diagnostics']

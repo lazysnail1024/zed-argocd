@@ -106,8 +106,10 @@ class LSP:
     def change(self, path, text, version):
         self.send('textDocument/didChange', {'textDocument':{'uri':path.as_uri(),'version':version},'contentChanges':[{'text':text}]})
 
-    def diag(self, path, version):
-        return self.wait(lambda m: m.get('method') == 'textDocument/publishDiagnostics' and m.get('params',{}).get('uri') == path.as_uri() and m['params'].get('version') == version)['params']['diagnostics']
+    def diag(self, path, version, scope='workspace'):
+        # A document-only publication is not proof that cross-file analysis finished.
+        # Unmarked publications from released servers retain the workspace contract.
+        return self.wait(lambda m: m.get('method') == 'textDocument/publishDiagnostics' and m.get('params',{}).get('uri') == path.as_uri() and m['params'].get('version') == version and m['params'].get('x-argocd-analysis-scope', 'workspace') == scope)['params']['diagnostics']
 
     def close(self):
         if self.closed:return
