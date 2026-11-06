@@ -23,7 +23,8 @@ def wait(predicate):
   m=messages.get(timeout=max(.1,end-time.monotonic()))
   if predicate(m):return m
  raise TimeoutError('expected protocol response')
-def diag(version,document_uri=uri):return wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==document_uri and m['params'].get('version')==version)['params']['diagnostics']
+# These lifecycle/domain checks require the completed workspace publication.
+def diag(version,document_uri=uri):return wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==document_uri and m['params'].get('version')==version and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace')['params']['diagnostics']
 try:
  send('initialize',{'rootUri':folder.as_uri(),'capabilities':{'workspace':{'workspaceEdit':{'documentChanges':True}},'textDocument':{'publishDiagnostics':{'versionSupport':True}}}},1);result=wait(lambda m:m.get('id')==1)['result'];caps=result['capabilities'];assert not caps.get('renameProvider');assert caps['textDocumentSync']['change']==2;rows.append({'id':'initialize','passed':True})
  send('initialized',{})
@@ -34,7 +35,7 @@ try:
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':4},'contentChanges':[{'range':{'start':{'line':5,'character':11},'end':{'line':5,'character':13}},'text':'43'}]});assert any(x['code']=='SCHEMA_TYPE' for x in diag(4));rows.append({'id':'stale-notification-cannot-roll-back','passed':True})
  config_uri=(folder/'.argocd-ls.yaml').as_uri()
  send('textDocument/didOpen',{'textDocument':{'uri':config_uri,'languageId':'yaml','version':1,'text':'schemaVersion: 1\ntargetVersion: \"99.0.0\"\n'}})
- bad=wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==config_uri and any(d.get('code')=='TARGET_UNKNOWN' for d in m['params']['diagnostics']));assert bad['params']['version']==1
+ bad=wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==config_uri and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace' and any(d.get('code')=='TARGET_UNKNOWN' for d in m['params']['diagnostics']));assert bad['params']['version']==1
  assert not any(x['code']=='SCHEMA_TYPE' for x in diag(4));rows.append({'id':'unsaved-invalid-config-invalidates-old-results','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':config_uri,'version':2},'contentChanges':[{'text':'schemaVersion: 1\ntargetVersion: \"3.5.6\"\ncontrolPlaneNamespace: argocd\n'}]});assert any(x['code']=='SCHEMA_TYPE' for x in diag(4));rows.append({'id':'unsaved-config-recovery','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':5},'contentChanges':[{'text':'apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  project: 42\n'}]});assert diag(5)==[];rows.append({'id':'gvk-ownership-change-clears','passed':True})
@@ -52,7 +53,7 @@ try:
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':9},'contentChanges':[{'text':valid.replace('project: default','proj: default')}]});assert any(x['code']=='SCHEMA_UNKNOWN_FIELD' for x in diag(9));rows.append({'id':'buffer-undo-restores-diagnostic','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':10},'contentChanges':[{'text':valid.replace('project: default','proj: 42')}]});diag(10)
  send('textDocument/codeAction',{'textDocument':{'uri':uri},'range':{'start':{'line':5,'character':2},'end':{'line':5,'character':6}},'context':{'diagnostics':[]}},18);unsafe=wait(lambda m:m.get('id')==18)['result'];assert not any(x['data']['fixCode']=='FIX_FIELD_NAME' for x in unsafe);rows.append({'id':'fix-cannot-introduce-type-error','passed':True})
- send('workspace/didChangeWorkspaceFolders',{'event':{'removed':[{'uri':folder.as_uri(),'name':'workspace'}],'added':[]}});wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==uri and m['params']['diagnostics']==[]);rows.append({'id':'removed-root-clears-diagnostics','passed':True})
+ send('workspace/didChangeWorkspaceFolders',{'event':{'removed':[{'uri':folder.as_uri(),'name':'workspace'}],'added':[]}});wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==uri and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace' and m['params']['diagnostics']==[]);rows.append({'id':'removed-root-clears-diagnostics','passed':True})
  send('workspace/didChangeWorkspaceFolders',{'event':{'removed':[],'added':[{'uri':folder.as_uri(),'name':'workspace'}]}});assert any(x['code']=='SCHEMA_UNKNOWN_FIELD' for x in diag(10));rows.append({'id':'added-root-restores-buffer-analysis','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':11},'contentChanges':[{'text':valid.replace('project: default','project: missing')}]});assert any(x['code']=='CD_PROJECT_UNRESOLVED' for x in diag(11))
  send('textDocument/codeAction',{'textDocument':{'uri':uri},'range':{'start':{'line':5,'character':11},'end':{'line':5,'character':18}},'context':{'diagnostics':[]}},20);reference=next(x for x in wait(lambda m:m.get('id')==20)['result'] if x['data']['fixCode']=='FIX_REFERENCE_CANDIDATE');send('codeAction/resolve',reference,21);edit=wait(lambda m:m.get('id')==21)['result']['edit']['documentChanges'][0]['edits'][0]

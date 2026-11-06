@@ -18,7 +18,7 @@ file=e.write(root,'app.yaml',text);line=text[:text.index('project: te')].count('
 p={'line':line,'character':13};params={'textDocument':{'uri':file.as_uri()},'position':p}
 c=e.LSP(OUT,[root]);rows=[];observed={};error=None
 def await_diag(version):
-    predicate=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==file.as_uri() and m['params'].get('version')==version
+    predicate=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==file.as_uri() and m['params'].get('version')==version and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace'
     for item in c.messages:
         if predicate(item['message']):return item['message']
     return c.wait(predicate)

@@ -90,12 +90,19 @@ func failure(code, message string) error { return &Error{code, message} }
 
 func Load(ctx context.Context, root, selectedScope, selectedFile, override string) (Input, error) {
 	remaining := MaxRetainedText
-	return load(ctx, root, selectedScope, selectedFile, override, nil, nil, nil, &remaining)
+	return load(ctx, root, selectedScope, selectedFile, override, nil, nil, nil, &remaining, false)
 }
 
 // LoadBuffers applies immutable open text before disk reads, using one file policy.
 func LoadBuffers(ctx context.Context, root, target string, config *string, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, error) {
-	return load(ctx, root, "", "", target, config, buffers, roots, remaining)
+	return load(ctx, root, "", "", target, config, buffers, roots, remaining, false)
+}
+
+// LoadOpenBuffers applies the same target, scope, exclusion and Helm policy as a
+// workspace scan, but never enumerates directories or reads unopened YAML. Its
+// incomplete input must not be used as authority for cross-file checks or edits.
+func LoadOpenBuffers(ctx context.Context, root, target string, config *string, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, error) {
+	return load(ctx, root, "", "", target, config, buffers, roots, remaining, true)
 }
 
 // Owner selects the deepest containing canonical root, independently of list order.
@@ -108,8 +115,8 @@ func Owner(roots []string, file string) string {
 	}
 	return owner
 }
-func load(ctx context.Context, root, selectedScope, selectedFile, override string, configOverride *string, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, error) {
-	input := Input{Complete: true, Targets: []Target{}, Files: []File{}}
+func load(ctx context.Context, root, selectedScope, selectedFile, override string, configOverride *string, buffers map[string]source.Snapshot, roots []string, remaining *int, openOnly bool) (Input, error) {
+	input := Input{Complete: !openOnly, Targets: []Target{}, Files: []File{}}
 	if err := ctx.Err(); err != nil {
 		return input, err
 	}
@@ -233,6 +240,9 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 
 	input.LocalPaths = map[string]map[string]bool{}
 	for _, repo := range cfg.Repositories {
+		if openOnly {
+			break // Repository existence is a workspace fact, not a buffer check.
+		}
 		base := filepath.Join(root, repo.Path)
 		canonical, e := filepath.EvalSymlinks(base)
 		if e != nil {
@@ -251,37 +261,11 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 
 	}
 	paths := []string{}
-	count := 0
-	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, e error) error {
-		if e != nil {
-			return e
+	if !openOnly {
+		paths, err = yamlPaths(ctx, root, cfg.Exclude)
+		if err != nil {
+			return input, err
 		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if d.IsDir() && p != root {
-			rel, _ := filepath.Rel(root, p)
-			if excludedDir(d.Name()) || excludedSubtree(cfg.Exclude, filepath.ToSlash(rel)) {
-				return filepath.SkipDir
-			}
-		}
-		count++
-		if count > 50000 {
-			return failure("INPUT_INCOMPLETE", "workspace file budget exceeded")
-		}
-		if d.IsDir() {
-			if p != root && excludedDir(d.Name()) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.HasSuffix(p, ".yaml") || strings.HasSuffix(p, ".yml") {
-			paths = append(paths, p)
-		}
-		return nil
-	})
-	if err != nil {
-		return input, err
 	}
 	if selected != "" {
 		paths = append(paths, selected)
@@ -396,8 +380,10 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		}
 		input.Files = append(input.Files, file)
 	}
-	if err := resolveLocalPaths(ctx, &input); err != nil {
-		return input, err
+	if !openOnly {
+		if err := resolveLocalPaths(ctx, &input); err != nil {
+			return input, err
+		}
 	}
 
 	if selected != "" && selectedOwner == "" {
@@ -421,6 +407,34 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 	}
 	sort.Slice(input.Targets, func(i, j int) bool { return input.Targets[i].ID < input.Targets[j].ID })
 	return input, nil
+}
+
+func yamlPaths(ctx context.Context, root string, exclude []string) ([]string, error) {
+	paths := []string{}
+	count := 0
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if d.IsDir() && p != root {
+			rel, _ := filepath.Rel(root, p)
+			if excludedDir(d.Name()) || excludedSubtree(exclude, filepath.ToSlash(rel)) {
+				return filepath.SkipDir
+			}
+		}
+		count++
+		if count > 50000 {
+			return failure("INPUT_INCOMPLETE", "workspace file budget exceeded")
+		}
+		if !d.IsDir() && (strings.HasSuffix(p, ".yaml") || strings.HasSuffix(p, ".yml")) {
+			paths = append(paths, p)
+		}
+		return nil
+	})
+	return paths, err
 }
 func inside(root, file string) bool {
 	rel, e := filepath.Rel(root, file)

@@ -13,7 +13,7 @@ for form in ['canonical','localhost']:
    h=hover();value=(h.get('result') or {}).get('contents',{}).get('value','');checks={'target':f'Target: {version}' in value,'source':('c2b1e3017e2cec86b122172e861dcd026453ae44' if version=='3.5.6' else 'e98f483bfd5781df2592fef1aeed1148f150d9c9') in value};record(form+'-'+name,checks,h)
   def change(version,text):client.send('textDocument/didChange',{'textDocument':{'uri':uri,'version':version},'contentChanges':[{'text':text}]})
   def diagnostic(version):
-   predicate=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m['params'].get('uri')==uri and m['params'].get('version')==version
+   predicate=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m['params'].get('uri')==uri and m['params'].get('version')==version and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace'
    prior=next((x['message'] for x in reversed(client.messages) if predicate(x['message'])),None);return (prior if prior is not None else client.wait(predicate))['params']
   target('opened-authority','3.5.6')
   actions=client.request('textDocument/codeAction',{'textDocument':{'uri':uri},'range':{'start':{'line':5,'character':4},'end':{'line':5,'character':13}}});selected=next((a for a in actions.get('result',[]) if a.get('title')=='Pin dev to 3.5.6'),None);checks={'offered':selected is not None};resolved=None

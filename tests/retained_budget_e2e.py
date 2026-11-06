@@ -39,7 +39,7 @@ class Client:
  def open(self,p,text,version=1):self.send('textDocument/didOpen',{'textDocument':{'uri':p.as_uri(),'languageId':'yaml','version':version,'text':text}});self.barrier()
  def change(self,p,version,changes):self.send('textDocument/didChange',{'textDocument':{'uri':p.as_uri(),'version':version},'contentChanges':changes});self.barrier()
  def diag(self,p,version,code=None):
-  matches=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m['params'].get('uri')==p.as_uri() and m['params'].get('version')==version and (code is None or any(d.get('code')==code for d in m['params']['diagnostics']))
+  matches=lambda m:m.get('method')=='textDocument/publishDiagnostics' and m['params'].get('uri')==p.as_uri() and m['params'].get('version')==version and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace' and (code is None or any(d.get('code')==code for d in m['params']['diagnostics']))
   # Owner barriers may receive an immediate refusal before their response.
   prior=next((m for m in reversed(self.events) if matches(m)),None)
   return (prior if prior is not None else self.wait(matches))['params']['diagnostics']

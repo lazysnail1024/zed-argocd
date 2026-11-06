@@ -12,6 +12,7 @@ def audit_consumers(platform):
  cases=[
   ('multi-version-compatibility','multi_version_e2e.py',[] if full_catalog else ['--representatives'],600),
   ('lsp-lifecycle','lsp_e2e.py',[],90),
+  ('parent-workspace','parent_workspace_lsp_e2e.py',[],90),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
   ('appset-overrides','appset_overrides_e2e.py',['--all-targets'] if full_catalog else [],480 if full_catalog else 180),
@@ -29,6 +30,7 @@ def audit_consumers(platform):
    ('incremental-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental'],180),
    ('repository-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental','--repository'],180),
    ('audit-regression-mutations','audit_regression_mutations.py',['--worker'],480),
+   ('parent-workspace-faults','parent_workspace_faults.py',['--worker'],300),
   ])
  return cases
 
