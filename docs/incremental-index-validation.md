@@ -74,11 +74,11 @@ passed all seven checks:
 A distinct 10,000-owned-Application fixture with 20 KiB padding also passed all
 seven checks: 195.31 MiB cumulative input, 0.210 s first local diagnostic, 19.37 s
 Ready, 189.84 MiB peak RSS, and the same zero/one file-work results. It guards
-against an improvement that would merely skip foreign YAML. The default 64 MiB
-summary limit remains an admission bound; arbitrary numbers of dense owned
-resources are not promised to fit.
+against an improvement that would merely skip foreign YAML. Summary retention
+remains bounded; arbitrary numbers of dense owned resources are not promised
+to fit.
 
-The final executable
+The candidate executable
 `060d0c8e12c5f1b7a3959d8b8bcaacd6b3201601fcdaddcebbf0c7adff6e0cb4`
 also passed the seven semantic checks on the reference parent-workspace mix:
 45,000 ConfigMaps, 4,500 Applications, one AppProject and 499 Workflows, plus
@@ -101,6 +101,26 @@ python tests/persistent_workspace_e2e.py build/argocd-ls \
   --reference-mix --ordinary-files 100000 --max-rss-mib 512 \
   --ready-timeout 120 --reconcile-timeout 120
 ```
+
+The regular native pipeline subsequently exposed a path-length boundary: under
+its longer artifact directory, the same reference fixture reached 49,401 known
+files and 67,018,885 charged bytes, reported Limited and failed the Ready check.
+Its observed RSS was still 287,436 KiB. Full URI/path strings are intentionally
+charged, so the implementation raises the logical summary/index allowance from
+64 to 96 MiB. It keeps the long test path, conservative accounting, file/queue
+limits, complete-Ready assertion and independent 512 MiB kernel-RSS gate. This
+is a capacity correction based on a failing workload; it is not removal of that
+failure from the test or a claim that the old allowance always fit 50,000 files.
+
+The rerun used an even longer output path and executable
+`5e2691ce14bc38fb26b3c20e50a7169ea46e76a0bb766e6b34372147410bb815`.
+All eight checks, including the kernel-RSS gate, passed. Initial complete Ready
+arrived in 25.591 s with 69,923,283 charged bytes, the first local diagnostic in
+0.172 s, and peak RSS was 302,688 KiB (295.59 MiB). Save remained 0 reads/0 parses,
+one watch remained 1 read/1 parse, missed-event recovery took 16.858 s, and all
+640 burst targets were present. This initial Ready preceded the periodic timer,
+so it completed one discovery pass; its timing is not a controlled speedup
+comparison with the earlier two-pass observation.
 
 ## ApplicationSet expansion admission
 
@@ -151,6 +171,22 @@ The same consumer detects the broken candidate and accepts the repair; unrelated
 root B's latest diagnostics, one disk read and clean shutdown remain positive
 controls.
 
+A separate close/reopen counterexample checked the client's final visible list,
+not just whether an error had appeared at some point. The old candidate delivered
+a workspace `CD_PROJECT_UNRESOLVED` diagnostic and then cleared it with a late
+Schema-only empty publication for the same revision. The fix suppresses that
+weaker result using the accepted revision and target/configuration identity
+already associated with the delivered workspace result. The proof stores no
+snapshot or summary. Same-content acceptance also advances the registry revision
+without reparsing, so a reset editor version cannot leave that proof stuck on the
+old input identity.
+
+The enhanced publication consumer passed 18/18 cases on candidate
+`41eba85b0b17b5f8edc41d0769d533a41051afba469592a4e54479ad69a83227`;
+the old candidate failed its new final-domain-list assertion. Separate incomplete
+input controls still require early local restoration after close/reopen, so
+precedence is not implemented by disabling local diagnostics.
+
 The implementation deletes dead full-workspace query branches and reuses existing
 file dirty state instead of introducing another publication cache. It retains
 revision tickets, event fences, dependency invalidation, scope completeness and
@@ -159,8 +195,9 @@ missing recovery or unsafe edits in real-process controls.
 
 The adapted regression suite passed 16 scenarios/283 assertions and the parent
 suite passed two scenarios/34 assertions on their fixed development candidate.
-Eight targeted regression mutations were detected: the recorded execution was a
-seven-of-eight full run followed by a corrected precise oracle and a passing
-one-of-one rerun for the URI-identity mutation. It is not represented as a second
-complete eight-mutation run. Build failures and runner errors do not count as
-detected behavior loss.
+The later native pipeline ran all eight targeted regression mutations together
+and detected all eight on its isolated source snapshot (consumer executable
+`7825fbd3f7482706a63a0137d888a57b203d4799d854e27b26b0d8e120a53795`).
+Its publication and long-path capacity failures were retained and corrected by
+the focused controls described above. Build failures and runner errors do not
+count as detected behavior loss.

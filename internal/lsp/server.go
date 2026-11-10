@@ -49,6 +49,16 @@ type publication struct {
 	version     *int
 	diagnostics []analysis.Diagnostic
 }
+type publicationInput struct {
+	revision source.Revision
+	target   workspace.Target
+}
+type publishedDiagnostic struct {
+	payload []byte
+	// Only open, successfully checked inputs acquire this stronger-result
+	// proof. It retains neither source text nor a workspace summary.
+	input *publicationInput
+}
 type scopeResult struct {
 	checked         map[source.URI]analysis.Result
 	projectionStart int
@@ -142,7 +152,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	workEvents := workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 	diskGenerations := map[string]uint64{}
 	roots := []string{}
-	published := map[string][]byte{}
+	published := map[string]publishedDiagnostic{}
 	documentPublished := map[string]publication{}
 	epoch := uint64(0)
 	editGeneration := uint64(0)
@@ -181,12 +191,23 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		if err != nil {
 			return
 		}
-		if bytes.Equal(published[uri], payload) {
-			published[uri] = payload
+		next := publishedDiagnostic{payload: payload}
+		if params["x-argocd-analysis-scope"] == "workspace" {
+			if current, opened := buffers[uri]; opened && current.unavailable == "" {
+				file, catalog, _, _ := workspaceState.lookup(uri)
+				if catalog != nil && file != nil && file.err == nil && !file.incomplete && !file.invalidated && !file.dirty && file.revision == current.revision {
+					target := file.target
+					target.Complete = false
+					next.input = &publicationInput{current.revision, target}
+				}
+			}
+		}
+		if bytes.Equal(published[uri].payload, payload) {
+			published[uri] = next
 			return
 		}
 		if send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": json.RawMessage(payload)}) == nil {
-			published[uri] = payload
+			published[uri] = next
 		}
 	}
 	reply := func(id json.RawMessage, value any) {
@@ -387,8 +408,22 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					fmt.Fprintln(errOut, "argocd-document-analysis", string(trace))
 				}
 				nextPublished := map[string]publication{}
+				targets := map[string]workspace.Target{}
+				for _, scope := range result.scopes {
+					for _, file := range scope.files {
+						target := file.Target
+						target.Complete = false
+						targets[string(file.Snapshot.URI())] = target
+					}
+				}
 				for _, p := range result.publications {
-					if previous, ok := documentPublished[p.uri]; !ok || !reflect.DeepEqual(previous, p) {
+					current, opened := buffers[p.uri]
+					stronger := published[p.uri].input
+					workspaceDelivered := opened && stronger != nil && stronger.revision == current.revision && stronger.target == targets[p.uri]
+					// Independent workers may finish in either order. A late
+					// Schema-only result must not clear already delivered domain
+					// diagnostics for this exact accepted input and configuration.
+					if previous, ok := documentPublished[p.uri]; (!ok || !reflect.DeepEqual(previous, p)) && !workspaceDelivered {
 						publish(map[string]any{"uri": p.uri, "version": p.version, "diagnostics": p.diagnostics, "x-argocd-analysis-scope": "document"})
 					}
 					nextPublished[p.uri] = p

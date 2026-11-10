@@ -22,7 +22,7 @@ import (
 
 const (
 	indexFileLimit    = 100000
-	indexSummaryBytes = 64 * 1024 * 1024
+	indexSummaryBytes = 96 * 1024 * 1024
 	indexBatchFiles   = 32
 	indexScanWork     = 256
 	indexQueueLimit   = 512
@@ -199,7 +199,7 @@ func (s *workspaceIndex) enqueue(uri source.URI, read bool, priority shared.Prio
 		if s.summaryBytes+file.bytes > indexSummaryBytes {
 			s.order[slot] = ""
 			s.freeSlots = append(s.freeSlots, slot)
-			root.err = fmt.Errorf("workspace file metadata exceeds 64 MiB budget")
+			root.err = fmt.Errorf("workspace file metadata exceeds %d MiB budget", indexSummaryBytes/(1024*1024))
 			return
 		}
 		s.summaryBytes += file.bytes
@@ -765,6 +765,7 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 		if same {
 			copy := *old
 			file = &copy
+			file.revision = snapshot.Revision()
 			file.seen = root.round
 			file.invalidated = false
 		} else if err == nil {
@@ -791,7 +792,7 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 			return
 		}
 		if err == nil && s.summaryBytes-current.bytes+retainedFileBytes(file) > indexSummaryBytes {
-			err = fmt.Errorf("workspace summary exceeds 64 MiB budget")
+			err = fmt.Errorf("workspace summary exceeds %d MiB budget", indexSummaryBytes/(1024*1024))
 		}
 		var change index.Change
 		if err == nil {

@@ -13,6 +13,11 @@ configuration and chart metadata, but does not discover or read unopened YAML.
 Schema diagnostics, hover, document symbols, field completion and local schema
 quick fixes can therefore respond during background discovery. A newer editor
 version supersedes the old document job without restarting background discovery.
+When a healthy workspace result for that exact accepted revision and target
+configuration has already reached the client, a later Schema-only result is
+suppressed so it cannot clear the richer diagnostic list. A new revision or
+configuration still permits early local results; failed workspace input does
+not acquire this precedence.
 
 The background worker owns one persistent session. It resumes directory discovery
 in batches, queues file identities, reads only admitted files, and commits detached
@@ -55,8 +60,8 @@ The current limits are:
 | Pending queue identities | 512 |
 | Distinct file events before reconciliation coalescing | 512 |
 | Projection and ApplicationSet expansion | 100,000 logical nodes in the analysis budget; 64 MiB of expanded strings |
-| Retained file summaries, metadata and diagnostics | 64 MiB of logical charges |
-| Shared index facts | 64 MiB of logical charges, 500,000 symbols, 1,000,000 references/dependencies |
+| Retained file summaries, metadata and diagnostics | 96 MiB of logical charges |
+| Shared index facts | 96 MiB of logical charges, 500,000 symbols, 1,000,000 references/dependencies |
 | Scanner directories | 100,000 per declared root |
 
 Logical charges are admission limits, not process RSS promises. Parser, schema,
@@ -64,6 +69,12 @@ query, Go runtime and allocator memory is additional. A workspace containing mor
 than 128 MiB of **cumulative closed input** can finish because those bytes are
 consumed one file at a time. The existing one-shot CLI retains its separate
 aggregate acquisition and projection limits.
+
+Full absolute paths contribute to the summary charge. The reference workload
+fit the earlier 64 MiB limit under a short workspace path but reached Limited
+under the longer native-CI artifact path. The summary limit is therefore 96 MiB;
+the independent 512 MiB process-RSS acceptance limit is unchanged. The test keeps
+the long path and all original ownership/discovery assertions.
 
 ApplicationSet admission counts the effective templates before constructing all
 generator variants. Large repeated `valuesObject` or static `templatePatch` values
