@@ -25,7 +25,7 @@
   },
   {
     "path": "schemaquery/query.go",
-    "sha256": "d826a0efd05ea7686eb2aa47f4869678cdd5d5b737470999ac280daf49915f84"
+    "sha256": "e9717126ca75c1f1e9f4402d275ee2a3eb81a6d7c392afb7b52b91440934d3a2"
   },
   {
     "path": "source/snapshot.go",

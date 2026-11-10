@@ -67,10 +67,24 @@ func (w *walk) visit(depth int) bool {
 	return true
 }
 func (w *walk) inspect(s *jsonschema.Schema, depth int) bool {
+	if !w.inspectShape(s, depth) {
+		return false
+	}
+	if s.Not != nil {
+		w.err = ErrUnsupported
+		return false
+	}
+	return true
+}
+
+// Shape selection reads positive field declarations, not negative assertions
+// about valid combinations of those fields. Queries on the active path remain
+// strict through inspect; the compiled validator still enforces every assertion.
+func (w *walk) inspectShape(s *jsonschema.Schema, depth int) bool {
 	if !w.visit(depth) {
 		return false
 	}
-	if s.DynamicRef != nil || s.RecursiveRef != nil || s.If != nil || s.Then != nil || s.Else != nil || s.Not != nil ||
+	if s.DynamicRef != nil || s.RecursiveRef != nil || s.If != nil || s.Then != nil || s.Else != nil ||
 		len(s.PatternProperties) > 0 || len(s.Dependencies) > 0 || len(s.DependentSchemas) > 0 ||
 		s.PropertyNames != nil || s.UnevaluatedProperties != nil || s.UnevaluatedItems != nil {
 		w.err = ErrUnsupported
@@ -530,7 +544,7 @@ func (w *walk) types(s *jsonschema.Schema, path []string, value any, depth int) 
 }
 
 func (w *walk) shape(s *jsonschema.Schema, value any, active []string, depth int) bool {
-	if s == nil || !w.inspect(s, depth) {
+	if s == nil || !w.inspectShape(s, depth) {
 		return false
 	}
 	visit := func(name string, childValue any) bool {
