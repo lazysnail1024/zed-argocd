@@ -99,6 +99,13 @@ func (i *Index) Dependents(scope Scope, key Key) ([]source.URI, State) {
 // symbol ID. Truncated explicitly distinguishes a bounded result from all known
 // matches. The query retains at most limit result items while scanning.
 func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, error) {
+	return i.SymbolsWithPrefix(scope, "", query, limit)
+}
+
+// SymbolsWithPrefix filters opaque binding keys before applying the result
+// limit. The caller supplies any domain encoding and its prefix boundary. An
+// empty prefix matches every key. No callbacks run while the index is locked.
+func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit int) (SymbolResult, error) {
 	if limit <= 0 {
 		return SymbolResult{}, fmt.Errorf("index: symbol result limit must be positive")
 	}
@@ -113,16 +120,16 @@ func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, err
 	for uri := range s.files {
 		e := i.files[uri]
 		if e.serial == 0 {
-			i.appendSymbols(candidates, e, query, limit)
+			i.appendSymbols(candidates, e, prefix, query, limit)
 		}
 	}
 	sortDefinitions(result.Items)
 	return result, nil
 }
 
-func (i *Index) appendSymbols(result *symbolHeap, e *entry, query string, limit int) {
+func (i *Index) appendSymbols(result *symbolHeap, e *entry, prefix Key, query string, limit int) {
 	for _, s := range e.data.facts.Symbols {
-		if !strings.Contains(s.Name, query) {
+		if !strings.HasPrefix(string(s.Key), string(prefix)) || !strings.Contains(s.Name, query) {
 			continue
 		}
 		keepSymbol(result, Definition{e.uri, e.revision, s}, limit)

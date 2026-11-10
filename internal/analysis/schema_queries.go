@@ -4,320 +4,76 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	schema "github.com/santhosh-tekuri/jsonschema/v6"
 	"sort"
 	"strings"
 
+	"github.com/lazysnail1024/k8s-crd-toolkit/schemaquery"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	schema "github.com/santhosh-tekuri/jsonschema/v6"
 	"sigs.k8s.io/yaml"
 )
 
-// Query traversal reads the invocation's compiled metadata. Reference resolution
-// and leaf constraint validation belong to the pinned validator, not a second
-// map-based schema interpreter. Compiled nodes are never changed by queries.
-type queryFacet struct {
-	schema    *schema.Schema
-	candidate bool
-}
-
-// Editor queries select complete release branches using existing field names.
-// Ignore the active field and ordinary value/required errors while a document is
-// being edited. Diagnostics still use the unfiltered catalog to recognize every
-// supported name, including an incompatible combination of known fields.
-func automaticQueryDocument(doc Document, active []string) Document {
+// The plugin selects release catalogs. The common query only compares the
+// supplied branches with existing field structure; it has no version policy.
+func automaticQueryDocument(ctx context.Context, doc Document, active []string) (Document, error) {
 	if doc.Target != "auto" || doc.CompiledSchema == nil || len(doc.CompiledSchema.AnyOf) < 2 {
-		return doc
+		return doc, nil
 	}
-	possible := []*schema.Schema{}
-	for _, branch := range doc.CompiledSchema.AnyOf {
-		if queryShape(branch, doc.Value, active, 0) {
-			possible = append(possible, branch)
-		}
+	possible, err := schemaquery.SelectShapes(ctx, doc.CompiledSchema.AnyOf, doc.Value, active, schemaquery.Limits{})
+	if err != nil {
+		return Document{}, err
 	}
-	// An inconsistent or damaged document must still offer a way to repair it.
+	// Keep repair suggestions for an inconsistent automatic-version document.
 	if len(possible) == 0 || len(possible) == len(doc.CompiledSchema.AnyOf) {
-		return doc
+		return doc, nil
 	}
 	selected := *doc.CompiledSchema
 	selected.AnyOf = possible
 	doc.CompiledSchema = &selected
-	return doc
+	return doc, nil
 }
 
-func queryShape(s *schema.Schema, value any, active []string, depth int) bool {
-	if s == nil || depth > 64 {
-		return depth <= 64
-	}
-	visit := func(name string, childValue any) bool {
-		var childActive []string
-		if len(active) > 0 && name == active[0] {
-			if len(active) == 1 {
-				return true
-			}
-			childActive = active[1:]
-		}
-		if child := childSchema(s, name, value); child != nil {
-			return queryShape(child, childValue, childActive, depth+1)
-		}
-		allowed, closed := s.AdditionalProperties.(bool)
-		return !closed || allowed
-	}
-	switch v := value.(type) {
-	case map[string]any:
-		for name, child := range v {
-			if !visit(name, child) {
-				return false
-			}
-		}
-	case []any:
-		for i, child := range v {
-			if !visit(fmt.Sprint(i), child) {
-				return false
-			}
-		}
-	}
-	if !queryShape(s.Ref, value, active, depth+1) {
-		return false
-	}
-	for _, child := range s.AllOf {
-		if !queryShape(child, value, active, depth+1) {
-			return false
-		}
-	}
-	for _, alternatives := range [][]*schema.Schema{s.AnyOf, s.OneOf} {
-		if len(alternatives) == 0 {
-			continue
-		}
-		possible := false
-		for _, child := range alternatives {
-			if queryShape(child, value, active, depth+1) {
-				possible = true
-				break
-			}
-		}
-		if !possible {
-			return false
-		}
-	}
-	return true
-}
-
-func branchPossible(s *schema.Schema, value any, ignore string, depth int) bool {
-	if s == nil || depth > 64 {
-		return depth <= 64
-	}
-	for name, child := range s.Properties {
-		v, exists := object(value)[name]
-		if exists && name != ignore && !discriminatorAccepts(child, v, depth+1) {
-			return false
-		}
-	}
-	if !branchPossible(s.Ref, value, ignore, depth+1) {
-		return false
-	}
-	for _, child := range s.AllOf {
-		if !branchPossible(child, value, ignore, depth+1) {
-			return false
-		}
-	}
-	for _, alternatives := range [][]*schema.Schema{s.AnyOf, s.OneOf} {
-		if len(alternatives) > 0 {
-			possible := false
-			for _, child := range alternatives {
-				possible = possible || branchPossible(child, value, ignore, depth+1)
-			}
-			if !possible {
-				return false
-			}
-		}
-	}
-	return true
-}
-func discriminatorAccepts(s *schema.Schema, value any, depth int) bool {
-	if s == nil {
-		return true
-	}
-	if depth > 64 {
-		return false
-	}
-	// Only explicit enum/const facts select branches. Missing fields and unrelated
-	// required/type errors must not suppress suggestions while editing.
-	if s.Const != nil || s.Enum != nil {
-		if s.Validate(value) != nil {
-			return false
-		}
-	}
-	if !discriminatorAccepts(s.Ref, value, depth+1) {
-		return false
-	}
-	for _, child := range s.AllOf {
-		if !discriminatorAccepts(child, value, depth+1) {
-			return false
-		}
-	}
-	return true
-}
-func queryFacets(s *schema.Schema, value any, ignore string, candidate bool, depth int, budget *int) []queryFacet {
-	*budget--
-	if s == nil || depth > 64 || *budget < 0 {
+func fieldCompletions(ctx context.Context, doc Document, parent []string, prefix string, r Range, suffix string, current string) []Completion {
+	doc, err := automaticQueryDocument(ctx, doc, appendPath(parent, current))
+	if err != nil {
 		return nil
 	}
-	result := []queryFacet{{s, candidate}}
-	result = append(result, queryFacets(s.Ref, value, ignore, candidate, depth+1, budget)...)
-	for _, child := range s.AllOf {
-		result = append(result, queryFacets(child, value, ignore, candidate, depth+1, budget)...)
-	}
-	for _, alternatives := range [][]*schema.Schema{s.AnyOf, s.OneOf} {
-		selected := []*schema.Schema{}
-		for _, child := range alternatives {
-			if branchPossible(child, value, ignore, 0) {
-				selected = append(selected, child)
-			}
-		}
-		for _, child := range selected {
-			result = append(result, queryFacets(child, value, ignore, candidate || len(selected) > 1, depth+1, budget)...)
-		}
-	}
-	return result
-}
-func childSchema(s *schema.Schema, part string, value any) *schema.Schema {
-	if _, ok := value.([]any); ok {
-		return s.Items2020
-	}
-	if child := s.Properties[part]; child != nil {
-		return child
-	}
-	child, _ := s.AdditionalProperties.(*schema.Schema)
-	return child
-}
-func queryAt(doc Document, parts []string) []queryFacet {
-	budget := 4096
-	facets := []queryFacet{{doc.CompiledSchema, false}}
-	var value any = doc.Value
-	for _, part := range parts {
-		next := []queryFacet{}
-		for _, f := range facets {
-			for _, expanded := range queryFacets(f.schema, value, part, f.candidate, 0, &budget) {
-				if child := childSchema(expanded.schema, part, value); child != nil {
-					next = append(next, queryFacet{child, expanded.candidate})
-				}
-			}
-		}
-		facets = uniqueFacets(next)
-		value = valueAt(value, []string{part})
-	}
-	result := []queryFacet{}
-	for _, f := range facets {
-		result = append(result, queryFacets(f.schema, value, "", f.candidate, 0, &budget)...)
-	}
-	if budget < 0 {
+	query, err := schemaquery.Lookup(ctx, doc.CompiledSchema, parent, doc.Value, schemaquery.Limits{})
+	if err != nil {
 		return nil
 	}
-	return uniqueFacets(result)
-}
-
-// Shared compatibility nodes are visited once per path. Their constraints are
-// still validated in their original whole-release branches.
-func uniqueFacets(facets []queryFacet) []queryFacet {
-	result := []queryFacet{}
-	seen := map[*schema.Schema]int{}
-	for _, f := range facets {
-		if index, ok := seen[f.schema]; ok {
-			result[index].candidate = result[index].candidate || f.candidate
-			continue
-		}
-		seen[f.schema] = len(result)
-		result = append(result, f)
-	}
-	return result
-}
-
-// Keep every ancestor's AND/OR membership when evaluating a proposed leaf.
-// The queried field is excluded from sibling discrimination, but its proposed
-// value must satisfy the complete selected branch constraints at that leaf.
-func queryAccepts(s *schema.Schema, parts []string, value, candidate any, depth int) bool {
-	if s == nil {
-		return true
-	}
-	if depth > 64 {
-		return false
-	}
-	if len(parts) == 0 {
-		return s.Validate(candidate) == nil
-	}
-	part := parts[0]
-	childValue := valueAt(value, []string{part})
-	if child := childSchema(s, part, value); child != nil && !queryAccepts(child, parts[1:], childValue, candidate, depth+1) {
-		return false
-	}
-	if !queryAccepts(s.Ref, parts, value, candidate, depth+1) {
-		return false
-	}
-	for _, child := range s.AllOf {
-		if !queryAccepts(child, parts, value, candidate, depth+1) {
-			return false
-		}
-	}
-	for kind, alternatives := range [][]*schema.Schema{s.AnyOf, s.OneOf} {
-		if len(alternatives) > 0 {
-			matched := 0
-			for _, child := range alternatives {
-				if branchPossible(child, value, part, 0) && queryAccepts(child, parts, value, candidate, depth+1) {
-					matched++
-				}
-			}
-			if matched == 0 || (kind == 1 && matched != 1) {
-				return false
-			}
-		}
-	}
-	return true
-}
-func queryType(facets []queryFacet) string {
-	types := map[string]bool{}
-	for _, f := range facets {
-		if f.schema.Types != nil {
-			for _, name := range f.schema.Types.ToStrings() {
-				types[name] = true
-			}
-		}
-	}
-	names := []string{}
-	for name := range types {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	if len(names) == 0 {
-		return "unspecified"
-	}
-	return strings.Join(names, " | ")
-}
-func fieldCompletions(doc Document, parent []string, prefix string, r Range, suffix string, current string) []Completion {
-	doc = automaticQueryDocument(doc, appendPath(parent, current))
-	result := []Completion{}
-	fields := map[string][]queryFacet{}
+	fields := map[string]bool{}
 	existing := object(valueAt(doc.Value, parent))
-	for _, f := range queryAt(doc, parent) {
-		for name, raw := range f.schema.Properties {
+	for _, node := range query.Nodes {
+		for name := range node.Properties {
 			if !strings.HasPrefix(name, prefix) {
 				continue
 			}
-			if _, ok := existing[name]; ok && name != current {
+			if _, exists := existing[name]; exists && name != current {
 				continue
 			}
-			budget := 4096
-			fields[name] = append(fields[name], queryFacets(raw, nil, "", f.candidate, 0, &budget)...)
+			fields[name] = true
 		}
 	}
-	for name, facets := range fields {
-		detail := queryType(facets) + "; Argo CD " + doc.Target
-		for _, f := range facets {
-			if f.candidate {
-				detail += "; candidate (branch unresolved)"
-				break
-			}
+	result := []Completion{}
+	for name := range fields {
+		path := appendPath(parent, name)
+		allowed, err := schemaquery.AllowsKey(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+		if err != nil {
+			return nil
+		}
+		if !allowed {
+			continue
+		}
+		kind, err := schemaquery.Type(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+		if err != nil {
+			return nil
+		}
+		detail := kind + "; Argo CD " + doc.Target
+		if query.Ambiguous {
+			detail += "; candidate (branch unresolved)"
 		}
 		result = append(result, Completion{Label: name, Kind: 10, Detail: detail, TextEdit: TextEdit{Range: r, NewText: name + suffix}})
 	}
@@ -330,7 +86,7 @@ func fieldCompletions(doc Document, parent []string, prefix string, r Range, suf
 func FieldCompletions(ctx context.Context, s source.Snapshot, target string, documents []Document, p Position) []Completion {
 	for _, doc := range documents {
 		if doc.Snapshot.URI() == s.URI() {
-			if items := Complete(doc, p); len(items) > 0 {
+			if items := Complete(ctx, doc, p); len(items) > 0 {
 				return items
 			}
 		}
@@ -399,11 +155,7 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 		if oversizedScalar(root) {
 			continue
 		}
-		raw, e := documentText(snapshot, d.Span())
-		if e != nil {
-			continue
-		}
-		projected, e := projectValues(ctx, raw, root)
+		projected, e := projectValues(ctx, snapshot, d)
 		if e != nil {
 			continue
 		}
@@ -444,29 +196,35 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 		if !doc.exact(parts) {
 			continue
 		}
-		return fieldCompletions(doc, parts[:len(parts)-1], prefix, Range{Position{begin.Line, begin.UTF16Column}, p}, ": ", marker)
+		return fieldCompletions(ctx, doc, parts[:len(parts)-1], prefix, Range{Position{begin.Line, begin.UTF16Column}, p}, ": ", marker)
 	}
 	return nil
 }
 
-func schemaHoverText(doc Document, parts []string) string {
-	doc = automaticQueryDocument(doc, parts)
-	facets := queryAt(doc, parts)
-	if len(facets) == 0 {
+func schemaHoverText(ctx context.Context, doc Document, parts []string) string {
+	doc, err := automaticQueryDocument(ctx, doc, parts)
+	if err != nil {
+		return ""
+	}
+	query, err := schemaquery.Lookup(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+	if err != nil || len(query.Nodes) == 0 {
+		return ""
+	}
+	kind, err := schemaquery.Type(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+	if err != nil {
 		return ""
 	}
 	descriptions := []string{}
 	seen := map[string]bool{}
-	for _, f := range facets {
-		d := f.schema.Description
-		if d != "" && !seen[d] {
+	for _, node := range query.Nodes {
+		if d := node.Description; d != "" && !seen[d] {
 			descriptions = append(descriptions, d)
 			seen[d] = true
 		}
 	}
-	text := strings.Join(descriptions, "\n\n") + fmt.Sprintf("\n\nType: %s\n\nTarget: %s\n\nSource: embedded Argo CD CRD", queryType(facets), doc.Target) + "\n\n" + assets.SchemaSource(doc.Target, doc.Kind)
-	for _, f := range facets {
-		if value := f.schema.Default; value != nil {
+	text := strings.Join(descriptions, "\n\n") + fmt.Sprintf("\n\nType: %s\n\nTarget: %s\n\nSource: embedded Argo CD CRD", kind, doc.Target) + "\n\n" + assets.SchemaSource(doc.Target, doc.Kind)
+	for _, node := range query.Nodes {
+		if value := node.Default; value != nil {
 			b, _ := json.Marshal(*value)
 			text += "\n\nDefault: " + string(b)
 			break

@@ -3,8 +3,8 @@ module github.com/lazysnail1024/zed-argocd
 go 1.27.3
 
 require (
-	github.com/lazysnail1024/k8s-crd-toolkit v0.0.0-20261110114800-b1e411d4b3ab
-	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+	github.com/lazysnail1024/k8s-crd-toolkit v0.0.0-20261110154516-814a721b6661
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.6.0
 )

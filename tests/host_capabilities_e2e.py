@@ -19,10 +19,12 @@ def initialize_contract(client,label):
  expected={
   'textDocumentSync':{'openClose':True,'change':2,'save':True},
   'completionProvider':{},'hoverProvider':True,'definitionProvider':True,
-  'referencesProvider':True,'documentSymbolProvider':True,
+  'referencesProvider':True,'documentSymbolProvider':True,'workspaceSymbolProvider':True,
   'workspace':{'workspaceFolders':{'supported':True,'changeNotifications':True}},
  }
- if client.edit:expected['codeActionProvider']={'resolveProvider':True}
+ if client.edit:
+  expected['codeActionProvider']={'resolveProvider':True}
+  expected['renameProvider']={'prepareProvider':True}
  info=result.get('serverInfo',{})
  # JSON booleans and integers have different protocol types (Python == aliases them).
  same=json.dumps(result.get('capabilities'),sort_keys=True)==json.dumps(expected,sort_keys=True)

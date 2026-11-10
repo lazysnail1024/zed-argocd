@@ -30,12 +30,12 @@ and publishes the native assets. An exact version-tag push or a manual run on
 
 ## Shared toolkit source
 
-The toolkit dependency is pinned to source commit
-`b1e411d4b3abe5c1ad70518be161c1daff717d61`, represented by Go pseudo-version
-`v0.0.0-20261110114800-b1e411d4b3ab`. It does not require a toolkit release tag.
-The vendored `source`, `yamlview`, `edit`, `index`, and `workspace` packages match
-that commit; builds need no sibling checkout or local `replace` directive.
-[contracts/toolkit-design-3.md](contracts/toolkit-design-3.md) is the byte-identical
+The toolkit dependency is pinned to the full source commit recorded in
+`contracts/toolkit.lock.json`, represented by the Go pseudo-version in `go.mod`.
+It does not require a toolkit release tag. The vendored `source`, `yamlview`,
+`yamlvalue`, `schemaquery`, `edit`, `index`, and `workspace` packages match that
+commit; builds need no sibling checkout or local `replace` directive.
+[contracts/toolkit-design-4.md](contracts/toolkit-design-4.md) is the byte-identical
 API contract, with its implementation and content identities in `contracts/toolkit.lock.json` and
 `contracts/toolkit-snapshot.json`.
 
@@ -84,13 +84,21 @@ go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
 python3 tests/mixed_parent_index_e2e.py build/argocd-ls artifacts/mixed-parent
 python3 tests/persistent_workspace_e2e.py build/argocd-ls artifacts/persistent --count 1000 --padding 4096
 python3 tests/config_uri_e2e.py build/argocd-ls artifacts/config-uris
+python3 tests/navigation_editing_e2e.py build/argocd-ls artifacts/navigation-editing
+python3 tests/navigation_editing_guards_e2e.py build/argocd-ls artifacts/navigation-guards
+python3 tests/project_rename_e2e.py build/argocd-ls artifacts/project-rename
+python3 tests/shared_schemaquery_e2e.py build/argocd-ls artifacts/shared-schemaquery
 ```
 
 Use a fresh output directory per run. The complete native entry point is
 `python3 tests/native_ci.py --platform <native-platform> --output artifacts/native-check`;
 run it on the matching actual host. It builds and executes the required gates.
 The Linux workflow additionally executes the large workspace, work-count,
-mutation and race consumers. [native.yml](.github/workflows/native.yml) and
+mutation and race consumers, including `navigation_editing_ablation.py`,
+`ablate_project_rename.py` and `ablate_shared_schemaquery.py`. These source controls take an output directory,
+compile each variant, then require a named protocol or real-index assertion to fail;
+compile errors or runner failures are not evidence of detection.
+[native.yml](.github/workflows/native.yml) and
 [tests/native_ci.py](tests/native_ci.py) are the executable gate definitions.
 Specific regressions map to their consumers in [lessons learned](docs/lessons-learned.md).
 

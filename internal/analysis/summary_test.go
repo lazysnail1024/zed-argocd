@@ -35,11 +35,7 @@ func summaryDocuments(t *testing.T, text string) []Document {
 		if !parsed.Complete() {
 			t.Fatal("fixture has incomplete document")
 		}
-		raw, err := documentText(snapshot, parsed.Root().Span())
-		if err != nil {
-			t.Fatal(err)
-		}
-		projected, err := projectValues(context.Background(), raw, parsed.Root())
+		projected, err := projectValues(context.Background(), snapshot, parsed)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -11,7 +11,7 @@ for mode in ['comment-separator','exclusive-cardinality']:
   if mode=='comment-separator':
    p=tree/'internal/analysis/queries.go';s=p.read_text();assert 'suffix = " "' in s;p.write_text(s.replace('suffix = " "','suffix = ""',1));cases=r/'tests/schema-query-boundary-cases.json';wanted={'empty-before-comment'}
   else:
-   p=tree/'internal/analysis/schema_queries.go';s=p.read_text();assert 'kind == 1 && matched != 1' in s;p.write_text(s.replace('kind == 1 && matched != 1','kind == 1 && false && matched != 1',1));cases=r/'tests/schema-query-boundary-fixture-cases.json';wanted={'exclusiveChoice','duplicateExclusive','referencedExclusive'}
+   p=tree/'vendor/github.com/lazysnail1024/k8s-crd-toolkit/schemaquery/query.go';s=p.read_text();assert 'i == 1 && matches != 1' in s;p.write_text(s.replace('i == 1 && matches != 1','i == 1 && false && matches != 1',1));cases=r/'tests/schema-query-boundary-fixture-cases.json';wanted={'exclusiveChoice','duplicateExclusive','referencedExclusive'}
    catalog=json.loads((tree/'compat/catalog.lock.json').read_text())
    for target in catalog['versions']:
     for asset in target['schemas']:

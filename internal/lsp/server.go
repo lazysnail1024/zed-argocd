@@ -75,6 +75,7 @@ type pendingQuery struct {
 
 type queryResult struct {
 	proof          *readProof
+	symbolProof    *symbolReadProof
 	editGeneration *uint64 // Configuration pin proofs cover the complete workspace.
 	trace          string
 	ctx            context.Context
@@ -86,10 +87,11 @@ type queryResult struct {
 }
 
 type completed struct {
-	more        bool
-	incremental *workspaceIndex
-	queryProof  *readProof
-	stats       struct {
+	candidatesTruncated bool
+	more                bool
+	incremental         *workspaceIndex
+	queryProof          *readProof
+	stats               struct {
 		Scope                string   `json:"scope"`
 		Root                 string   `json:"root,omitempty"`
 		Phase                string   `json:"phase,omitempty"`
@@ -141,6 +143,10 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	results := make(chan completed, 1)
 	queries := make(chan queryResult, 8)
 	requests := map[string]pendingQuery{}
+	// Reservations remain held until workers exit, including after the client
+	// cancels and its request ID is removed. Edits cannot occupy read slots.
+	readSlots := make(chan struct{}, 4)
+	editSlots := make(chan struct{}, 1)
 	defer func() {
 		for _, request := range requests {
 			request.stop()
@@ -353,7 +359,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			}
 			request.stop()
 			delete(requests, key)
-			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) {
+			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
 				reject(q.id, -32801, "analysis changed")
 				continue
 			}
@@ -525,18 +531,20 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
 				capabilities := map[string]any{
-					"textDocumentSync":       map[string]any{"openClose": true, "change": 2, "save": true},
-					"hoverProvider":          true,
-					"definitionProvider":     true,
-					"referencesProvider":     true,
-					"documentSymbolProvider": true,
-					"completionProvider":     map[string]any{},
+					"textDocumentSync":        map[string]any{"openClose": true, "change": 2, "save": true},
+					"hoverProvider":           true,
+					"definitionProvider":      true,
+					"referencesProvider":      true,
+					"documentSymbolProvider":  true,
+					"workspaceSymbolProvider": true,
+					"completionProvider":      map[string]any{},
 					"workspace": map[string]any{
 						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
 					},
 				}
 				if canEdit {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+					capabilities["renameProvider"] = map[string]any{"prepareProvider": true}
 				}
 				reply(m.ID, map[string]any{
 					"capabilities": capabilities,
@@ -773,6 +781,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					if e != nil {
 						continue
 					}
+					workspaceState.invalidateRoot(path)
 					remaining := roots[:0]
 					for _, r := range roots {
 						if r != path {
@@ -786,6 +795,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					if e != nil {
 						continue
 					}
+					workspaceState.invalidateRoot(path)
 					// A remove/add pair may be coalesced before a worker runs.
 					// Re-establish its membership and publications even then.
 					workEvents.reset[path] = true
@@ -830,10 +840,20 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					launch(changed)
 				}
 
-			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion":
+			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
+					continue
+				}
+				slots := readSlots
+				if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+					slots = editSlots
+				}
+				select {
+				case slots <- struct{}{}:
+				default:
+					reject(m.ID, -32803, "request capacity is busy; retry the current request")
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -855,13 +875,42 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				editable := canEdit
 				go func() {
+					defer func() { <-slots }()
 					var proof *readProof
+					var symbolProof *symbolReadProof
 					var editProof *uint64
 					var trace bytes.Buffer
 					var answer any
 					var code int
 					var why string
-					if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
+					if m.Method == "workspace/symbol" {
+						var params struct {
+							Query string `json:"query"`
+						}
+						if err := json.Unmarshal(m.Params, &params); err != nil {
+							code, why = -32602, "invalid workspace symbol parameters"
+						} else {
+							var complete bool
+							var err error
+							answer, symbolProof, complete, err = workspaceState.workspaceSymbols(ctx, params.Query)
+							if err != nil {
+								code, why = -32803, err.Error()
+							}
+							if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+								fmt.Fprintf(&trace, "argocd-workspace-symbols complete=%t\n", complete)
+							}
+						}
+					} else if m.Method == "textDocument/prepareRename" || m.Method == "textDocument/rename" {
+						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
+						var localRename bool
+						answer, code, why, localRename = workspaceState.renameRequest(ctx, m, &input, copied, editable)
+						if code == 0 {
+							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+							if proof != nil && localRename {
+								proof.localize(queryURI(m))
+							}
+						}
+					} else if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
 						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 							for i := range input.scopes {
@@ -893,7 +942,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 						code, why = -32800, "request cancelled"
 					}
 					select {
-					case queries <- queryResult{proof: proof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
+					case queries <- queryResult{proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()
@@ -1557,7 +1606,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		case "textDocument/hover":
 			for _, doc := range scope.documents {
 				if string(doc.Snapshot.URI()) == p.TextDocument.URI {
-					if hover := analysis.SchemaHover(doc, p.Position); hover != nil {
+					if hover := analysis.SchemaHover(ctx, doc, p.Position); hover != nil {
 						answer = hover
 						break
 					}
@@ -1593,6 +1642,9 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		}
 		break
 	}
+	if m.Method == "textDocument/completion" && latest.candidatesTruncated {
+		answer = map[string]any{"isIncomplete": true, "items": answer}
+	}
 	return
 }
 
@@ -1610,6 +1662,8 @@ type readProof struct {
 	uses                   map[index.Key][]index.Use
 	allProjects, localOnly bool
 	projectGeneration      uint64
+	allScope               bool
+	scopeGeneration        uint64
 	root, override         string
 	diskGeneration         uint64
 	files, knownFiles      map[string]bool
@@ -1648,6 +1702,7 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 		proof.engine, proof.catalog, proof.scope, proof.scopeName, proof.complete = input.queryProof.engine, input.queryProof.catalog, input.queryProof.scope, input.queryProof.scopeName, input.queryProof.complete
 		proof.hashes, proof.candidates = input.queryProof.hashes, input.queryProof.candidates
 		proof.uses, proof.allProjects, proof.projectGeneration = input.queryProof.uses, input.queryProof.allProjects, input.queryProof.projectGeneration
+		proof.allScope, proof.scopeGeneration = input.queryProof.allScope, input.queryProof.scopeGeneration
 	}
 	found := false
 	for _, scope := range input.scopes {

@@ -51,11 +51,7 @@ func recoverReferencePrefix(ctx context.Context, snapshot source.Snapshot, targe
 		if !document.Complete() || offset < root.Span().Start || offset > root.Span().End || root.Span().Start < damaged.Span().Start || root.Span().End > damaged.Span().End || oversizedScalar(root) {
 			continue
 		}
-		raw, err := documentText(prefix, document.Span())
-		if err != nil {
-			continue
-		}
-		projected, err := projectValues(ctx, raw, root)
+		projected, err := projectValues(ctx, prefix, document)
 		if err != nil {
 			continue
 		}

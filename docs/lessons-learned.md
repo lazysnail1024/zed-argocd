@@ -30,9 +30,41 @@
 
 **来源：真实 stdio 审计复现。** 扫描开始时就消耗重扫标记，随后被 buffer 编辑取消，会吞掉磁盘更新；scope 刷新后仍用旧输入制作查询证明，会允许已经变化的引用回答交付。后台 batch 又可能在结果提交后被无关通知替代，使已计算诊断未到客户端。
 
-当前有效票据与事件 fence 区分请求、接受和提交；未完成需求不能因取消消失。查询证明来自实际产生回答的 snapshot 和依赖集合，串行交付者再核对。仍有效的领域结果重新排队发布，避免重读已接受字节；跨 root 解析失败仅撤销失败 root 的权威。
+当前有效票据与事件 fence 区分请求、接受和提交；未完成需求不能因取消消失。查询证明来自实际产生回答的 snapshot 和依赖集合，串行交付者再核对。仍有效的领域结果重新排队发布，避免重读已接受字节；跨 root 解析失败仅撤销失败 root 的权威。同路径 root remove/add 曾只登记后台重建，最终 roots 列表未变让 debounce 期间的旧证明仍有效；现在接纳 root 事件时立即推进配置 fence，等待后台之前就撤销旧证明。[project_rename_proof_test.go](../internal/lsp/project_rename_proof_test.go)同时检查新成员在提交前、提交后和 root 重建前后的证明，不依赖 sleep。
 
 保护：[lsp_regressions_e2e.py](../tests/lsp_regressions_e2e.py)、[query_delivery_e2e.py](../tests/query_delivery_e2e.py)、[publication_delivery_e2e.py](../tests/publication_delivery_e2e.py)。测试通过实际文件打开或协议屏障安排事件顺序，断言 stale 拒绝、健康 root 可用和恢复进度；超时或进程异常不能冒充成功检出。
+
+## 有界前台必须把取消后的 worker 也算在内
+
+**来源：前台实现审查与可编译消融。** 仅从请求 ID 表删除已取消请求，不能证明后台执行已经结束；若此时归还准入额度，取消突发仍能创建无界 worker。删除实际退出时的额度归还又会使后续请求永久收到 Busy。
+
+当前四个轻读额度与一个重操作额度独立，prepare/rename、引用和工作区符号使用重操作额度。worker 自己退出时归还预约，取消只撤销协议交付资格；请求 ID 再利用还须匹配原 context。真实 stdio 测试发出 128 个 hover，再取消一批请求并验证恢复，不使用调度延迟注入。把读额度扩大到 128、或删除退出归还，分别使指定准入上界和恢复断言失败。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)、[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)。这些反例证明保护的必要性，不是所有机器上的时延承诺。
+
+## 重命名既要覆盖旧引用，也不能捕获新名字的旧用法
+
+**来源：独立 stdio 负例。** source ref 的新名字只检查已声明名称时，已有未解析 `$captured/...` 会在重命名后意外获得绑定。前后错误数减少并不能发现这种含义变化。另一个真实反例是同一 YAML 流中的既有 sibling 领域错误：修改前只检查选中文档、修改后检查整个流，会将未变化的错误误判为新增，错误拒绝合法私有重命名。
+
+当前私有重命名要求唯一声明，完整覆盖 Helm `valueFiles` 与 `fileParameters[].path`，新名字不能与任何既有声明或引用冲突。修改前后对称分析整个 YAML 流；只有选中 Application 的私有绑定被改写。别名、共享或无法精确映射的转义来源拒绝修改。AppProject 跨文件重命名另要求完整 closed scope、唯一 namespace 绑定与每个受影响文件的打开版本，并保留整个 scope generation 防止新文件或未解析引用在交付前改变证明。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)覆盖 CRLF、多文档、不在 BMP 内的字符、未变 sibling 错误和意外捕获；[project_rename_e2e.py](../tests/project_rename_e2e.py)覆盖跨文件及 AppSet 模板边界。[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)和 [ablate_project_rename.py](../tests/ablate_project_rename.py)删除引用采集或唯一声明检查，要求编译成功后命中指定失败断言。
+
+## 有界索引之后的映射与合并也必须有界
+
+**来源：工作区符号实现审查。** 索引已经限制了返回数，消费者却对每个匹配再次扫描该文件所有文档，密集多文档输入仍会产生平方级查找。达到结果上限时直接从 root/scope 循环返回，也会跳过最终排序，让截断结果随枚举顺序改变。
+
+当前通过 Index 分配的 `document:N` 直接定位摘要文档；所有分区统一进入容量 20,000 的最大堆，再做一次稳定排序，返回证明只保留最终文件。AppProject 两种 lookup key 在查询前缀处去重。修复候选同样先按 namespace 前缀过滤再限额，`Truncated` 传播为不完整，不能拿被截断集合证明唯一性或引用全集。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)检查两根逆序输入、多文档精确位置、Project 去重、全局排序和 buffer 更新后的名称撤回；公共 Index 合同保护过滤在截断之前发生。小型功能用例不代替密集资源的内存和工作量测试。
+
+## Schema 验证和编辑候选曾使用两套不同路径解释
+
+**来源：默认自动版本模式的真实 stdio 复现。** Schema 已给出 `SCHEMA_CONSTRAINT`，枚举快速修复却为空：原候选遍历只沿原始 `properties/items`，没有经过自动版本目录的 `$defs` 和组合节点。精确版本有四个动作不代表默认版本也可用。
+
+当前补全和快速修复复用公共 `schemaquery.Values`，字段查询和未知字段检查读取同一份编译后图。产品仍负责版本分支选择与安全修改；公共层保留组合约束、取消和预算，遇到不支持的结构明确失败。抽取时还发现编译后的 Schema 没有保留 `x-kubernetes-preserve-unknown-fields` 注解；本仓仅按编译节点的已解析 Location 读取该注解，避免重新维护另一套 `$ref` 解释器。
+
+保护：[shared_schemaquery_e2e.py](../tests/shared_schemaquery_e2e.py)在默认 auto 与精确版本都验证四候选、resolve、只修改目标标量、诊断消失和旧版本拒绝；[shared_schema_test.go](../internal/analysis/shared_schema_test.go)保护 preserve-unknown-fields 与转义引用；[ablate_shared_schemaquery.py](../tests/ablate_shared_schemaquery.py)移除公共枚举查询后必须仍能编译，并让两个真实 LSP 场景的指定候选断言失败。
 
 ## 单文件 workspace 诊断曾被测试误当成 root Ready
 

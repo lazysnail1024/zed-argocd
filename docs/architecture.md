@@ -1,6 +1,6 @@
 # 当前架构
 
-本仓库实现本地 Argo CD YAML 分析服务和 Zed 适配器。原生 Go 进程识别 `Application`、`AppProject`、`ApplicationSet`，提供 Schema 与静态领域诊断、补全、悬停、文档符号、定义、引用和受验证的编辑。Rust 适配器负责选取、校验并启动原生进程。
+本仓库实现本地 Argo CD YAML 分析服务和 Zed 适配器。原生 Go 进程识别 `Application`、`AppProject`、`ApplicationSet`，提供 Schema 与静态领域诊断、补全、悬停、文档与工作区符号、定义、引用、受验证的重命名和快速修复。Rust 适配器负责选取、校验并启动原生进程。
 
 本文描述当前检出的源码。[VERSION](../VERSION)与 [native-server-version](../editors/zed/native-server-version)仍为 `0.0.1-alpha.3`；该值本身不能证明已发布 alpha.3 包含当前 `main` 的索引实现。实际运行身份以 `argocd-ls version --json` 的版本、源码提交、构建模式、合同和目录摘要为准；安装包与源码构建的关系见[分发](distribution.md)。
 
@@ -16,6 +16,7 @@
 | [internal/lsp/server.go](../internal/lsp/server.go) | framed stdio transport、能力协商、串行协议所有者、buffer 版本、取消、文档分析、诊断交付与修改请求。 |
 | [internal/lsp/incremental.go](../internal/lsp/incremental.go) | 会话级持久索引；配置、文件与领域摘要，分批扫描、优先级选择、工作量预算、scope 完整性、事实提交与关联失效。 |
 | [internal/lsp/incremental_query.go](../internal/lsp/incremental_query.go)、[pins.go](../internal/lsp/pins.go) | 组合当前请求文本与已提交摘要；构造并复核查询依赖；配置 pin 执行完整范围的修改前后验证。 |
+| [internal/lsp/rename.go](../internal/lsp/rename.go)、[project_rename.go](../internal/lsp/project_rename.go)、[symbols.go](../internal/lsp/symbols.go) | 私有重命名证明当前文档；Project 重命名取得整个 scope 摘要与 generation，再重取受影响的打开 snapshot 并生成版本化 `documentChanges`。工作区符号从 Index 和紧凑摘要取得位置，以固定容量堆合并并复核返回文件 revision。 |
 | [internal/assets](../internal/assets/catalog.go) | 嵌入运行时版本目录、Schema、默认 `auto` 目标和 readiness；[schema.go](../internal/assets/schema.go)使用本地数据编译，禁止运行时网络加载。 |
 | [internal/buildinfo](../internal/buildinfo/buildinfo.go) | 原生产品、版本、源码、合同、目录和构建身份，供 CLI、打包器与适配器核对。 |
 | [editors/zed](../editors/zed/README.md) | 独立 Rust/WASM 包；`src/lib.rs` 对接 Zed，`src/distribution.rs` 管理下载/缓存/激活，`src/identity.rs` 校验原生身份。 |
@@ -29,31 +30,34 @@
 | 文件 | 职责 |
 | --- | --- |
 | [schema.go](../internal/analysis/schema.go) | `Analyzer` 识别资源、准备 Schema、组织文档分析与预算；未识别为 Argo CD 的 YAML 不进入 Argo CD 领域检查。 |
-| [projection.go](../internal/analysis/projection.go) | YAML alias/merge 等有效值投影及来源追踪；区分精确、派生、未知位置，防止把派生值作为可直接编辑的文本。 |
+| [projection.go](../internal/analysis/projection.go) | 调用公共 `yamlvalue` 投影 alias/merge 有效值和来源；本仓决定 Argo CD GVK 归属、累计预算及 ApplicationSet override 来源，防止把派生值作为可直接编辑的文本。 |
 | [appset.go](../internal/analysis/appset.go)、[appset_budget.go](../internal/analysis/appset_budget.go) | ApplicationSet 有效模板、generator override、受支持的静态 `templatePatch` 与构造前的展开预算。动态表达式保留未知状态。 |
 | [domain.go](../internal/analysis/domain.go)、[local_paths.go](../internal/analysis/local_paths.go) | AppProject 绑定/策略、source 与 destination 检查、多 source 引用及有效仓库路径提取。路径存在性由 workspace 提供。 |
 | [summary.go](../internal/analysis/summary.go) | 从分析结果生成脱离 YAML 文本和语法树的领域摘要、语义摘要、导航 Facts、依赖 key 与位置。保留 AppSet 的有效变体和精确性。 |
-| [queries.go](../internal/analysis/queries.go)、[schema_queries.go](../internal/analysis/schema_queries.go)、[candidates.go](../internal/analysis/candidates.go) | 文档符号、定义/引用、字段和枚举补全、悬停、Project 候选；自动版本查询依据完整版本分支筛选。 |
+| [queries.go](../internal/analysis/queries.go)、[schema_queries.go](../internal/analysis/schema_queries.go)、[candidates.go](../internal/analysis/candidates.go) | 文档符号、定义/引用、字段和枚举补全、悬停、Project 候选；Schema 路径与候选统一调用公共 `schemaquery`，本仓选择自动版本分支与产品展示。 |
 | [reference_recovery.go](../internal/analysis/reference_recovery.go) | 不完整 YAML 的有限只读恢复；验证整个相关结构及标量范围，拒绝重复键等歧义，不生成猜测性编辑。 |
 | [fields.go](../internal/analysis/fields.go)、[fixes.go](../internal/analysis/fixes.go) | 字段名/枚举纠正和 Project 替换候选；按当前 snapshot 生成编辑，并验证修改前后的 Schema 与领域结果。 |
+| [rename.go](../internal/analysis/rename.go)、[project_rename.go](../internal/analysis/project_rename.go) | Application 私有 source ref 与同控制平面 namespace 的 AppProject 绑定重命名。声明、引用、来源、完整性和新名字是否捕获旧引用均由本仓证明，公共 `edit` 只负责精确应用计划。 |
 
 ## 公共依赖及状态归属
 
-源码依赖固定为 `github.com/lazysnail1024/k8s-crd-toolkit` 的提交 `b1e411d4b3abe5c1ad70518be161c1daff717d61`，Go pseudo-version 为 `v0.0.0-20261110114800-b1e411d4b3ab`。它通过 [go.mod](../go.mod)和已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)参与构建，不要求发布 tag、相邻 checkout 或本地 `replace`。
+公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`；确切 Go pseudo-version 以 [go.mod](../go.mod)为准，完整源码提交由 [toolkit.lock.json](../contracts/toolkit.lock.json)固定。它通过已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)参与构建，不要求发布 tag、相邻 checkout 或本地 `replace`。
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |
 | `source` | workspace/LSP 接收文本，analysis 使用不可变 `Snapshot`、revision、byte span 和 UTF-16 坐标转换；文件归属与客户端 URI 解释仍由本仓决定。 |
 | `yamlview` | `analysis/schema.go` 和投影/查询读取容错 YAML 视图；公共层不判断 Argo CD kind、AppProject key 或 target 版本。 |
+| `yamlvalue` | `analysis/projection.go` 复用有界有效值、alias/merge、来源与可选身份字段提取；本仓提供 `apiVersion`/`kind` 字段名，并解释哪些身份归本插件。公共层不含 CRD 注册表或 Argo 资源列表。 |
+| `schemaquery` | `schema_queries.go`、`queries.go`、`fields.go` 和 `fixes.go` 共用编译后的 Schema 图，处理静态引用、组合、字段/数组路径及有限 enum/const 候选。未知结构、取消或预算不足返回明确错误；版本目录、未知字段诊断、来源与修复安全仍由本仓决定。 |
 | `edit` | `analysis/fixes.go` 将精确位置组织为 snapshot 绑定的修改计划；是否允许该领域修改、是否可向客户端交付由本仓验证。 |
 | `workspace.Documents` | `server.go` 的 Open/Change/Close 和 `incremental.go` 的 BeginRead/PublishRead；统一接受 revision、打开文本及读票据。`fitsBuffer` 读取 `OpenBytes`，不另存一份累计文本计数。 |
 | `workspace.WorkQueue` | `incremental.go` 的 Put/Pop/Complete/Remove；拥有排队、运行、重复通知与待补入工作身份。每次 Pop 都通过 `defer Complete` 释放票据。本仓 `workRead` 只区分重新读文件与仅重算领域，不再复制 queue 的等待状态。 |
 | `workspace.Scanner` / `Membership` | 增量索引驱动 scanner，记录 pass 和 observation。文件记录保存 observation，公共 Membership 不再复制文件表；观察与 sweep 在同一所有者锁下执行。只有成功完成的当前 pass 可以证明文件已消失。 |
-| `index.Index` | 保存唯一一份持久导航 Facts、反向依赖、提交票据与 scope 状态。本仓提交后清空 `summary.Facts`，领域摘要只保留领域需要的值。`related` 临时读取 Index Facts，不恢复第二份持久索引。 |
+| `index.Index` | 保存唯一一份持久导航 Facts、反向依赖、提交票据与 scope 状态。本仓提交后清空 `summary.Facts`，领域摘要只保留领域需要的值。`SymbolsWithPrefix` 在有界截断前按 opaque key 前缀和名字过滤；Project namespace 编码与截断后的产品行为留在本仓，不在公共锁内调用领域回调。 |
 
 `Index.Reuse` 的调用点在 `incremental.go`：本仓先确认字节 hash、target/配置解释和客户端 URI 均未变化，再给新的有效票据复用已保留事实。公共 Index 不推断“内容未变”，也不替本仓判断解释是否相同。内容/位置变化走重新分析和 Commit；只有语义相同并不意味着旧位置仍然正确。
 
-[toolkit-design-3.md](../contracts/toolkit-design-3.md)是构建核对的合同快照，其 SHA-256 为 `2477677871f82f8bc9a1c84d9bb44c709edcaf03e92b421a4ffbbd2c41d28c92`。[toolkit.lock.json](../contracts/toolkit.lock.json)、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
+[toolkit-design-4.md](../contracts/toolkit-design-4.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录；锁文件、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
 
 公共层提供有界的数据结构和有效性规则；worker、timer、watcher 注册、配置、Argo 领域语义、LSP 消息和发布策略由本仓持有。Argo CD 与 `zed-argo-workflows` 各自编译引用公共源码，两者没有直接模块依赖；各个原生进程分别实例化 Documents、Index 和 WorkQueue，不共享运行时索引或缓存，也不因此自动提供跨插件跳转。
 
@@ -63,7 +67,9 @@
 
 `check` 经 `workspace.Load` 一次性采集选定 root/scope/file，再完成 Schema 与领域分析并写出统一报告。CLI 保留五秒协作式任务预算和累计输入/投影预算，报告 `analysisComplete` 与 `notEvaluated`。`render-check` 只有在显式调用时执行 renderer；编辑器打开文件不会触发 Helm 渲染或集群连接。
 
-`serve --stdio` 经 `lsp.Run` 启动。串行协议所有者接收通知、接受 buffer 版本、管理取消，并校验 worker 返回结果；后台工作只收到不可变输入。当前 capabilities 包括增量文本同步、hover、definition、references、documentSymbol、completion 和 workspace folders。只有客户端支持版本化 `documentChanges` 才宣告可 resolve 的 code action。当前实现未宣告 rename、workspace symbol、格式化或 semantic tokens；普通 YAML 服务可以并行提供自己的能力。具体协商在 [server.go](../internal/lsp/server.go)。
+`serve --stdio` 经 `lsp.Run` 启动。串行协议所有者接收通知、接受 buffer 版本、管理取消，并校验 worker 返回结果；后台工作只收到不可变输入。当前 capabilities 包括增量文本同步、hover、definition、references、documentSymbol、workspace symbol、completion 和 workspace folders。只有客户端支持版本化 `documentChanges` 才宣告可 resolve 的 code action 与 prepare/rename。当前未宣告格式化或 semantic tokens；普通 YAML 服务可以并行提供自己的能力。具体协商在 [server.go](../internal/lsp/server.go)。
+
+前台最多同时保留四个轻读 worker 和一个重操作 worker。代码动作、resolve、prepare/rename、references 和 workspace symbol 使用重操作额度；hover、completion、documentSymbol 与 definition 使用轻读额度。额度耗尽立即返回可重试错误，不创建无界等待任务；取消请求只撤销交付资格，实际 worker 退出才归还额度，避免取消突发绕过上限。单次请求仍有五秒协作式期限，读取和修改的依赖证明分别校验。
 
 ### 当前文件、关联文件和后台发现
 
@@ -90,12 +96,20 @@ scanner 不递归符号链接目录。显式文件别名以规范路径参与归
 | 成员收敛 | 每 30 秒触发滚动 reconciliation，读取内容而非只信 mtime/size。活动 pass 中的新请求延续到下一轮；失败/部分扫描不证明缺失。目录事件缺少逐文件通知时由 reconciliation 收敛。 |
 | 关联失效 | Index 的反向依赖定位已知消费者；非 YAML 事件涉及 repository path 或 Chart 归属时只重查对应事实和消费者。领域判断与路径采样复用同一份有效 ApplicationSet 投影。 |
 | 只读查询 | 只采集当前请求文档，其他文件从脱离文本的摘要/Index 读取；查询不会推进后台 reconciliation 基线或发布诊断。回答携带实际使用的配置、buffer/revision、候选 key、引用 use set 与相关磁盘状态证明，交付前再次验证。 |
-| 修改 | 局部字段/枚举纠正要求同一接受 revision 和配置，在前后文档/领域检查通过后提供。Project 替换依赖完整 scope；配置 pin 还要求整个相关 root 完成，并重新执行有界的完整修改前后验证。普通编辑热路径不调用该全量验证。 |
+| 修改 | 局部字段/枚举纠正与私有 source ref 重命名要求同一接受 revision 和配置，在前后整个 YAML 流及领域检查通过后提供。Project 替换和资源重命名依赖完整 scope；配置 pin 还要求整个相关 root 完成，并重新执行有界的完整修改前后验证。普通编辑热路径不调用该全量验证。 |
 | 诊断交付 | 已向客户端交付同 revision/配置的健康 workspace 结果后，较晚 Schema-only 结果不得清空更丰富的诊断。后台失败可恢复当前 buffer 的有效文档诊断；过期 batch 中仍有效的领域结果会重新排队交付，不重读已接受字节。 |
 
 关键实现位于 [incremental.go](../internal/lsp/incremental.go)、[incremental_query.go](../internal/lsp/incremental_query.go)、[server.go](../internal/lsp/server.go)与 [pins.go](../internal/lsp/pins.go)。只读结果失效可以拒绝为 `ContentModified` 或以新输入重算；修改候选不能在版本变化后静默沿用。
 
 已知的定义和补全候选在发现未结束时仍可使用，但保留重复候选和精确性约束。部分索引为空不等于资源不存在。缺失目标、唯一绑定、完整引用集合和跨资源编辑需要完整 scope；无法读取、解析失败、超预算或未知归属都不能被当作“没有资源”。一个 root 的失败不应清空健康 root 的诊断和查询。
+
+### 重命名与工作区符号
+
+私有 source ref 重命名覆盖同一 Application 的 `spec.sources[].ref`、Helm `valueFiles` 和 `fileParameters[].path` 中的 `$ref/...`。同文件其他 YAML 文档不参与该私有绑定；前后安全检查仍对称包含整个 YAML 流，既有 sibling 错误不会被误判为新增错误。重复声明、alias/共享锚点、无法精确映射的转义标量以及新名字已被任何声明或引用使用时拒绝修改。生成的编辑使用接受 snapshot 的字节范围转换为 UTF-16，并附打开版本。
+
+AppProject 资源重命名要求 `referencePolicy: closed`、明确 `controlPlaneNamespace`、完整目标 scope 和唯一同 namespace 声明。受支持的 Application 与 ApplicationSet 有效模板 project 引用一起修改；动态或无法独立映射回源标量的绑定无法证明引用全集。每个受影响文件必须已打开且接受当前版本，先应用全部计划再做整体语义验证。scope 摘要用于确定闭包，修改文件重新取得完整 snapshot；这不允许跨 scope、跨 namespace 或修改未知/关闭版本的文件。
+
+工作区符号直接读取 Index 和脱离文本的摘要，不重新读关闭文件。索引 `document:N` 身份直接定位对应摘要文档；AppProject 的 any-namespace lookup key 只产生一个显示项。每个分区先按前缀和名字过滤，所有 root/scope 通过容量 20,000 的最大堆合并，再按 URI、源码位置和名字稳定排序。只对实际返回的文件保留位置证明；结果可能受发现状态或容量限制，trace 的 `complete` 表明这一边界，符号列表本身不证明完整引用集合。
 
 ## 内存与工作量边界
 
@@ -109,6 +123,8 @@ scanner 不递归符号链接目录。显式文件别名以规范路径参与归
 | 会话候选文件 | 100,000 |
 | WorkQueue 就绪容量 / outstanding 容量 | 512 / 100,001；额外 1 个只容纳删除后尚未归还的在途 worker 票据，不扩大文件容量 |
 | 通知入口不同文件事件 | 512；溢出合并为 reconciliation 请求 |
+| 前台请求 | 4 个轻读 + 1 个重操作 worker；每个请求五秒协作式期限 |
+| Project 修复候选 / 工作区符号结果 | 按配置 namespace 过滤后的候选 1,000 / 全局符号 20,000；截断不能充当完整修改证明 |
 | 投影与 ApplicationSet 展开 | 每份分析预算 100,000 逻辑节点、64 MiB 展开字符串；在构造大量有效变体前计费 |
 | 文件摘要、元数据和诊断 | 96 MiB 逻辑计费 |
 | 公共 Index Facts | 96 MiB 逻辑计费、500,000 symbols、1,000,000 references/dependencies |
@@ -129,6 +145,11 @@ scanner 不递归符号链接目录。显式文件别名以规范路径参与归
 | 不变保存零读/零解析、单 watch 局部工作、漏通知、超队列突发和大输入释放 | [persistent_workspace_e2e.py](../tests/persistent_workspace_e2e.py) |
 | 查询与诊断交付期间的新事件、root 隔离 | [query_delivery_e2e.py](../tests/query_delivery_e2e.py)、[publication_delivery_e2e.py](../tests/publication_delivery_e2e.py)、[lsp_regressions_e2e.py](../tests/lsp_regressions_e2e.py) |
 | 正常热编辑未退化为全量采集 | [incremental_performance_e2e.py](../tests/incremental_performance_e2e.py)，检查实际 reads/parses/domain work/fallback，不只计耗时 |
+| source ref 完整修改、UTF-16/多文档隔离、捕获旧引用拒绝、符号排序与版本新鲜度 | [navigation_editing_e2e.py](../tests/navigation_editing_e2e.py)、[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py) |
+| Project 跨文件与 AppSet 精确模板修改、namespace/scope 隔离、动态或歧义拒绝 | [project_rename_e2e.py](../tests/project_rename_e2e.py)、[ablate_project_rename.py](../tests/ablate_project_rename.py) |
+| 新成员事件、提交后的 scope generation、同路径 root 重建都撤销旧修改证明 | [project_rename_proof_test.go](../internal/lsp/project_rename_proof_test.go)、[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)；真实索引状态转换，不使用计时延迟 |
+| 前台准入有界、取消后额度恢复及保护确实必要 | [navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)、[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)；变体必须编译成功并使指定协议断言失败 |
+| 默认 auto 与精确版本复用同一 enum 候选并可 resolve | [shared_schemaquery_e2e.py](../tests/shared_schemaquery_e2e.py)、[ablate_shared_schemaquery.py](../tests/ablate_shared_schemaquery.py)、[shared_schema_test.go](../internal/analysis/shared_schema_test.go) |
 
 Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML 文件，混合 ConfigMap/Application/Workflow，并约束内核峰值 RSS 不超过 512 MiB。它验证指定工作负载的发现和释放，不能推导任意数量的密集 Argo CD 摘要均可装入内存。执行配置在 [tests/native_ci.py](../tests/native_ci.py)。
 
@@ -136,7 +157,7 @@ Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML
 
 原生构建只依赖 Go/C、vendor、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。
 
-适配器协议版本与公共源码合同 `toolkit-design-3` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
+适配器协议版本与公共源码合同 `toolkit-design-4` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
 
 原生版本来自根 `VERSION`，适配器版本来自自身 manifest/Cargo，native pin 来自 `native-server-version`，三者分别有用途。`native.yml` / `release.yml` 验证原生平台产物；`zed.yml` / `zed-release.yml` 验证 WASM、适配器包和确切 native pin；发布输入分别是 [native-release-notes.md](native-release-notes.md)与 [editors/zed/release-notes.md](../editors/zed/release-notes.md)。
 

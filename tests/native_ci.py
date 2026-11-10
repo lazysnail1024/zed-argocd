@@ -3,6 +3,7 @@
 import argparse,hashlib,json,os,pathlib,subprocess,sys,signal,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 BASE_STEPS=('build','package','ci-process-boundary','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
+SOURCE_ABLATIONS=(('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240))
 
 def audit_consumers(platform):
  # Every entry is a required real-process gate, not a documentation-only command.
@@ -18,6 +19,10 @@ def audit_consumers(platform):
   ('alias-projection-lsp','alias_projection_lsp_e2e.py',[],150),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
+  ('navigation-editing','navigation_editing_e2e.py',[],120),
+  ('navigation-editing-guards','navigation_editing_guards_e2e.py',[],180),
+  ('project-rename','project_rename_e2e.py',[],180),
+  ('shared-schemaquery','shared_schemaquery_e2e.py',[],120),
   ('appset-overrides','appset_overrides_e2e.py',['--all-targets'] if full_catalog else [],480 if full_catalog else 180),
   ('quickfix-scaling','quickfix_scaling_e2e.py',[],180),
   ('repository-exclusion','repository_exclusion_e2e.py',[],300),
@@ -46,7 +51,7 @@ def accepted():
 def configure(argv=None):
  global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
  ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
- expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]
+ expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]+([case[0] for case in SOURCE_ABLATIONS] if a.platform=='linux/amd64' else [])
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.
  if os.name!='nt':
@@ -157,6 +162,9 @@ def main():
   if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
   for name,script,options,timeout in audit_consumers(a.platform):
    run(name,[sys.executable,str(ROOT/'tests'/script),str(binary),str(out/name),*options],timeout=timeout)
+  if a.platform=='linux/amd64':
+   for name,script,timeout in SOURCE_ABLATIONS:
+    run(name,[sys.executable,str(ROOT/'tests'/script),str(out/name)],timeout=timeout)
   completed=True
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
  finally:save()
