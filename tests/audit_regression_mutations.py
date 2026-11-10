@@ -80,8 +80,8 @@ MUTATIONS = [
     # responsibilities. Using the spelling as an acquisition key duplicates an
     # aliased resource while the canonical-path control still works.
     mutation("R-07-raw-buffer-identity", "internal/lsp/incremental.go",
-             "canonical := source.URI(workspace.FileURI(path))\n\t\topen[canonical] = b",
-             "canonical := source.URI(uri)\n\t\topen[canonical] = b",
+             "canonical := source.URI(workspace.FileURI(path))\n\t\tb.uri = uri\n\t\topen[canonical] = b",
+             "canonical := source.URI(uri)\n\t\tb.uri = uri\n\t\topen[canonical] = b",
              "workspace_regressions_e2e.py", "uri", "uri-symlink-navigation",
              ("definitionClientURI", "commentDoesNotChangeDiagnostics"), ("referencesClientURI",),
              positive_cases=("uri-canonical-navigation", "uri-canonical-incremental-work",
