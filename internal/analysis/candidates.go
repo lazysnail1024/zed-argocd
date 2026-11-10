@@ -131,7 +131,7 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 				origin := candidate.origin([]string{"metadata", "name"})
 				detail := fmt.Sprintf("AppProject %s/%s; %s; %s location", ns, name, candidate.Snapshot.URI(), origin.Kind)
 				if origin.Kind == "exact" {
-					location := nodeRange(candidate, origin.Node)
+					location := candidate.rangeAt([]string{"metadata", "name"})
 					detail = fmt.Sprintf("AppProject %s/%s; %s:%d", ns, name, candidate.Snapshot.URI(), location.Start.Line+1)
 				}
 				if options.ControlPlaneNamespace == "" {

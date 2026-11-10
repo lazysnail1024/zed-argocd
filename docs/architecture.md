@@ -16,12 +16,15 @@ Changing `VERSION` on `main` starts the complete native release gate. Only after
 it passes does the workflow create the version tag at that exact commit and
 publish its artifacts. Matching tag pushes and manual runs remain available.
 
-Open-document diagnostics run before workspace acquisition with a separate
-budget. Their partial facts never become the editable workspace index. Background
-failure preserves current document checks while reporting incomplete cross-file
-analysis; Git subdirectories do not implicitly change the declared workspace
-scope. See [workspace diagnostics](workspace-diagnostics.md) for publication
-semantics, regression tests and the GUI acceptance boundary.
+Open-document diagnostics use an independent lane. Workspace discovery resumes
+across batches and installs per-file detached summaries into the shared toolkit's
+revisioned index; closed YAML text and syntax trees are released. Buffer/read
+tickets, URI-coalesced work and query delivery proofs prevent stale results.
+Known positive candidates can serve partial reads, while absence, uniqueness and
+cross-resource edits require completeness. Argo CD semantics remain in this
+repository, and the CLI preserves its bounded one-shot behavior. See
+[workspace diagnostics](workspace-diagnostics.md) for admission limits, publication
+states, event behavior and the native/GUI acceptance boundary.
 
 ## Zed adapter
 

@@ -4,8 +4,8 @@
 The sibling failures are deterministic input/parser limits, not a guess about how
 many files happen to consume five seconds on a particular runner. The complete
 wire transcript proves that a background failure cannot erase an open buffer's
-local diagnostics. --timeout requires a test-only build with its background
-analysis deadline shortened; it fails unless an actual deadline is observed.
+local diagnostics. --timeout requires a test-only build with its per-file
+background deadline shortened; it fails unless an actual deadline is observed.
 This is a native LSP test, not a Zed GUI installation test.
 """
 import argparse
@@ -17,6 +17,7 @@ import sys
 import time
 
 import audit_repair_e2e as wire
+import persistent_workspace_e2e as progress
 
 
 VALID = wire.APP
@@ -41,11 +42,13 @@ def wait_message(client, predicate, since=0):
     return client.wait(predicate)
 
 
-def wait_diagnostics(client, file, version, since=0):
+def wait_diagnostics(client, file, version, since=0, scope=None, predicate=lambda ds: True):
     message = wait_message(client, lambda m:
                            m.get('method') == 'textDocument/publishDiagnostics'
                            and m['params'].get('uri') == file.as_uri()
-                           and m['params'].get('version') == version, since)
+                           and m['params'].get('version') == version
+                           and (scope is None or m['params'].get('x-argocd-analysis-scope', 'workspace') == scope)
+                           and predicate(m['params']['diagnostics']), since)
     return message['params']['diagnostics']
 
 
@@ -99,19 +102,28 @@ def scenario(out, failure):
            'initialConfigPresent': (root / '.argocd-ls.yaml').exists()}
     client = None
     try:
-        client = wire.LSP(out, [root])
+        client = progress.Client(out, [root])
+        traces = progress.Traces(client)
         started = time.monotonic()
         client.open(app, INVALID, 1)
-        first = wait_diagnostics(client, app, 1)
+        first = wait_diagnostics(client, app, 1, scope='document',
+                                 predicate=lambda ds: has_code(ds, 'SCHEMA_TYPE'))
         row['firstDiagnosticSeconds'] = time.monotonic() - started
         check(row, 'zero-config-unsaved-buffer-type-error', has_code(first, 'SCHEMA_TYPE'), first)
 
-        # Observe the actual background failure, then drain its entire serial
-        # publication transaction with an ordinary JSON-RPC processing barrier.
+        # A deadline is now isolated to one background file operation. After
+        # the document lane has published, force that same URI through the
+        # background worker; this also tests recovery across a save-only epoch.
+        # The shortened-deadline control must really fail on this open file.
+        # The ordinary fixtures fail on a sibling and must stay isolated.
         if failure == 'deadline':
+            failure_since = len(client.messages)
+            client.send('textDocument/didSave', {'textDocument': {'uri': app.as_uri()}})
             failed = wait_message(client, lambda m:
-                                  m.get('method') == 'window/logMessage'
-                                  and reason in m['params'].get('message', ''))
+                                  m.get('method') == 'textDocument/publishDiagnostics'
+                                  and m['params'].get('uri') == app.as_uri()
+                                  and any(reason in d.get('message', '')
+                                          for d in m['params'].get('diagnostics', [])), failure_since)
         else:
             failed = wait_message(client, lambda m:
                                   m.get('method') == 'textDocument/publishDiagnostics'
@@ -134,6 +146,16 @@ def scenario(out, failure):
         check(row, 'background-failure-cannot-clear-local-type-error', bool(history)
               and history[-1].get('version') == 1
               and has_code(history[-1]['diagnostics'], 'SCHEMA_TYPE'), history[-1] if history else None)
+        limited = progress.wait_until(client, lambda: next((entry for entry in traces.since(0)
+            if entry['delivered'] and entry['stats'].get('state') == 'Limited'
+            and entry['stats'].get('queueDepth') == 0), None), 15, 'settled background failure')
+        check(row, 'background-failure-cannot-claim-complete',
+              limited['stats'].get('complete') is False, limited)
+        references = client.request('textDocument/references', {
+            'textDocument': {'uri': project.as_uri()}, 'position': {'line': 3, 'character': 12},
+            'context': {'includeDeclaration': False}})
+        check(row, 'partial-scope-refuses-exhaustive-references',
+              references.get('error', {}).get('code') == -32801, references)
 
         hover = client.request('textDocument/hover', {
             'textDocument': {'uri': app.as_uri()}, 'position': {'line': 5, 'character': 5}})
@@ -153,7 +175,8 @@ def scenario(out, failure):
         client.change(app, INVALID, 3)
         client.change(app, VALID, 4)
         client.change(app, INVALID, 5)
-        newest = wait_diagnostics(client, app, 5, since)
+        newest = wait_diagnostics(client, app, 5, since,
+                                  predicate=lambda ds: has_code(ds, 'SCHEMA_TYPE'))
         barrier(client)
         history = publications(client, app, since)
         latest_index = next((index for index, item in enumerate(history)
@@ -168,24 +191,35 @@ def scenario(out, failure):
         check(row, 'foreign-gvk-clears-argo-schema-diagnostics', not has_code(foreign, 'SCHEMA_TYPE')
               and not any(d.get('code', '').startswith('CD_') for d in foreign), foreign)
 
-        # Repair the unrelated repository without restarting the server. Add
-        # only namespace/reference policy (no version pin) for navigation.
-        problem.write_text(FOREIGN, encoding='utf-8')
-        config = wire.write(root, '.argocd-ls.yaml',
-                            'schemaVersion: 1\ncontrolPlaneNamespace: argocd\nreferencePolicy: closed\n')
-        client.send('workspace/didChangeWatchedFiles', {'changes': [
-            {'uri': problem.as_uri(), 'type': 2}, {'uri': config.as_uri(), 'type': 1}]})
+        # Real input failures recover after their input changes. The permanent
+        # test-only one-nanosecond deadline cannot become complete; its document
+        # lane must remain useful without claiming cross-file authority.
+        mark = traces.mark()
+        if failure != 'deadline':
+            problem.write_text(FOREIGN, encoding='utf-8')
+            config = wire.write(root, '.argocd-ls.yaml',
+                                'schemaVersion: 1\ncontrolPlaneNamespace: argocd\nreferencePolicy: closed\n')
+            client.send('workspace/didChangeWatchedFiles', {'changes': [
+                {'uri': problem.as_uri(), 'type': 2}, {'uri': config.as_uri(), 'type': 1}]})
         since = len(client.messages)
         client.change(app, VALID, 7)
-        wait_diagnostics(client, app, 7, since)
-        response = client.request('textDocument/definition', {
-            'textDocument': {'uri': app.as_uri()}, 'position': {'line': 5, 'character': 13}})
-        check(row, 'cross-repository-reference-analysis-recovers-without-restart',
-              {item['uri'] for item in response.get('result', [])} == {project.as_uri()}, response)
+        if failure != 'deadline':
+            ready = progress.wait_ready(client, traces, mark, 0, 30, False)
+            wait_diagnostics(client, app, 7, since, scope='workspace')
+            response = client.request('textDocument/definition', {
+                'textDocument': {'uri': app.as_uri()}, 'position': {'line': 5, 'character': 13}})
+            check(row, 'cross-repository-reference-analysis-recovers-without-restart',
+                  ready['stats']['complete']
+                  and {item['uri'] for item in response.get('result', [])} == {project.as_uri()}, response)
+        else:
+            valid_local = wait_diagnostics(client, app, 7, since, scope='document')
+            check(row, 'permanent-deadline-still-allows-valid-local-buffer',
+                  not has_code(valid_local, 'SCHEMA_TYPE'), valid_local)
 
         since = len(client.messages)
         client.change(app, INVALID, 8)
-        reopened = wait_diagnostics(client, app, 8, since)
+        reopened = wait_diagnostics(client, app, 8, since,
+                                    predicate=lambda ds: has_code(ds, 'SCHEMA_TYPE'))
         check(row, 'repaired-workspace-still-checks-unsaved-buffer', has_code(reopened, 'SCHEMA_TYPE'), reopened)
         since = len(client.messages)
         client.send('textDocument/didClose', {'textDocument': {'uri': app.as_uri()}})
@@ -218,7 +252,7 @@ def main():
     parser.add_argument('binary', type=pathlib.Path)
     parser.add_argument('output', type=pathlib.Path)
     parser.add_argument('--timeout', action='store_true',
-                        help='require a test-only binary with a shortened background deadline')
+                        help='require a test-only binary with a shortened per-file background deadline')
     args = parser.parse_args()
     wire.BINARY = args.binary.resolve()
     out = args.output.resolve()
@@ -235,6 +269,7 @@ def main():
     report = {'command': sys.argv, 'binarySHA256': wire.hash_file(wire.BINARY),
               'runnerSHA256': wire.hash_file(pathlib.Path(__file__)),
               'transportSHA256': wire.hash_file(pathlib.Path(wire.__file__)),
+              'progressSHA256': wire.hash_file(pathlib.Path(progress.__file__)),
               'platform': sys.platform, 'python': sys.version,
               'guiAcceptance': False, 'timeoutBuildRequired': args.timeout, 'rows': rows,
               'passed': len(rows) == len(failures) and all(row['passed'] for row in rows)}

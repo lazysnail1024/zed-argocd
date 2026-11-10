@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Prove document diagnostics survive real deadlines and the regression detects loss.
+"""Prove document diagnostics survive per-file deadlines and detect their loss.
 
 Both variants compile isolated copies of this checkout. The deadline is shortened
-only in a test copy, with no production hook. Build/transport/runner failures do
-not count as detecting the deliberately removed publication recovery.
+only in a test copy, with no production hook. The negative control removes the
+real incremental publication recovery under the same per-file timeout. Ordinary
+sibling errors are already isolated and cannot exercise that merge guard.
+Build/transport/runner failures do not count as detecting the removed recovery.
 """
 import argparse
 import json
@@ -21,11 +23,13 @@ from audit_regression_mutations import FatalCommandError, command, digest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONSUMER = ROOT / 'tests/parent_workspace_lsp_e2e.py'
 VARIANTS = (
-    ('background-deadline', 'const workspaceAnalysisTimeout = 5 * time.Second',
-     'const workspaceAnalysisTimeout = time.Nanosecond', True),
-    ('publication-recovery-removed', 'recoverDocumentPublications(result, documents, roots)',
-     'result.publications', False),
+    ('background-file-deadline', False),
+    ('publication-recovery-removed', True),
 )
+DEADLINE = ('const workspaceAnalysisTimeout = 5 * time.Second',
+            'const workspaceAnalysisTimeout = time.Nanosecond')
+RECOVERY = ('recoverDocumentPublications(result, documents, roots, buffers)',
+            'result.publications')
 
 
 def consumer(binary, folder, env, timeout=False):
@@ -42,14 +46,16 @@ def detected_loss(outcome):
     if outcome['exit'] != 1 or report.get('passed') is not False:
         return False
     rows = {row['id']: row for row in report.get('rows', [])}
-    expected = {'six-repositories-acquisition', 'six-repositories-parser'}
+    expected = {'six-repositories-deadline'}
     if set(rows) != expected:
         return False
     required = ('background-failure-was-exercised', 'zero-config-unsaved-buffer-type-error',
                 'local-diagnostics-precede-background-failure',
                 'local-schema-hover-survives-background-failure',
                 'local-field-completion-survives-background-failure',
-                'cross-repository-reference-analysis-recovers-without-restart', 'clean-server-exit')
+                'background-failure-cannot-claim-complete',
+                'partial-scope-refuses-exhaustive-references',
+                'permanent-deadline-still-allows-valid-local-buffer', 'clean-server-exit')
     for row in rows.values():
         checks = {item['id']: item['passed'] for item in row.get('checks', [])}
         if (row.get('error') or row.get('passed') is not False
@@ -84,10 +90,10 @@ def worker(args):
         report['control'] = consumer(binary, control, env)
         if report['control']['exit'] != 0 or report['control']['report'].get('passed') is not True:
             raise RuntimeError('Unmodified binary did not pass the positive control')
-        for ident, anchor, replacement, shortened_deadline in VARIANTS:
+        for ident, remove_recovery in VARIANTS:
             folder = out / ident
             folder.mkdir()
-            row = {'id': ident, 'passed': False, 'anchor': anchor, 'replacement': replacement}
+            row = {'id': ident, 'passed': False, 'mutations': []}
             report['rows'].append(row)
             save()
             with tempfile.TemporaryDirectory(prefix='argocd-parent-fault-') as temporary:
@@ -97,10 +103,14 @@ def worker(args):
                     shutil.copytree(original, destination) if original.is_dir() else shutil.copy2(original, destination)
                 target = source / 'internal/lsp/server.go'
                 text = target.read_text(encoding='utf-8')
-                if text.count(anchor) != 1:
-                    raise RuntimeError(ident + ': mutation anchor must occur exactly once')
                 row['sourceSHA256'] = digest(target)
-                target.write_text(text.replace(anchor, replacement, 1), encoding='utf-8')
+                for anchor, replacement in (DEADLINE, RECOVERY) if remove_recovery else (DEADLINE,):
+                    if text.count(anchor) != 1:
+                        raise RuntimeError(ident + ': mutation anchor must occur exactly once: ' + anchor)
+                    text = text.replace(anchor, replacement, 1)
+                    row['mutations'].append({'file': 'internal/lsp/server.go', 'anchor': anchor,
+                                             'replacement': replacement})
+                target.write_text(text, encoding='utf-8')
                 row['variantSourceSHA256'] = digest(target)
                 candidate = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
                 row['build'] = command([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath',
@@ -108,8 +118,8 @@ def worker(args):
                 if row['build']['exit'] != 0:
                     raise RuntimeError(ident + ': fault variant did not compile')
                 row['binarySHA256'] = digest(candidate)
-                row['oracle'] = consumer(candidate, folder, env, shortened_deadline)
-                if shortened_deadline:
+                row['oracle'] = consumer(candidate, folder, env, timeout=True)
+                if not remove_recovery:
                     row['passed'] = (row['oracle']['exit'] == 0
                                      and row['oracle']['report'].get('passed') is True
                                      and row['oracle']['report'].get('timeoutBuildRequired') is True)

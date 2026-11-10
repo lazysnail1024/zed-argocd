@@ -731,7 +731,15 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 				break
 			}
 			root, _ := value.(map[string]any)
-			facts.References = append(facts.References, analysis.RepositoryReferences(f.Snapshot, root)...)
+			references, err := analysis.RepositoryReferences(ctx, f.Snapshot, root)
+			if err != nil {
+				input.Complete = false
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return failure("INPUT_BUDGET_EXCEEDED", err.Error())
+			}
+			facts.References = append(facts.References, references...)
 		}
 		next[f.Snapshot.URI()] = facts
 	}

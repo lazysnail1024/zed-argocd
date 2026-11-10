@@ -1,7 +1,9 @@
-# github.com/lazysnail1024/k8s-crd-toolkit v0.0.0-20261103033718-ae52b82ec6c9
+# github.com/lazysnail1024/k8s-crd-toolkit v0.0.0-20261110063134-79c46c0625b9
 ## explicit; go 1.27.3
 github.com/lazysnail1024/k8s-crd-toolkit/edit
+github.com/lazysnail1024/k8s-crd-toolkit/index
 github.com/lazysnail1024/k8s-crd-toolkit/source
+github.com/lazysnail1024/k8s-crd-toolkit/workspace
 github.com/lazysnail1024/k8s-crd-toolkit/yamlview
 github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser
 github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser/grammar

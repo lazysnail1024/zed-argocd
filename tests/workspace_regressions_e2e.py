@@ -360,7 +360,7 @@ class Suite:
             client.close()
         hot = [row for row in traces(folder) if not row["fullScan"]]
         self.record(name + "-incremental-work", {"threeCompletedEdits": len(hot) == 3, "noDiskReads": all(row["diskReads"] == 0 for row in hot),
-                    "oneParsedFile": all(row["parsedFiles"] == 1 for row in hot), "onlyAppAndProjectDomain": all(row["domainDocuments"] == 2 for row in hot),
+                    "oneParsedFile": all(row["parsedFiles"] == 1 for row in hot), "onlyAppAndProjectDomain": [row["domainDocuments"] for row in hot] == [2, 1, 2],
                     "noHiddenFallback": all(row.get("acquisitionFallbacks") == 0 for row in hot)}, hot)
 
     def uri_retarget(self):
@@ -393,8 +393,8 @@ class Suite:
         finally:
             client.close()
         hot = [row for row in traces(folder) if not row["fullScan"]]
-        self.record("uri-retarget-invalidates-membership", {"oneCompletedEdit": len(hot) == 1, "identityFallback": len(hot) == 1 and hot[0].get("acquisitionFallbacks") == 1,
-                    "freshAcquisition": len(hot) == 1 and hot[0]["diskReads"] > 0}, hot)
+        self.record("uri-retarget-invalidates-membership", {"oneCompletedEdit": len(hot) == 1, "identityReassignedWithoutRootScan": len(hot) == 1 and hot[0].get("acquisitionFallbacks") == 0,
+                    "oldIdentityRestoredFromDisk": len(hot) == 1 and hot[0]["diskReads"] == 1 and hot[0]["parsedFiles"] == 2}, hot)
 
     def uri(self):
         for callback in [lambda: self.uri_one(False), lambda: self.uri_one(True), self.uri_retarget]:

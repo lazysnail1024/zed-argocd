@@ -50,7 +50,7 @@ func Symbols(documents []Document, uri string) []Symbol {
 		if name == "" || !doc.exact([]string{"metadata", "name"}) {
 			continue
 		}
-		result = append(result, Symbol{Name: name, Kind: 19, Range: nodeRange(doc, doc.Root), SelectionRange: nodeRange(doc, locate(doc.Root, []string{"metadata", "name"}))})
+		result = append(result, Symbol{Name: name, Kind: 19, Range: doc.rangeAt(nil), SelectionRange: doc.rangeAt([]string{"metadata", "name"})})
 	}
 	return result
 }
@@ -82,12 +82,13 @@ func Definition(documents []Document, options DomainOptions, uri string, p Posit
 		for _, candidate := range documents {
 			meta := object(candidate.Value["metadata"])
 			if candidate.Kind == "AppProject" && candidate.exact([]string{"metadata", "name"}) && literal(meta["name"]) == project && literal(meta["namespace"]) == options.ControlPlaneNamespace {
-				result = append(result, Location{string(candidate.Snapshot.URI()), nodeRange(candidate, locate(candidate.Root, []string{"metadata", "name"}))})
+				result = append(result, Location{string(candidate.Snapshot.URI()), candidate.rangeAt([]string{"metadata", "name"})})
 			}
 		}
 	}
 	return result
 }
+
 func References(documents []Document, options DomainOptions, uri string, p Position, includeDeclaration bool) []Location {
 	result := []Location{}
 	documents = queryDocuments(documents)
@@ -132,12 +133,12 @@ func References(documents []Document, options DomainOptions, uri string, p Posit
 	for _, doc := range documents {
 		if doc.Kind == "Application" && literal(object(doc.Value["spec"])["project"]) == project {
 			if doc.exact([]string{"spec", "project"}) {
-				result = append(result, Location{string(doc.Snapshot.URI()), nodeRange(doc, locate(doc.Root, []string{"spec", "project"}))})
+				result = append(result, Location{string(doc.Snapshot.URI()), doc.rangeAt([]string{"spec", "project"})})
 			}
 		}
 		if includeDeclaration && doc.Kind == "AppProject" && literal(object(doc.Value["metadata"])["name"]) == project && literal(object(doc.Value["metadata"])["namespace"]) == options.ControlPlaneNamespace {
 			if doc.exact([]string{"metadata", "name"}) {
-				result = append(result, Location{string(doc.Snapshot.URI()), nodeRange(doc, locate(doc.Root, []string{"metadata", "name"}))})
+				result = append(result, Location{string(doc.Snapshot.URI()), doc.rangeAt([]string{"metadata", "name"})})
 			}
 		}
 	}
@@ -288,8 +289,8 @@ func queryDocuments(documents []Document) []Document {
 	result := []Document{}
 	for _, doc := range documents {
 		if doc.Kind == "ApplicationSet" {
-			embedded, _ := appSet(doc)
-			result = append(result, embedded)
+			embedded, _ := appSetVariants(doc)
+			result = append(result, embedded...)
 		} else {
 			result = append(result, doc)
 		}

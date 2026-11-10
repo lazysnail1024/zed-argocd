@@ -3,9 +3,9 @@ package yamlview
 
 import (
 	"context"
+	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser"
-	"fmt"
 	"strings"
 )
 
@@ -100,7 +100,7 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 		var issues func(parser.Node)
 		issues = func(n parser.Node) {
 			if n.Kind == "ERROR" || n.Missing {
-				v.issues = append(v.issues, ParseIssue{source.Span{n.Start, n.End}, "invalid YAML syntax"})
+				v.issues = append(v.issues, ParseIssue{source.Span{Start: n.Start, End: n.End}, "invalid YAML syntax"})
 			}
 			for _, c := range n.Children {
 				issues(c)
@@ -108,14 +108,14 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 		}
 		issues(tree)
 		if tree.Kind == "ERROR" {
-			v.documents = append(v.documents, Document{convert(tree, text), source.Span{tree.Start, tree.End}, false})
+			v.documents = append(v.documents, Document{convert(tree, text), source.Span{Start: tree.Start, End: tree.End}, false})
 			continue
 		}
 		for _, c := range tree.Children {
 			if c.Kind == "document" {
-				v.documents = append(v.documents, Document{convert(c, text), source.Span{c.Start, c.End}, !c.Damaged})
+				v.documents = append(v.documents, Document{convert(c, text), source.Span{Start: c.Start, End: c.End}, !c.Damaged})
 			} else if c.Damaged {
-				v.documents = append(v.documents, Document{convert(c, text), source.Span{c.Start, c.End}, false})
+				v.documents = append(v.documents, Document{convert(c, text), source.Span{Start: c.Start, End: c.End}, false})
 			}
 		}
 	}
@@ -128,7 +128,7 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 	return v, nil
 }
 func convert(p parser.Node, text string) Node {
-	n := Node{span: source.Span{p.Start, p.End}, raw: text[p.Start:p.End], damaged: p.Damaged}
+	n := Node{span: source.Span{Start: p.Start, End: p.End}, raw: text[p.Start:p.End], damaged: p.Damaged}
 	switch p.Kind {
 	case "ERROR":
 		n.kind = Error
@@ -175,7 +175,7 @@ func convert(p parser.Node, text string) Node {
 		}
 		n.kind = Empty
 		n.raw = ""
-		n.span = source.Span{p.End, p.End}
+		n.span = source.Span{Start: p.End, End: p.End}
 		return n
 	}
 	if p.Missing || p.Damaged {

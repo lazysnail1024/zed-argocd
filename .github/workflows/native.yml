@@ -90,6 +90,13 @@ jobs:
       run: |
         set -o pipefail
         go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis 2>&1 | tee artifacts/native-ci/go-tests.log
+    - name: Check concurrent index and overlay delivery
+      if: matrix.platform == 'linux/amd64'
+      shell: bash
+      run: |
+        go build -mod=vendor -race -o artifacts/native-ci/build/argocd-ls-race ./cmd/argocd-ls
+        python tests/mixed_parent_index_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-mixed-parent --ordinary-files 1000
+        python tests/publication_delivery_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-publication-delivery
     - name: Test release staging and complete-platform aggregation
       run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e
     - name: Prove native release works without any editor checkout

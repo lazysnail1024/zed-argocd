@@ -204,6 +204,9 @@ func mergeTemplate(dst, patch map[string]any, prefix []string, origins map[strin
 }
 
 func appSetVariants(doc Document) ([]Document, []Diagnostic) {
+	if variants, diagnostics, ok := doc.compactVariants(); ok {
+		return variants, diagnostics
+	}
 	spec := object(doc.Value["spec"])
 	variants := []Document{}
 	diagnostics := []Diagnostic{}

@@ -32,6 +32,10 @@ type Diagnostic struct {
 	Message  string `json:"message"`
 }
 type Document struct {
+	// compact is a detached workspace summary. Only a freshly acquired full
+	// document is used for syntax queries, Schema validation or edits.
+	compact         *compactDocument
+	appSetExpansion applicationSetCost
 	OverrideOrigins map[string]yamlview.Node
 	ProjectionNodes int
 	Origin          *valueOrigin
@@ -58,29 +62,67 @@ type preparedSchema struct {
 
 // Analyzer owns immutable schema preparation and graph accounting for one result.
 type Analyzer struct {
-	schemas         map[string]preparedSchema
-	projectionNodes int
-	projections     map[*valueOrigin]bool
+	schemas           map[string]preparedSchema
+	projectionNodes   int
+	projections       map[*valueOrigin]bool
+	appSetBytes       int
+	appSetProjections map[applicationSetIdentity]applicationSetCost
 }
 
-// ProjectionNodes is the retained logical graph size in this analysis result.
+// An expansion identity is independent of exact/derived source provenance.
+// Ordinary YAML has no Origin graph but still owns ApplicationSet work.
+type applicationSetIdentity struct {
+	uri      source.URI
+	revision source.Revision
+	span     source.Span
+}
+
+// ProjectionNodes includes retained YAML graphs and admitted ApplicationSet work.
 func (a *Analyzer) ProjectionNodes() int { return a.projectionNodes }
 
-// ReuseProjections charges immutable graph instances once, without retaining text.
-// Admission is atomic so a refused scope can be analyzed normally instead.
+// BeginFile keeps reusable Schema preparation while starting an independent,
+// bounded file job. The CLI's aggregate analyzer does not call this method.
+func (a *Analyzer) BeginFile() {
+	a.projectionNodes = 0
+	a.projections = nil
+	a.appSetBytes = 0
+	a.appSetProjections = nil
+}
+
+// ReuseProjections charges immutable graphs and admitted expansions once without
+// retaining text. Both node and string admission are atomic across all documents.
 func (a *Analyzer) ReuseProjections(documents []Document) bool {
 	pending := map[*valueOrigin]int{}
+	expansions := map[applicationSetIdentity]applicationSetCost{}
 	for _, doc := range documents {
+		graphNodes := doc.ProjectionNodes - doc.appSetExpansion.nodes
+		if graphNodes < 0 || doc.appSetExpansion.nodes < 0 || doc.appSetExpansion.bytes < 0 {
+			return false
+		}
 		if doc.Origin != nil && !a.projections[doc.Origin] {
-			pending[doc.Origin] = doc.ProjectionNodes
+			pending[doc.Origin] = graphNodes
+		}
+		if doc.appSetExpansion.nodes != 0 || doc.appSetExpansion.bytes != 0 {
+			identity := applicationSetIdentity{doc.Snapshot.URI(), doc.Snapshot.Revision(), doc.Root.Span()}
+			if _, charged := a.appSetProjections[identity]; !charged {
+				expansions[identity] = doc.appSetExpansion
+			}
 		}
 	}
 	total := a.projectionNodes
+	bytes := a.appSetBytes
 	for _, nodes := range pending {
+		if nodes > maxProjectionNodes-total {
+			return false
+		}
 		total += nodes
 	}
-	if total > maxProjectionNodes {
-		return false
+	for _, cost := range expansions {
+		if cost.nodes > maxProjectionNodes-total || cost.bytes > maxApplicationSetExpansionBytes-bytes {
+			return false
+		}
+		total += cost.nodes
+		bytes += cost.bytes
 	}
 	if a.projections == nil {
 		a.projections = map[*valueOrigin]bool{}
@@ -88,7 +130,14 @@ func (a *Analyzer) ReuseProjections(documents []Document) bool {
 	for origin := range pending {
 		a.projections[origin] = true
 	}
+	if a.appSetProjections == nil {
+		a.appSetProjections = map[applicationSetIdentity]applicationSetCost{}
+	}
+	for identity, cost := range expansions {
+		a.appSetProjections[identity] = cost
+	}
 	a.projectionNodes = total
+	a.appSetBytes = bytes
 	return true
 }
 
@@ -99,6 +148,9 @@ func (a *Analyzer) ReuseSchemas(documents []Document) {
 		a.schemas = map[string]preparedSchema{}
 	}
 	for _, doc := range documents {
+		if doc.compact != nil {
+			continue
+		}
 		a.schemas[doc.Target+"/"+doc.Kind] = preparedSchema{doc.SchemaData, doc.CompiledSchema}
 	}
 }
@@ -165,6 +217,23 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
+		expansion := applicationSetCost{}
+		if resourceKind == "ApplicationSet" {
+			// A reused immutable identity has already reserved its expansion;
+			// do not charge it twice when this source is analyzed again.
+			identity := applicationSetIdentity{s.URI(), s.Revision(), root.Span()}
+			previous := a.appSetProjections[identity]
+			expansion, err = applicationSetExpansion(ctx, object(value), maxProjectionNodes-a.projectionNodes-projected.Nodes+previous.nodes, maxApplicationSetExpansionBytes-a.appSetBytes+previous.bytes)
+			if err != nil {
+				if ctx.Err() != nil {
+					return result, ctx.Err()
+				}
+				result.Incomplete = true
+				failure := err.(*projectionError)
+				emit(root, failure.Code, failure.Message)
+				continue
+			}
+		}
 		key := target + "/" + resourceKind
 		prepared, ok := a.schemas[key]
 		if !ok {
@@ -183,7 +252,7 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			a.schemas[key] = prepared
 		}
 		unknownPaths := map[string]bool{}
-		document := Document{ProjectionNodes: projected.Nodes, Snapshot: s, Root: root, Value: object(value), Origin: projected.Origin, Kind: resourceKind, Target: target, SchemaData: prepared.data, CompiledSchema: prepared.compiled}
+		document := Document{ProjectionNodes: projected.Nodes + expansion.nodes, appSetExpansion: expansion, Snapshot: s, Root: root, Value: object(value), Origin: projected.Origin, Kind: resourceKind, Target: target, SchemaData: prepared.data, CompiledSchema: prepared.compiled}
 		a.ReuseProjections([]Document{document})
 		if document.Value != nil {
 			result.Documents = append(result.Documents, document)

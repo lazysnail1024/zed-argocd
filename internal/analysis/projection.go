@@ -329,6 +329,9 @@ func projectValuesWithin(ctx context.Context, raw string, syntax yamlview.Node, 
 }
 
 func (doc Document) origin(parts []string) valueOrigin {
+	if kind, ok := doc.compactOrigin(parts); ok {
+		return valueOrigin{Kind: kind}
+	}
 	for length := len(parts); length >= 0; length-- {
 		if node, ok := doc.OverrideOrigins[strings.Join(parts[:length], "/")]; ok {
 			return valueOrigin{Node: node, Kind: "derived"}
