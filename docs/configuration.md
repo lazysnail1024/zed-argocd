@@ -15,8 +15,8 @@ between fields. Combining fields that never coexisted in a supported release is
 not a valid compatibility strategy. Completion and hover expose the supported
 field space. Local static semantic checks continue to run.
 
-The compatibility window is the newest stable major and the previous major,
-starting at the previous major's first release. It is refreshed when the server's
+At catalog collection time, the compatibility window is the newest stable major
+and the previous major, starting at the previous major's first release. It is refreshed when the server's
 catalog is regenerated and published. An installed binary cannot know about
 upstream releases published after its catalog was built.
 
@@ -55,4 +55,6 @@ analysis-budget failures remain visible as incomplete analysis.
 Use `argocd-ls explain-config --root .` for the effective configuration,
 `argocd-ls version --json` for the bundled catalog and release identity, and
 `argocd-ls check --help` for CLI options. See the catalog lock and schema generation
-tools for the exact upstream sources and hashes.
+tools for the exact upstream sources and hashes. The checked-in catalog's cutoff
+and inventory are in [version support](multi-version-support.md); current file
+indexing, completeness and edit boundaries are in [architecture](architecture.md).

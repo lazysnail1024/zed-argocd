@@ -12,13 +12,12 @@ explicit `native-server-version` pin and direct release URL; it never relies on
 GitHub's latest-stable-release endpoint. Published versions are not overwritten.
 Corrections receive a new alpha number.
 
-Alpha.2 restored historical ApplicationSet fields, including `ksonnet` in
-ApplicationSet templates, from the standalone CRDs referenced by Argo CD 2.3.x's
-optional stable addon manifests. Alpha.3 additionally protects current-file
-diagnostics when workspace analysis times out or encounters malformed sibling
-YAML. The automatic compatibility window remains 2.0.0–3.6.1. Published alpha.1
-and alpha.2 releases remain unchanged. See the
-[native release notes](native-release-notes.md).
+The published alpha.3 native release protects current-file diagnostics when
+workspace analysis times out or encounters malformed sibling YAML. Its bundled
+compatibility window is 2.0.0–3.6.1; see the [native release notes](native-release-notes.md).
+The [current source architecture](architecture.md) can include later changes.
+An unchanged `VERSION` or adapter pin does not put those changes into an existing
+published binary. Check `argocd-ls version --json` for the actual source identity.
 
 ## Release automation
 
@@ -151,6 +150,4 @@ and native tests execute extracted servers. These do not claim a full real Zed
 GUI session on every platform. Manual GUI acceptance remains separately tracked
 for this alpha; the release is not a Zed extension-store approval.
 
-Upstream installation behavior is defined by Zed's
-[extension host](https://github.com/zed-industries/zed/blob/main/crates/extension_host/src/extension_host.rs)
-and [platform paths](https://github.com/zed-industries/zed/blob/main/crates/paths/src/paths.rs).
+See [the documentation index](README.md) for development and implementation details.
