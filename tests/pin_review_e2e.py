@@ -5,6 +5,8 @@ HERE=pathlib.Path(__file__).resolve().parent
 BINARY=pathlib.Path(os.environ.get('CD_AUDIT_BINARY',str(HERE.parent/'build/argocd-ls'))).resolve()
 OUT=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(HERE.parent/'artifacts/pin-review'))).resolve()
 os.environ.update(CD_AUDIT_BINARY=str(BINARY),CD_AUDIT_OUTPUT=str(OUT))
+os.environ['ARGOCD_LS_TRACE']='1'
+from persistent_workspace_e2e import Client, Traces, wait_settled
 spec=importlib.util.spec_from_file_location('client',HERE/'audit_repair_e2e.py');e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 RUNNER=pathlib.Path(__file__).read_bytes()
 ROWS=[]
@@ -78,9 +80,10 @@ for item in CASES:
     before=cli(out,root,item['override']);observed={'beforeCLI':before};passed=False;c=None
     try:
         assert before['exit']==0,'input configuration must be valid before the pin'
-        c=e.LSP(out,[root])
+        c=Client(out,[root]);traces=Traces(c);mark=traces.mark()
         if item['override']:c.send('workspace/didChangeConfiguration',{'settings':{'targetVersion':item['override']}})
         c.open(config,item['text'],31);ds=c.diag(config,31);observed['beforeDiagnostics']=ds
+        observed['beforeIndex']=wait_settled(c,traces,mark,allow_limited=item['forbid'])
         params={'textDocument':{'uri':uri},'range':selection(item['text'],item['selection']),'context':{'diagnostics':[]}}
         response=c.request('textDocument/codeAction',params);observed['actionResponse']=response
         pins=[a for a in response.get('result',[]) if a.get('data',{}).get('fixCode')=='FIX_PIN_VERSION']
@@ -98,8 +101,9 @@ for item in CASES:
                 edited=apply(item['text'],changes[0]);observed['appliedText']=edited;write(out/'applied.yaml.txt',edited)
                 assert edited==item['expected'],'actual client-applied bytes differ from independent expected text'
                 assert config.read_bytes()==initial,'server must not write the configuration to disk'
-                c.send('textDocument/didChange',{'textDocument':{'uri':uri,'version':32},'contentChanges':[{'range':edit['range'],'text':edit['newText']} for edit in changes[0]['edits']]})
+                mark=traces.mark();c.send('textDocument/didChange',{'textDocument':{'uri':uri,'version':32},'contentChanges':[{'range':edit['range'],'text':edit['newText']} for edit in changes[0]['edits']]})
                 post=c.diag(config,32);observed['afterDiagnostics']=post
+                observed['afterIndex']=wait_settled(c,traces,mark)
                 assert not any(d['severity']==1 for d in post),'edited config must remain valid'
                 later=c.request('textDocument/codeAction',params);observed['afterActions']=later
                 assert later.get('result')==[],'same pin action must disappear after applying its edit'

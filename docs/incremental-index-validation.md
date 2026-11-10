@@ -201,3 +201,239 @@ and detected all eight on its isolated source snapshot (consumer executable
 Its publication and long-path capacity failures were retained and corrected by
 the focused controls described above. Build failures and runner errors do not
 count as detected behavior loss.
+
+## Shared file lifecycle contraction (2026-11-10)
+
+This change is measured against business-code baseline
+`27ca68efffa4c15dbf5d782e96871b193983ce2d`. The final dependency is the real
+`k8s-crd-toolkit` commit `b1e411d4b3abe5c1ad70518be161c1daff717d61`, pinned as
+`v0.0.0-20261110114800-b1e411d4b3ab`; the source inventory and regenerated vendor
+provenance remain in `contracts/toolkit-snapshot.json` and the vendor manifests.
+
+The consumer removes these mechanisms:
+
+- `workspaceIndex` no longer maintains `order`, `freeSlots`, `workCursor`,
+  `unqueued`, a parallel read map, `fillQueue`, or per-file `dirty`, `queued`,
+  `priority` and `orderSlot`. `WorkQueue` owns waiting, overflow, priority,
+  running tickets and completion. `processNext` captures the pending input need
+  under the state lock and always defers ticket completion. A later notification
+  survives completion of the earlier run.
+- `Membership` and `ScanPass` replace the local round marker. Discovery results
+  and watcher events both observe membership; only a completed current pass can
+  remove an absent closed file. Unconsumed root discovery counters and the unused
+  root generation return from `lookup` are removed.
+- A committed `Summary` retains domain documents and repository references but
+  clears its duplicate `Facts`. Unchanged accepted input uses `Index.Reuse` to
+  advance freshness/revision without rebuilding the shared facts. Related-file
+  lookup reads those facts from the shared index. `Summary.Bytes` still charges
+  the facts and domain payload conservatively, preserving the admission limit.
+- `server.go` uses `Documents.OpenBytes` for open-buffer admission instead of
+  adding every buffer length again. Accepted editor snapshots remain shared.
+- CLI loading and streaming `Catalog.Select` call the same `selectFile` policy
+  for owner roots, scopes, exclusions and opened/explicitly selected files.
+  Local repository validation and resolution use `Catalog.LocalPaths`.
+- The unreachable `RefreshBuffers` acquisition branch, its `repositoryFiles` /
+  `skippedFiles` caches, and dead previous-workspace domain reuse are deleted.
+  The remaining previous-document cache is used by document-only analysis,
+  which returns before workspace domain analysis. Full pin validation still
+  acquires all required input through `LoadBuffers` and analyzes the full scope.
+
+The domain coordinator still owns read obligations per scope, incomplete-input
+issues, target/configuration identity, dependency invalidation and delivery/edit
+proofs. `workRead` selects the next execution's input requirement; the queue owns
+whether that execution exists. Root pending counters determine when the root can
+finish and start its requested rescan. The remaining session `running` flag
+protects scanner shutdown while `advance` works outside the lock. It is not a
+second per-file running ledger. ApplicationSet expansion and full pin before/after
+validation remain in their existing paths.
+
+The limits remain 100,000 registered files, 512 ready jobs and 96 MiB charged
+summaries/index data. The queue's outstanding allowance is 100,001 because the
+single worker can hold one removed running ticket until completion; that reserved
+slot does not admit an extra registered file.
+
+### Change accounting
+
+These counts exclude dependency metadata, vendor, documentation and tests from
+the production row. They are ordinary added/deleted lines, including comments,
+for implementation commit `98fce7772627157f60e38421f09b323554536dfa`. The later
+negative-control and CI synchronization follow-ups below change tests and their
+execution, not production behavior.
+
+| Consumer production file | Added | Deleted | Net |
+| --- | ---: | ---: | ---: |
+| `internal/lsp/incremental.go` | 124 | 197 | -73 |
+| `internal/lsp/incremental_query.go` | 2 | 2 | 0 |
+| `internal/lsp/pins.go` | 1 | 5 | -4 |
+| `internal/lsp/server.go` | 20 | 84 | -64 |
+| `internal/workspace/stream.go` | 29 | 18 | +11 |
+| `internal/workspace/workspace.go` | 25 | 172 | -147 |
+| **Production total** | **201** | **478** | **-277** |
+| Tests: three Python consumers and new 144-line Go consumer test | 192 | 17 | +175 |
+
+This is the consumer contraction, not the net size of the new shared-library
+implementation. Shared implementation and dependency changes are accounted for
+separately.
+
+### Counterexamples and retained behavior
+
+`TestWatchCreationBetweenEnumerationAndSweep` pauses a real scanner after its
+directory enumeration completes, adds a watcher-created file, then lets the
+coordinator sweep. It requires the old deleted file to disappear and the new
+definition to survive. `TestIncrementalFactsOwnershipAndReuse` checks that private
+summaries contain no duplicate facts, an unchanged watch performs one read and
+zero parses while advancing revision, and a later project rename still invalidates
+its dependent Application. Both tests also pass with Go's race detector.
+
+Two isolated Go source overlays establish that these are effective controls.
+Removing the watcher enqueue observation fails the creation/sweep assertion;
+recommitting the now-empty private facts instead of calling `Reuse` fails the
+unchanged-file definition assertion. Both fail on the expected behavior, not a
+build error. Their commands, output and verdicts are under
+`artifacts/shared-lifecycle-validation/mutations/`.
+
+The persistent-workspace consumer now changes the current buffer immediately
+after submitting 640 file notifications, while the ready queue is full. It
+requires the workspace-domain `CD_DESTINATION_CONFLICT` result within two seconds,
+an observed queue depth of exactly 512, all 640 candidates retained, and eventual
+complete Ready. The earlier queue bound and version checks remain.
+
+The supplemental pin consumers initially requested actions after a configuration
+diagnostic, which can arrive before indexing is complete. The original three-case
+consumer failed with empty candidate lists on both this candidate and an overlay
+restoring the baseline's six production files. The repaired consumers use the
+existing trace barrier to wait for delivered Ready (or settled Limited for an
+explicit refusal case). The same repaired scripts pass 3/3 and 13/13 on both
+business-code versions. The baseline overlay uses the same integration dependency;
+it is a business-code control, not a pristine baseline release binary. Exact
+Unicode/CRLF/comment bytes, versions, stale actions, incomplete inputs and a
+dependency damaged between action and resolve remain asserted. The latter still
+forces full validation during resolve and rejects the unsafe edit.
+
+### Executed validation
+
+The broad integration executable had SHA-256
+`c122f0302bae76925133f57457f75653588f9e785063ff90775f2d3e12ceae81`.
+Reports below are under `artifacts/shared-lifecycle-validation/`; each real-process
+report records its executable and consumer identities.
+
+| Consumer / report directory | Result |
+| --- | --- |
+| `lsp_regressions_e2e.py` / `lsp-regressions` | 16/16 |
+| `workspace_regressions_e2e.py` / `workspace-regressions` | 46/46 |
+| `publication_delivery_e2e.py` / `publication-delivery` | 2/2 |
+| `mixed_parent_index_e2e.py` / `mixed-parent-50000` | 14/14 checks, 50,000 ordinary files and background edits |
+| `repository_exclusion_e2e.py` / `repository-exclusion` | 5/5 |
+| `save_action_e2e.py` / `save-actions` | 49/49, including the real periodic reconciliation case |
+| `candidate_concurrency_e2e.py` / `candidate-concurrency` | 7/7 |
+| `incremental_performance_e2e.py` / `incremental-performance`, `repository-performance` | 1,000 and 3,000 files, 30 edits each in both modes; every hot edit has 0 reads, 1 parse, 2 domain documents and 0 acquisition fallbacks |
+| `persistent_workspace_e2e.py` / `reference-parent-50000` | 8/8, including complete Ready and the 512 MiB kernel-RSS limit |
+
+The reference run used 50,000 resource files padded to 4 KiB, including 4,500
+Applications, plus 100,000 non-YAML files. First local diagnostics arrived in
+0.168 s; complete initial Ready took 40.762 s. That Ready included a second
+discovery pass triggered by the periodic timer (100,000 reads, 50,001 parses),
+so its elapsed time is not a single-pass benchmark. Peak kernel RSS was
+299,440 KiB (292.42 MiB). An identical save used 0 reads/0 parses; a single watch
+used 1 read/1 parse. A missed same-size/same-mtime event recovered in 25.265 s.
+The 640-event burst reached the 512-job bound and delivered the current file's
+domain update in 0.205 s while preserving every candidate.
+
+After the final module pin and vendor regeneration, the rebuilt executable
+SHA-256 was `d0d08f03411aea404b732c2a954e0e9a39598c85e821bf150fab5ae578b17372`.
+`go test -mod=vendor ./internal/...` and
+`go test -race -mod=vendor ./internal/lsp` passed. Final real-process reruns passed
+persistent workspace 7/7 (`final-persistent-1000`), publication delivery 2/2
+(`final-publication-delivery`), pin 3/3 (`final-pin-ready`) and pin review 13/13
+(`final-pin-review`). The final persistent rerun again observed depth 512, all
+640 candidates, and the current file's domain update in 0.196 s. Formatting,
+Python compilation and `git diff --check` also passed.
+
+The toolchain was Go 1.27.3 with `CGO_ENABLED=1`, `GOTOOLCHAIN=local` and
+`GOWORK=off`. Reproduction commands from the repository root (with that toolchain
+on `PATH`) are:
+
+```sh
+go test -mod=vendor ./internal/...
+go test -race -mod=vendor ./internal/lsp
+go build -mod=vendor -o build/shared-lifecycle/argocd-ls-final ./cmd/argocd-ls
+cd_candidate=build/shared-lifecycle/argocd-ls-final
+cd_checks=artifacts/shared-lifecycle-validation-rerun
+python3 tests/persistent_workspace_e2e.py "$cd_candidate" "$cd_checks/persistent" --count 1000 --padding 4096
+python3 tests/persistent_workspace_e2e.py "$cd_candidate" "$cd_checks/reference" --count 50000 --padding 4096 --reference-mix --ordinary-files 100000 --max-rss-mib 512 --ready-timeout 120 --reconcile-timeout 120
+python3 tests/mixed_parent_index_e2e.py "$cd_candidate" "$cd_checks/mixed" --ordinary-files 50000 --padding-bytes 4096 --background-edits
+python3 tests/lsp_regressions_e2e.py "$cd_candidate" "$cd_checks/lsp"
+python3 tests/workspace_regressions_e2e.py "$cd_candidate" "$cd_checks/workspace"
+python3 tests/publication_delivery_e2e.py "$cd_candidate" "$cd_checks/publication"
+python3 tests/repository_exclusion_e2e.py "$cd_candidate" "$cd_checks/repository"
+python3 tests/save_action_e2e.py "$cd_candidate" "$cd_checks/save"
+python3 tests/candidate_concurrency_e2e.py "$cd_candidate" "$cd_checks/concurrency"
+python3 tests/incremental_performance_e2e.py "$cd_candidate" "$cd_checks/performance" --sizes 1000,3000 --repeats 30 --require-incremental
+python3 tests/incremental_performance_e2e.py "$cd_candidate" "$cd_checks/repository-performance" --sizes 1000,3000 --repeats 30 --require-incremental --repository
+CD_AUDIT_BINARY="$cd_candidate" CD_AUDIT_OUTPUT="$cd_checks/pin" python3 tests/pin_e2e.py
+CD_AUDIT_BINARY="$cd_candidate" CD_AUDIT_OUTPUT="$cd_checks/pin-review" python3 tests/pin_review_e2e.py
+```
+
+### Reproducible negative controls
+
+The two Go overlays are also maintained in `tests/shared_lifecycle_mutations.py`.
+The script first runs the unchanged Go consumers, then creates each overlay and
+requires its named behavior assertion to fail; build failures do not count. Its
+two variants passed this protocol in
+`artifacts/shared-lifecycle-validation/persistent-mutation-runner/report.json`.
+
+The existing `ablate_audit_repair.py` exclusion variant now removes
+`selectFile`'s `isolated` flag in `stream.go`, where the shared policy moved.
+It chooses `GO`, then `GOROOT/bin/go`, then `go` on `PATH`, preserving the caller's
+module/build caches. It accepts an optional `--variant`; the default still runs
+all five original variants. The original oracle is unchanged and runs against an
+unmodified build before any negative control. The focused exclusion run passed
+all seven positive cases; its mutant failed only `opened-excluded-project`,
+leaking the excluded Project into definition results and clearing the unresolved
+diagnostic. Both nested-root ordering controls and the other four cases still
+passed. Evidence is in
+`artifacts/shared-lifecycle-validation/ci-anchor-audit/repaired-excluded-runner/report.json`.
+
+With Go 1.27.3 available through one of those toolchain settings, use fresh output
+directories:
+
+```sh
+python3 tests/shared_lifecycle_mutations.py artifacts/lifecycle-negative-controls
+python3 tests/ablate_audit_repair.py --variant excluded-isolation --output artifacts/exclusion-negative-control
+```
+
+### Config URI consumer readiness
+
+macOS ARM CI job `129815917301` reported 19/20 config-URI cases passing. The only
+failure was an empty pin candidate list for the localhost spelling, before any
+resolve request. The raw messages recorded the Application's workspace diagnostic
+at 0.202153 s, hover at 0.203600 s, the configuration's workspace diagnostic at
+0.203956 s and the empty action reply at 0.203969 s. A file's workspace publication
+does not establish that the root's final domain jobs have all completed; pin
+queries intentionally require that stronger completeness proof.
+
+`TestConfigPinWaitsForRootReady` exercises that distinction with real files and
+actual scanner/worker batches. For both canonical and localhost URIs, it observes
+the Application's workspace publication while the root still has work, verifies
+that a pin is unavailable, advances to complete Ready, then requires the original
+URI, target and exact insertion text. No sleep or mocked clock controls this
+boundary. The test passes against both the current implementation and the six-file
+baseline business-code overlay described above.
+
+`config_uri_e2e.py` now uses the existing `Client` / `Traces` / `wait_settled` helper
+before requesting its pin. The original 20 cases and every URI, version, error and
+exact-edited-byte assertion remain; the report additionally retains the Ready
+observation. The same repaired consumer passes 20/20 on both business-code versions
+(`config-uri-ready` and `config-uri-ready-base` reports). Local
+`go test -race -mod=vendor ./internal/lsp` also passes. This corrects the consumer's
+precondition without changing pin safety or extending a timeout.
+
+The existing Linux CI race step now also runs
+`go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace`, so these
+Go regression tests execute in CI. This closes the earlier coverage gap in that
+step, which had built a race-enabled server and run only its stdio consumers.
+
+```sh
+go test -mod=vendor ./internal/lsp -run '^TestConfigPinWaitsForRootReady$' -count=1
+python3 tests/config_uri_e2e.py build/shared-lifecycle/argocd-ls-final artifacts/config-uri-ready
+```

@@ -94,6 +94,7 @@ jobs:
       if: matrix.platform == 'linux/amd64'
       shell: bash
       run: |
+        go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
         go build -mod=vendor -race -o artifacts/native-ci/build/argocd-ls-race ./cmd/argocd-ls
         python tests/mixed_parent_index_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-mixed-parent --ordinary-files 1000
         python tests/publication_delivery_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-publication-delivery

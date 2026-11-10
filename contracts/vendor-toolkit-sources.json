@@ -13,7 +13,7 @@
   },
   {
     "path": "index/index.go",
-    "sha256": "7077ebd5515b3b863b81bdab81b9627fec0492c76401425bdee079f7ad5c7ac8"
+    "sha256": "0928a3359ca323d30e4185bb628f25c506c6b03e473b00cc862800bbb61e9525"
   },
   {
     "path": "index/query.go",
@@ -21,7 +21,7 @@
   },
   {
     "path": "index/types.go",
-    "sha256": "d03527f704811fee23c5aa77a6670cd84bf444d754dd4908ef55245ffee73a45"
+    "sha256": "29411ceeda29aabf09ef46bc25234a1700694d913d584b87f6d3ab7240422d51"
   },
   {
     "path": "source/snapshot.go",
@@ -29,15 +29,23 @@
   },
   {
     "path": "workspace/documents.go",
-    "sha256": "7b4d6485515ea38d3aad94662c66bc613c724229820a1917ac35fe937e4c57b1"
+    "sha256": "0903d58f42cf4cbc12720b41bc5ccd7484ba71c899c7b9b257100e1203d51b33"
+  },
+  {
+    "path": "workspace/membership.go",
+    "sha256": "5bf563944520b18945e47d4cfe41c36e428fc547403af29f0df70b581f1b3690"
   },
   {
     "path": "workspace/queue.go",
-    "sha256": "5cd5062345c89552ab6c1cf24615a261eac949385ba3c018e1a9074367f7aebd"
+    "sha256": "3032645681aa6bf40d2901897b7d5b3079ffbd5b28f91865637b4efc4e724b0c"
   },
   {
     "path": "workspace/scanner.go",
     "sha256": "809013656eb2c9c5a36a9950da5b16e3ff7cb9dd74783259ed15fdcb68e8492a"
+  },
+  {
+    "path": "workspace/workqueue.go",
+    "sha256": "4d2451ef0e5561ebe69eed7061f075a31ce638849d3bd3769e2b1455008c196a"
   },
   {
     "path": "yamlview/internal/parser/grammar/LICENSE",

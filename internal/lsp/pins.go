@@ -57,10 +57,6 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 	if input == nil {
 		return empty, 0, "", true
 	}
-	rescanRoots := make(map[string]bool, len(roots))
-	for _, root := range roots {
-		rescanRoots[root] = true
-	}
 	actions := []any{}
 	for _, pin := range workspace.Pins(ctx, *input, b.snapshot) {
 		r := pin.Plan.Replacements[0]
@@ -82,7 +78,7 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 			copied[uri] = value
 		}
 		copied[uri] = buffer{snapshot: next, version: b.version, revision: next.Revision()}
-		after := analyzeRoots(ctx, epoch, roots, copied, override, completed{}, rescanRoots)
+		after := analyzeRoots(ctx, epoch, roots, copied, override)
 		if ctx.Err() != nil || after.err != nil || !pinSafe(latest, after, uri, pin) {
 			continue
 		}

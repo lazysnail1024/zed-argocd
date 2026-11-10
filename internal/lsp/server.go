@@ -194,8 +194,8 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		next := publishedDiagnostic{payload: payload}
 		if params["x-argocd-analysis-scope"] == "workspace" {
 			if current, opened := buffers[uri]; opened && current.unavailable == "" {
-				file, catalog, _, _ := workspaceState.lookup(uri)
-				if catalog != nil && file != nil && file.err == nil && !file.incomplete && !file.invalidated && !file.dirty && file.revision == current.revision {
+				file, catalog, _ := workspaceState.lookup(uri)
+				if catalog != nil && file != nil && file.err == nil && !file.incomplete && !file.invalidated && !workspaceState.queue.Pending(file.uri) && file.revision == current.revision {
 					target := file.target
 					target.Complete = false
 					next.input = &publicationInput{current.revision, target}
@@ -267,16 +267,11 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		if size < 0 || size > workspace.MaxFileText {
 			return false
 		}
-		total := size
-		for other, b := range buffers {
-			if other != uri {
-				total += len(b.snapshot.Text())
-				if total > workspace.MaxRetainedText {
-					return false
-				}
-			}
+		retained := workspaceState.documents.OpenBytes()
+		if old, opened := workspaceState.documents.Snapshot(source.URI(uri)); opened {
+			retained -= len(old.Text())
 		}
-		return total <= workspace.MaxRetainedText
+		return size <= workspace.MaxRetainedText-retained
 	}
 	refuseBuffer := func(uri string, version int, revision source.Revision, reason string) {
 		workspaceState.documents.Close(source.URI(uri))
@@ -971,8 +966,8 @@ func recoverDocumentPublications(result, documents completed, roots []string, bu
 	return publications
 }
 
-func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, rescanRoots map[string]bool) completed {
-	return analyze(ctx, epoch, roots, buffers, override, previous, rescanRoots, false)
+func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string) completed {
+	return analyze(ctx, epoch, roots, buffers, override, completed{}, false)
 }
 
 func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed) completed {
@@ -991,18 +986,17 @@ func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers
 			activeRoots = append(activeRoots, root)
 		}
 	}
-	return analyze(ctx, epoch, activeRoots, buffers, override, previous, selected, true)
+	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true)
 }
 
-func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, rescanRoots map[string]bool, documentOnly bool) (result completed) {
+func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool) (result completed) {
 	started := time.Now()
 	defer func() { result.stats.ElapsedMilliseconds = time.Since(started).Milliseconds() }()
 	result = completed{epoch: epoch, failures: map[string]error{}, documentOnly: documentOnly}
-	result.stats.FullScan = len(rescanRoots) > 0
+	result.stats.FullScan = !documentOnly
 	result.stats.Scope = "diagnostic-pass"
 	if documentOnly {
 		result.stats.Scope = "document-pass"
-		result.stats.FullScan = false
 	}
 	if ctx.Err() != nil {
 		result.err = ctx.Err()
@@ -1063,30 +1057,15 @@ rootLoop:
 
 		var input workspace.Input
 		var e error
-		reusedInput := false
 		beforeRemaining := remaining
-		if !documentOnly && !rescanRoots[root] {
-			for _, prior := range previous.inputs {
-				if prior.Root == root {
-					input, reusedInput = workspace.RefreshBuffers(ctx, prior, openFiles, roots, &remaining)
-					break
-				}
-			}
+		if documentOnly {
+			input, e = workspace.LoadOpenBuffers(ctx, root, override, config, openFiles, roots, &remaining)
+		} else {
+			result.stats.AcquisitionRoots = append(result.stats.AcquisitionRoots, root)
+			input, e = workspace.LoadBuffers(ctx, root, override, config, openFiles, roots, &remaining)
 		}
-		if !reusedInput {
-			remaining = beforeRemaining
-			if documentOnly {
-				input, e = workspace.LoadOpenBuffers(ctx, root, override, config, openFiles, roots, &remaining)
-			} else {
-				result.stats.AcquisitionRoots = append(result.stats.AcquisitionRoots, root)
-				if !rescanRoots[root] {
-					result.stats.AcquisitionFallbacks++
-				}
-				input, e = workspace.LoadBuffers(ctx, root, override, config, openFiles, roots, &remaining)
-			}
-			result.stats.DiskReads += input.AcquisitionReads
-			input.AcquisitionReads = 0
-		}
+		result.stats.DiskReads += input.AcquisitionReads
+		input.AcquisitionReads = 0
 		if e != nil {
 			remaining = beforeRemaining
 			if ctx.Err() != nil {
@@ -1199,19 +1178,6 @@ rootLoop:
 					priorFiles[f.Snapshot.URI()] = f
 				}
 			}
-			changed := map[string]bool{}
-			projectChanged := false
-			if priorScope != nil {
-				currentMembers := map[source.URI]bool{}
-				for _, f := range currentFiles {
-					currentMembers[f.Snapshot.URI()] = true
-				}
-				for _, f := range priorScope.files {
-					if !currentMembers[f.Snapshot.URI()] {
-						projectChanged = true
-					}
-				}
-			}
 			incomplete := false
 			firstPublication := len(result.publications)
 			for _, f := range currentFiles {
@@ -1236,23 +1202,8 @@ rootLoop:
 				if !reusedFile {
 					checked, e = analyzer.Analyze(ctx, f.Snapshot, f.Target.Version)
 					result.stats.ParsedFiles++
-					changed[uri] = true
 				}
 				checks[f.Snapshot.URI()] = checked
-				if changed[uri] {
-					for _, doc := range checked.Documents {
-						if doc.Kind == "AppProject" {
-							projectChanged = true
-						}
-					}
-					if priorScope != nil {
-						for _, doc := range priorScope.documents {
-							if string(doc.Snapshot.URI()) == uri && doc.Kind == "AppProject" {
-								projectChanged = true
-							}
-						}
-					}
-				}
 				if e != nil {
 					if ctx.Err() != nil {
 						result.err = ctx.Err()
@@ -1287,23 +1238,8 @@ rootLoop:
 			result.stats.Phase = "domain"
 			domainOptions := options
 			domainOptions.Context = ctx
-			domainDocs := docs
-			if priorScope != nil && priorScope.options.Complete && options.Complete && !projectChanged && len(priorScope.files) == len(currentFiles) {
-				domainDocs = nil
-				for _, doc := range docs {
-					if changed[string(doc.Snapshot.URI())] || doc.Kind == "AppProject" {
-						domainDocs = append(domainDocs, doc)
-					}
-				}
-				for i := firstPublication; i < len(result.publications); i++ {
-					uri := result.publications[i].uri
-					if !changed[uri] {
-						result.publications[i].diagnostics = oldPublications[uri].diagnostics
-					}
-				}
-			}
-			result.stats.DomainDocuments += len(domainDocs)
-			for _, d := range analysis.Domain(domainDocs, domainOptions) {
+			result.stats.DomainDocuments += len(docs)
+			for _, d := range analysis.Domain(docs, domainOptions) {
 				for i := firstPublication; i < len(result.publications); i++ {
 					if result.publications[i].uri == d.URI {
 						result.publications[i].diagnostics = append(result.publications[i].diagnostics, d)

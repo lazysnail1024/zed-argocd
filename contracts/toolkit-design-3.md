@@ -1,6 +1,6 @@
 # Toolkit public API contract
 
-Contract ID: `toolkit-design-2`. Implementation release: **`v0.0.1-alpha`**. This revision adds `index` and `workspace`; the `toolkit-design-1` APIs and behavior of `source`, `yamlview`, and `edit` remain unchanged. The provider is k8s-crd-toolkit. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
+Contract ID: `toolkit-design-3`. Consumers pin an implementation source commit; no release is required. This revision adds shared work and scan lifecycle bookkeeping, authoritative open-byte accounting, and safe reuse of unchanged index facts. Existing `source`, `yamlview`, `edit`, and `toolkit-design-2` APIs remain available. The provider is k8s-crd-toolkit. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
 
 This file is the sole editable source of the API definition. Consumers retain a byte-identical snapshot and its SHA-256. The contract ID describes the contract revision; Go module SemVer selects an implementation. Upgrades must explicitly update both the snapshot and implementation lock. Changing only a digest does not establish compatibility.
 
@@ -147,11 +147,13 @@ type Change struct {
     Affected []source.URI
 }
 var ErrStaleTicket error
+var ErrNoPrevious error
 var ErrLimit error
 
 func New(limits Limits) (*Index, error)
 func (i *Index) Begin(uri source.URI, scope Scope, revision source.Revision) (Ticket, error)
 func (i *Index) Commit(ticket Ticket, facts Facts) (Change, error)
+func (i *Index) Reuse(ticket Ticket) (Change, error)
 func (i *Index) Remove(uri source.URI) (Change, error)
 func (i *Index) GetFile(uri source.URI) (File, bool, State)
 func (i *Index) Definitions(scope Scope, key Key) ([]Definition, State)
@@ -173,6 +175,7 @@ func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, err
 - Begin announces a new analysis input **before** queuing or computing it. Existing locations immediately cease to appear in Definitions, References, Symbols, and GetFile. Old summaries remain privately available for semantic comparison and dependency invalidation. Repeated Begin for one URI does not duplicate pending counts.
 - Revisions may increase or remain equal for a configuration recomputation; lower revisions fail while a file is registered. Each successful Begin also allocates a distinct opaque ticket. A ticket from another Index, an earlier Begin, a removed/recreated file, or an already successful Commit is rejected with ErrStaleTicket. Remove/reopen remains safe even if a consumer reuses its numeric source revision. Zero tickets are invalid.
 - Commit atomically replaces the complete file fact set, including empty sets. Invalid facts or a capacity error leave the file pending and the ticket retryable; they never publish an empty successful analysis. Begin admission failures leave existing state unchanged, so the caller must record the failed input and must not present older facts as current; Remove can withdraw them when admission cannot be retried.
+- Reuse consumes a current ticket and restores its same-scope retained commit without copying its facts. The consumer must first prove identical input bytes and interpretation settings; the index cannot establish that proof. A successful reuse updates the published revision and scope generation, changes no retained budgets, and affects only the URI itself. Missing retained facts or a different committed scope returns ErrNoPrevious and leaves the ticket usable for normal analysis and Commit. Stale, removed/recreated, cross-instance, and replayed tickets are rejected. Pending old locations remain hidden until successful Reuse or Commit.
 - Remove withdraws all facts and dependencies, releases their budgets, and revokes pending tickets. Unknown URIs are a no-op. Removing a disk file is not permission to Remove an authoritative open buffer; input ownership is decided before changing the index.
 - GetFile returns fresh facts, or pending metadata with no old facts. During a scope migration, the old scope remains pending until its old facts are replaced or removed; the destination is pending too. Intermediate abandoned destinations are released.
 - State.Generation changes when the relevant scope changes; unknown scopes use the current index generation. State.Pending counts **known files waiting for facts**, not undiscovered files or downstream diagnostics. Change.Generation is the index-wide sequence. `Pending == 0` never proves discovery completeness, nonexistence, unique binding, or a safe rename.
@@ -203,6 +206,7 @@ func NewDocuments(limits DocumentLimits) (*Documents, error)
 func (d *Documents) Open(uri source.URI, text string) (source.Snapshot, error)
 func (d *Documents) Change(uri source.URI, base source.Revision, changes []source.Change) (source.Snapshot, error)
 func (d *Documents) Snapshot(uri source.URI) (source.Snapshot, bool)
+func (d *Documents) OpenBytes() int
 func (d *Documents) BeginRead(uri source.URI) (ReadTicket, error)
 func (d *Documents) PublishRead(ticket ReadTicket, text string) (source.Snapshot, error)
 func (d *Documents) DiscardRead(ticket ReadTicket) bool
@@ -218,6 +222,29 @@ func (q *Queue) Put(job Job) error
 func (q *Queue) Pop() (Job, bool)
 func (q *Queue) Remove(uri source.URI)
 func (q *Queue) Len() int
+
+type WorkTicket struct { URI source.URI; Priority Priority; /* private */ }
+type WorkQueue struct { /* private */ }
+func NewWorkQueue(readyCapacity, outstandingCapacity int) (*WorkQueue, error)
+func (q *WorkQueue) Put(job Job) error
+func (q *WorkQueue) Pop() (WorkTicket, bool)
+func (q *WorkQueue) Complete(ticket WorkTicket) bool
+func (q *WorkQueue) Remove(uri source.URI)
+func (q *WorkQueue) Pending(uri source.URI) bool
+func (q *WorkQueue) Running(uri source.URI) bool
+func (q *WorkQueue) Waiting(uri source.URI) bool
+func (q *WorkQueue) Len() int
+func (q *WorkQueue) Backlog() int
+func (q *WorkQueue) Wake() <-chan struct{}
+
+type Membership struct { /* private */ }
+type Observation struct { /* private */ }
+type ScanPass struct { /* private */ }
+func (m *Membership) Start() ScanPass
+func (m *Membership) Observe() Observation
+func (m *Membership) Seen(observed Observation) bool
+func (m *Membership) Finish(pass ScanPass, complete bool) bool
+func (p ScanPass) Missing(observed Observation) bool
 
 type ScanOptions struct {
     Extensions []string
@@ -241,6 +268,7 @@ func (s *Scanner) Close() error
 ### Authoritative input lifecycle
 
 - Documents and Queue are concurrently safe, constructor-initialized objects; neither may be copied after use. Documents requires nonempty URIs and positive limits. Entries bounds open buffers plus outstanding reads. FileBytes bounds one input and each intermediate sequential edit result; OpenBytes bounds the total current open-buffer text. Limits exclude caller-held snapshots, caller-owned incoming text, and snapshot line-index overhead.
+- Documents.OpenBytes returns the total accepted open text under the same lock as Open/Change/Close. Protocol adapters may retain references to the returned immutable snapshots and editor versions; they should not copy updates into a second Documents store or maintain a second byte counter. A caller reserving a separate disk-read budget must also fence concurrent input changes before accepting the reads.
 - Open establishes an authoritative buffer and revokes earlier disk reads. Opening an already open buffer returns ErrOverlay; use Change with the current source revision. Change is atomic, uses sequential coordinates, and preserves the old buffer on any failure. Snapshot only returns open-buffer content.
 - Documents allocates monotonically increasing revisions across all its input lifetimes. These are independent of LSP versions. The protocol adapter must independently validate incoming editor versions; it must not substitute them for Documents revisions.
 - BeginRead returns ErrOverlay while a buffer is open, enabling callers to skip disk I/O. Otherwise it reserves the newest read of that URI. Perform bounded disk I/O outside the object, then PublishRead. A superseded, cross-instance, replayed, invalidated, or close/reopen ticket returns ErrStale. Other files' updates do not invalidate this ticket.
@@ -253,6 +281,21 @@ func (s *Scanner) Close() error
 - Queue capacity must be positive. A Job is a notification that a URI needs work; it carries no input snapshot, ticket, or version. Put coalesces pending notifications for the same URI and preserves the highest requested priority. An existing URI can be coalesced or promoted at capacity; new URIs return ErrLimit when full.
 - Pop follows an 8:4:1 weighted round robin for Current, Related, and Background, skipping empty lanes, with FIFO order within each lane. Under continuous load in all lanes, a background job receives a turn within 13 successful pops. The policy guarantees service opportunities, not elapsed-time latency.
 - Pop removes pending membership immediately. An event for a running file can therefore enqueue another notification; there is no permanent URI deduplication. The consumer selects that URI's latest accepted snapshot and original index ticket when dispatching work. A notification with no accepted input can be ignored. Input freshness is enforced by Documents and Index tickets, not by queue order. The queue does not track completed work or cancel workers. Consumers bound worker concurrency and preserve events when applying backpressure. A priority queue cannot preempt a blocking syscall; foreground responsiveness also needs an available foreground execution slot.
+
+### Work lifecycle and overflow
+
+- WorkQueue adds running reservations and deferred notifications to the notification-only Queue contract. It is concurrently safe and owns no workers or timers. Ready capacity must be positive and no greater than outstanding capacity. Outstanding capacity counts distinct waiting/running URIs, including retired executions; consumers can budget their file-entry limit plus their fixed maximum worker count.
+- Put retains one unstarted notification per URI at the highest requested priority, including when the ready queue is full. A notification during execution schedules another run after Complete. Only exhaustion of the distinct outstanding capacity returns ErrLimit; callers must surface this failure or retry, not report the file as complete.
+- Pop returns a single execution reservation. No second worker receives the same URI until Complete, including after Remove and recreation. Weighted 8:4:1 service includes overflow as well as ready work, so background service remains bounded even at ready capacity one. Len counts ready work only; Backlog counts the other unstarted notifications, including a rerun requested during execution.
+- Every successful Pop must be paired with Complete on every worker exit path. Complete consumes that exact reservation and automatically admits deferred work. Remove discards unstarted notifications, but an active execution remains reserved until its worker exits. Its Complete returns false while releasing the retired reservation; it cannot discard a newer recreation notification. Foreign/replayed completions do nothing. The boolean does not authorize publication: Documents/Index tickets and consumer configuration checks still govern input validity.
+- Pending includes waiting and running reservations. Waiting includes ready, overflow, and a requested rerun; Running includes retired executions that have not exited. Wake is a coalesced hint channel, never closed by the library. Workers Pop first, then wait on Wake or their own cancellation when no job exists. Consumers do not need to periodically scan every file to refill the queue.
+
+### Scan observations
+
+- Membership has a usable zero value and is concurrently safe; do not copy it after use. It stores a current pass, not a second URI map. Consumers retain one Observation in each file's existing metadata.
+- Start supersedes all older passes. Observe marks discovery or an authoritative watcher/input event as present in the current pass. Store the mark under the same consumer lock used for file registration and sweeping; otherwise a watcher and sweep could still race outside this mechanism.
+- Finish consumes only the current active pass. Successful complete enumeration permits Missing to identify older observations; failed, incomplete, superseded, or repeated finishes do not authorize a new sweep. Starting another pass invalidates every previous pass's Missing result.
+- Missing is false before successful completion and for an observation made during that pass, including a watcher event in a directory already scanned. The consumer additionally protects authoritative open buffers and applies its file-selection policy. Membership does not establish domain completeness or perform deletions.
 
 ### Discovery behavior
 
@@ -267,7 +310,7 @@ func (s *Scanner) Close() error
 
 ## Consumption and evolution
 
-The Go module is `github.com/lazysnail1024/k8s-crd-toolkit`; the first prerelease is `v0.0.1-alpha`. Consumer locks record the contract ID and digest, module path, and actual implementation version or commit. Missing information means ready=false and must not be represented as readiness for independent release.
+The Go module is `github.com/lazysnail1024/k8s-crd-toolkit`. Consumers use an immutable source commit and its Go pseudo-version, without requiring a tag or release. Consumer locks record the contract ID and digest, module path, and actual implementation version or commit. Missing information means ready=false and must not be represented as readiness for independent release.
 
 A new public capability requires the same semantic need in two real consumers and must not need to recognize any product name. Replacing the internal parser does not change the contract. Published tags are immutable. During v0/alpha development, later versions may make documented incompatible changes with an explicit contract revision and consumer migration; consumers must opt in to each upgrade. From v1 onward, incompatible changes to a stable released API require a new Go module major version and its corresponding major path (v2 and later), without forcing synchronized releases across all three repositories.
 

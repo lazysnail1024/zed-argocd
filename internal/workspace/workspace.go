@@ -63,14 +63,8 @@ type File struct {
 	// spelling and must remain unchanged in diagnostics, navigation and edits.
 	Path string
 }
-type repositoryFile struct {
-	Snapshot   source.Snapshot
-	References []analysis.RepositoryReference
-}
 type Input struct {
 	RepositoryDecodes int
-	repositoryFiles   map[source.URI]repositoryFile
-	skippedFiles      []File
 	AcquisitionReads  int
 	Skipped           []source.Snapshot
 	LocalPaths        map[string]map[string]bool
@@ -239,26 +233,13 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 	}
 
 	input.LocalPaths = map[string]map[string]bool{}
-	for _, repo := range cfg.Repositories {
-		if openOnly {
-			break // Repository existence is a workspace fact, not a buffer check.
+	if !openOnly {
+		// Validate repository mappings before acquisition; existence is not a
+		// document-only fact. Concrete dependencies are sampled after loading.
+		input.LocalPaths, err = (&Catalog{Input: input}).LocalPaths(ctx, nil)
+		if err != nil {
+			return input, err
 		}
-		base := filepath.Join(root, repo.Path)
-		canonical, e := filepath.EvalSymlinks(base)
-		if e != nil {
-			return input, failure("CONFIG_INVALID", "repository mapping path is unavailable: "+repo.Path)
-		}
-		if !inside(root, canonical) {
-			return input, failure("CONFIG_INVALID", "repository mapping escapes root through symlink")
-		}
-		key := repo.RepoURL + "\x00" + repo.TargetRevision
-		if _, exists := input.LocalPaths[key]; exists {
-			return input, failure("CONFIG_INVALID", "repository mapping must be unique for URL and revision")
-		}
-		// Resolve only paths actually referenced by acquired YAML below. Excluding
-		// YAML analysis must not exclude repository resources from existence checks.
-		input.LocalPaths[key] = map[string]bool{}
-
 	}
 	paths := []string{}
 	if !openOnly {
@@ -293,60 +274,30 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 			input.Complete = false
 			continue
 		}
-		if !inside(root, resolved) || seen[resolved] {
+		if seen[resolved] {
 			continue
 		}
 		seen[resolved] = true
-		if len(roots) > 0 && Owner(roots, resolved) != root {
+		_, opened := buffers[resolved]
+		selection, included, e := selectFile(root, resolved, cfg, roots, opened, resolved == selected)
+		if e != nil {
+			return input, e
+		}
+		if !included {
 			continue
 		}
-		rel, _ := filepath.Rel(root, resolved)
-		rel = filepath.ToSlash(rel)
-		owner := implicit
-		matches := 0
-		for _, scope := range cfg.Scopes {
-			matched := false
-			for _, glob := range scope.Include {
-				if match(glob, rel) {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				owner = scope.Name
-				matches++
-			}
-		}
-		if matches > 1 {
-			return input, failure("SCOPE_OVERLAP", "file belongs to multiple scopes: "+rel)
-		}
+		owner := selection.scope
 		if resolved == selected {
 			selectedOwner = owner
 			if selectedScope != "" && owner != selectedScope {
 				return input, failure("FILE_SCOPE_MISMATCH", "file does not belong to selected scope")
 			}
 		}
-		excluded := false
-		for _, glob := range cfg.Exclude {
-			if match(glob, rel) {
-				excluded = true
-				break
-			}
-		}
-		for _, part := range strings.Split(rel, "/") {
-			if excludedDir(part) {
-				excluded = true
-			}
-		}
-		_, opened := buffers[resolved]
-		if excluded && resolved != selected && !opened {
-			continue
-		}
 		if selectedScope != "" && owner != selectedScope {
 			continue
 		}
 		t := scopeTargets[owner]
-		if excluded && opened {
+		if selection.isolated {
 			owner = "isolated:" + resolved
 		}
 		snap, opened := buffers[resolved]
@@ -368,14 +319,13 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 				return input, e
 			}
 		}
-		if excluded && opened {
+		if selection.isolated {
 			t.Scope = owner
 			t.ID += ":" + owner
 		}
 		file := File{Snapshot: snap, Target: t, Output: selected == "" || selected == resolved, Path: resolved}
 		if IsHelmTemplate(root, resolved, snap) {
 			input.Skipped = append(input.Skipped, snap)
-			input.skippedFiles = append(input.skippedFiles, file)
 			continue
 		}
 		input.Files = append(input.Files, file)
@@ -633,93 +583,17 @@ func excludedSubtree(globs []string, relative string) bool {
 	return false
 }
 
-// RefreshBuffers reuses acquired disk membership for buffer-only changes. Any
-// configuration/new-file/ownership transition falls back to full acquisition.
-func RefreshBuffers(ctx context.Context, prior Input, buffers map[string]source.Snapshot, roots []string, remaining *int) (Input, bool) {
-	input := prior
-	input.AcquisitionReads = 0
-	input.RepositoryDecodes = 0
-	input.Files = nil
-	input.Skipped = nil
-	input.skippedFiles = nil
-	input.LocalPaths = map[string]map[string]bool{}
-	all := append(append([]File(nil), prior.Files...), prior.skippedFiles...)
-	members := map[string]int{}
-	for i, f := range all {
-		// A client alias may now identify a different target. Never transfer the
-		// old file's scope or text identity merely to keep a cache hit.
-		if f.Path == "" {
-			return Input{}, false
-		}
-		if string(f.Snapshot.URI()) != FileURI(f.Path) {
-			current, err := PathFromURI(string(f.Snapshot.URI()))
-			if err != nil || current != f.Path {
-				return Input{}, false
-			}
-		}
-		members[f.Path] = i
-	}
-	changed := map[string]bool{}
-	for p, snapshot := range buffers {
-		if ctx.Err() != nil {
-			return Input{}, false
-		}
-		if Owner(roots, p) != prior.Root {
-			continue
-		}
-		if filepath.Base(p) == ".argocd-ls.yaml" {
-			continue
-		}
-		i, ok := members[p]
-		if !ok {
-			return Input{}, false
-		}
-		changed[p] = all[i].Snapshot.URI() != snapshot.URI() || all[i].Snapshot.Text() != snapshot.Text()
-		all[i].Snapshot = snapshot
-	}
-	for i, f := range all {
-		if _, open := buffers[f.Path]; !open {
-			*remaining -= len(f.Snapshot.Text())
-			if *remaining < 0 {
-				return Input{}, false
-			}
-		}
-		skipped := i >= len(prior.Files)
-		if changed[f.Path] {
-			skipped = IsHelmTemplate(input.Root, f.Path, f.Snapshot)
-		}
-		if skipped {
-			input.Skipped = append(input.Skipped, f.Snapshot)
-			input.skippedFiles = append(input.skippedFiles, f)
-			continue
-		}
-		input.Files = append(input.Files, f)
-	}
-	if err := resolveLocalPaths(ctx, &input); err != nil {
-		return Input{}, false
-	}
-	return input, true
-}
-
-// resolveLocalPaths retains only current file facts. Immutable unchanged inputs
-// share extraction results; filesystem existence is freshly sampled on rescan.
+// resolveLocalPaths extracts one-shot references and applies the same repository
+// policy as the streaming index. No closed-file snapshot cache is retained.
 func resolveLocalPaths(ctx context.Context, input *Input) error {
 	if len(input.Config.Repositories) == 0 {
-		input.repositoryFiles = nil
 		return nil
 	}
-	next := make(map[source.URI]repositoryFile, len(input.Files))
+	var references []analysis.RepositoryReference
 	for _, f := range input.Files {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		prior, ok := input.repositoryFiles[f.Snapshot.URI()]
-		if ok && prior.Snapshot.Text() == f.Snapshot.Text() {
-			prior.Snapshot = f.Snapshot
-			next[f.Snapshot.URI()] = prior
-			continue
-		}
-		facts := repositoryFile{Snapshot: f.Snapshot}
 		input.RepositoryDecodes++
 		decoder := yamlv3.NewDecoder(strings.NewReader(f.Snapshot.Text()))
 		for {
@@ -731,7 +605,7 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 				break
 			}
 			root, _ := value.(map[string]any)
-			references, err := analysis.RepositoryReferences(ctx, f.Snapshot, root)
+			refs, err := analysis.RepositoryReferences(ctx, f.Snapshot, root)
 			if err != nil {
 				input.Complete = false
 				if ctx.Err() != nil {
@@ -739,33 +613,12 @@ func resolveLocalPaths(ctx context.Context, input *Input) error {
 				}
 				return failure("INPUT_BUDGET_EXCEEDED", err.Error())
 			}
-			facts.References = append(facts.References, references...)
-		}
-		next[f.Snapshot.URI()] = facts
-	}
-	input.repositoryFiles = next
-	for _, repo := range input.Config.Repositories {
-		base, _ := filepath.EvalSymlinks(filepath.Join(input.Root, repo.Path))
-		entries := map[string]bool{}
-		input.LocalPaths[repo.RepoURL+"\x00"+repo.TargetRevision] = entries
-		for _, facts := range next {
-			for _, ref := range facts.References {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-				if ref.RepoURL != repo.RepoURL || ref.TargetRevision != repo.TargetRevision {
-					continue
-				}
-				clean := path.Clean(ref.Path)
-				if _, tested := entries[clean]; tested {
-					continue
-				}
-				if !filepath.IsAbs(ref.Path) && inside(base, filepath.Join(base, ref.Path)) {
-					resolved, e := filepath.EvalSymlinks(filepath.Join(base, ref.Path))
-					entries[clean] = e == nil && inside(base, resolved)
-				}
-			}
+			references = append(references, refs...)
 		}
 	}
-	return nil
+	paths, err := (&Catalog{Input: *input}).LocalPaths(ctx, references)
+	if err == nil {
+		input.LocalPaths = paths
+	}
+	return err
 }
