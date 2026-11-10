@@ -255,7 +255,10 @@ slot does not admit an extra registered file.
 ### Change accounting
 
 These counts exclude dependency metadata, vendor, documentation and tests from
-the production row. They are ordinary added/deleted lines, including comments.
+the production row. They are ordinary added/deleted lines, including comments,
+for implementation commit `98fce7772627157f60e38421f09b323554536dfa`. The later
+negative-control and CI synchronization follow-ups below change tests and their
+execution, not production behavior.
 
 | Consumer production file | Added | Deleted | Net |
 | --- | ---: | ---: | ---: |
@@ -369,4 +372,68 @@ python3 tests/incremental_performance_e2e.py "$cd_candidate" "$cd_checks/perform
 python3 tests/incremental_performance_e2e.py "$cd_candidate" "$cd_checks/repository-performance" --sizes 1000,3000 --repeats 30 --require-incremental --repository
 CD_AUDIT_BINARY="$cd_candidate" CD_AUDIT_OUTPUT="$cd_checks/pin" python3 tests/pin_e2e.py
 CD_AUDIT_BINARY="$cd_candidate" CD_AUDIT_OUTPUT="$cd_checks/pin-review" python3 tests/pin_review_e2e.py
+```
+
+### Reproducible negative controls
+
+The two Go overlays are also maintained in `tests/shared_lifecycle_mutations.py`.
+The script first runs the unchanged Go consumers, then creates each overlay and
+requires its named behavior assertion to fail; build failures do not count. Its
+two variants passed this protocol in
+`artifacts/shared-lifecycle-validation/persistent-mutation-runner/report.json`.
+
+The existing `ablate_audit_repair.py` exclusion variant now removes
+`selectFile`'s `isolated` flag in `stream.go`, where the shared policy moved.
+It chooses `GO`, then `GOROOT/bin/go`, then `go` on `PATH`, preserving the caller's
+module/build caches. It accepts an optional `--variant`; the default still runs
+all five original variants. The original oracle is unchanged and runs against an
+unmodified build before any negative control. The focused exclusion run passed
+all seven positive cases; its mutant failed only `opened-excluded-project`,
+leaking the excluded Project into definition results and clearing the unresolved
+diagnostic. Both nested-root ordering controls and the other four cases still
+passed. Evidence is in
+`artifacts/shared-lifecycle-validation/ci-anchor-audit/repaired-excluded-runner/report.json`.
+
+With Go 1.27.3 available through one of those toolchain settings, use fresh output
+directories:
+
+```sh
+python3 tests/shared_lifecycle_mutations.py artifacts/lifecycle-negative-controls
+python3 tests/ablate_audit_repair.py --variant excluded-isolation --output artifacts/exclusion-negative-control
+```
+
+### Config URI consumer readiness
+
+macOS ARM CI job `129815917301` reported 19/20 config-URI cases passing. The only
+failure was an empty pin candidate list for the localhost spelling, before any
+resolve request. The raw messages recorded the Application's workspace diagnostic
+at 0.202153 s, hover at 0.203600 s, the configuration's workspace diagnostic at
+0.203956 s and the empty action reply at 0.203969 s. A file's workspace publication
+does not establish that the root's final domain jobs have all completed; pin
+queries intentionally require that stronger completeness proof.
+
+`TestConfigPinWaitsForRootReady` exercises that distinction with real files and
+actual scanner/worker batches. For both canonical and localhost URIs, it observes
+the Application's workspace publication while the root still has work, verifies
+that a pin is unavailable, advances to complete Ready, then requires the original
+URI, target and exact insertion text. No sleep or mocked clock controls this
+boundary. The test passes against both the current implementation and the six-file
+baseline business-code overlay described above.
+
+`config_uri_e2e.py` now uses the existing `Client` / `Traces` / `wait_settled` helper
+before requesting its pin. The original 20 cases and every URI, version, error and
+exact-edited-byte assertion remain; the report additionally retains the Ready
+observation. The same repaired consumer passes 20/20 on both business-code versions
+(`config-uri-ready` and `config-uri-ready-base` reports). Local
+`go test -race -mod=vendor ./internal/lsp` also passes. This corrects the consumer's
+precondition without changing pin safety or extending a timeout.
+
+The existing Linux CI race step now also runs
+`go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace`, so these
+Go regression tests execute in CI. This closes the earlier coverage gap in that
+step, which had built a race-enabled server and run only its stdio consumers.
+
+```sh
+go test -mod=vendor ./internal/lsp -run '^TestConfigPinWaitsForRootReady$' -count=1
+python3 tests/config_uri_e2e.py build/shared-lifecycle/argocd-ls-final artifacts/config-uri-ready
 ```

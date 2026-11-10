@@ -2,6 +2,8 @@ package lsp
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -140,5 +142,90 @@ func TestWatchCreationBetweenEnumerationAndSweep(t *testing.T) {
 	fresh, _ := state.facts.Definitions(scope, analysis.ProjectKey("argocd", "created"))
 	if len(old) != 0 || len(fresh) != 1 || state.files[source.URI(workspace.FileURI(removed))] != nil || state.files[source.URI(workspace.FileURI(created))] == nil {
 		t.Fatalf("completed discovery lost the new event or kept the deleted file: old=%+v fresh=%+v", old, fresh)
+	}
+}
+
+// A file's domain publication can arrive before the root finishes its final
+// domain pass. Exercise that actual batch boundary without clocks or sleeps.
+func TestConfigPinWaitsForRootReady(t *testing.T) {
+	for _, spelling := range []string{"canonical", "localhost"} {
+		t.Run(spelling, func(t *testing.T) {
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			const config = "schemaVersion: 1\ntargetVersion: \"3.0.0\"\ncontrolPlaneNamespace: argocd\nreferencePolicy: closed\n"
+			const app = "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: https://cluster, namespace: default}\n"
+			const project = "apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata: {name: team, namespace: argocd}\nspec: {sourceRepos: ['*'], destinations: [{server: '*', namespace: '*'}]}\n"
+			files := map[string]string{".argocd-ls.yaml": config, "app.yaml": app, "project.yaml": project}
+			for i := 0; i < 64; i++ {
+				name := fmt.Sprintf("other-%02d", i)
+				files[name+".yaml"] = strings.Replace(project, "name: team", "name: "+name, 1)
+			}
+			for name, text := range files {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			state := newWorkspaceIndex()
+			defer state.close()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			configURI := workspace.FileURI(filepath.Join(root, ".argocd-ls.yaml"))
+			if spelling == "localhost" {
+				configURI = strings.Replace(configURI, "file://", "file://localhost", 1)
+			}
+			appURI := workspace.FileURI(filepath.Join(root, "app.yaml"))
+			opened := strings.Replace(config, "3.0.0", "3.5.6", 1) + "scopes:\n  - name: dev\n    include: [\"**\"]\n"
+			buffers := map[string]buffer{}
+			for uri, text := range map[string]string{configURI: opened, appURI: app} {
+				snapshot, err := state.documents.Open(source.URI(uri), text)
+				if err != nil {
+					t.Fatal(err)
+				}
+				buffers[uri] = buffer{uri: uri, snapshot: snapshot, version: 1, revision: snapshot.Revision()}
+			}
+			params, _ := json.Marshal(map[string]any{"textDocument": map[string]any{"uri": configURI}, "range": analysis.Range{Start: analysis.Position{Line: 5, Character: 4}, End: analysis.Position{Line: 5, Character: 13}}})
+			request := message{Method: "textDocument/codeAction", Params: params}
+			pins := func(latest completed) []any {
+				input := state.query(ctx, request, latest, completed{}, buffers, []string{root}, "", 1)
+				answer, code, reason, handled := pinRequest(ctx, request, input, buffers, 1, true, []string{root}, "")
+				actions, ok := answer.([]any)
+				if code != 0 || !handled || !ok {
+					t.Fatalf("pin query failed: code=%d reason=%s handled=%t answer=%#v", code, reason, handled, answer)
+				}
+				return actions
+			}
+			var latest completed
+			earlyPublication := false
+			for {
+				latest = state.advance(ctx, 1, []string{root}, buffers, "", workspaceEvents{})
+				if ctx.Err() != nil || len(latest.failures) != 0 {
+					t.Fatalf("index failed: context=%v failures=%v", ctx.Err(), latest.failures)
+				}
+				for _, publication := range latest.publications {
+					if !earlyPublication && publication.uri == appURI && publication.phase == "workspace" && latest.more {
+						earlyPublication = true
+						if actions := pins(latest); len(actions) != 0 {
+							t.Fatalf("pin offered before root Ready: %#v", actions)
+						}
+					}
+				}
+				if !latest.more {
+					break
+				}
+			}
+			if !earlyPublication || !latest.stats.Complete {
+				t.Fatalf("fixture did not cover publication before Ready: early=%t stats=%+v", earlyPublication, latest.stats)
+			}
+			actions := pins(latest)
+			if len(actions) != 1 {
+				t.Fatalf("complete root must offer the pin: %#v", actions)
+			}
+			data := actions[0].(map[string]any)["data"].(fixData)
+			if data.URI != configURI || data.Target != "3.5.6" || data.NewText != "    targetVersion: \"3.5.6\"\n" {
+				t.Fatalf("pin lost client identity or exact insertion: %+v", data)
+			}
+		})
 	}
 }
