@@ -68,7 +68,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 			diagnostics = append(diagnostics, diagnostic(doc, parts, code, severity, message))
 		}
 		project := literal(spec["project"])
-		if project != "" {
+		if project != "" && options.Complete {
 			candidates := projects[project]
 			if len(candidates) > 1 || (len(candidates) > 0 && options.ControlPlaneNamespace == "") {
 				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project navigation and references require an unambiguous control-plane namespace. Set controlPlaneNamespace in .argocd-ls.yaml (for example, controlPlaneNamespace: argocd); use the namespace containing AppProject, not the Application namespace")
@@ -214,10 +214,7 @@ func projectPolicy(app, project Document) []Diagnostic {
 	return out
 }
 func diagnostic(doc Document, parts []string, code string, severity int, message string) Diagnostic {
-	node := doc.location(parts)
-	a, _ := doc.Snapshot.Position(node.Span().Start)
-	b, _ := doc.Snapshot.Position(node.Span().End)
-	return Diagnostic{URI: string(doc.Snapshot.URI()), Range: Range{Position{a.Line, a.UTF16Column}, Position{b.Line, b.UTF16Column}}, Code: code, Source: "argocd-ls", Severity: severity, Message: doc.locationMessage(parts, message)}
+	return Diagnostic{URI: string(doc.Snapshot.URI()), Range: doc.rangeAt(parts), Code: code, Source: "argocd-ls", Severity: severity, Message: doc.locationMessage(parts, message)}
 }
 func object(value any) map[string]any { m, _ := value.(map[string]any); return m }
 func objectSlice(value any) []any     { s, _ := value.([]any); return s }

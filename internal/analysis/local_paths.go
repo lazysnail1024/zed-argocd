@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -18,17 +19,28 @@ type RepositoryReference struct {
 // RepositoryReferences uses the same effective ApplicationSet variants as
 // Domain, including inherited generator templates and static templatePatch.
 // Raw template fields are not sufficient: all three source fields can change.
-func RepositoryReferences(snapshot source.Snapshot, value map[string]any) []RepositoryReference {
+func RepositoryReferences(ctx context.Context, snapshot source.Snapshot, value map[string]any) ([]RepositoryReference, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if literal(value["apiVersion"]) != "argoproj.io/v1alpha1" {
-		return nil
+		return nil, nil
 	}
 	doc := Document{Snapshot: snapshot, Value: value, Kind: literal(value["kind"])}
 	documents := []Document{doc}
 	if doc.Kind == "ApplicationSet" {
+		// Workspace repository extraction precedes Analyzer in the CLI and
+		// explicit whole-scope edit proof. It must admit the same expansion.
+		if _, err := applicationSetExpansion(ctx, value, maxProjectionNodes, maxApplicationSetExpansionBytes); err != nil {
+			return nil, err
+		}
 		documents, _ = appSetVariants(doc)
 	}
 	refs := []RepositoryReference{}
 	for _, effective := range documents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if effective.Kind != "Application" {
 			continue
 		}
@@ -47,7 +59,7 @@ func RepositoryReferences(snapshot source.Snapshot, value map[string]any) []Repo
 			}
 		}
 	}
-	return refs
+	return refs, ctx.Err()
 }
 
 // An omitted revision is a static empty value; a templated revision is unknown.

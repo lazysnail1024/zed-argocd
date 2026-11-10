@@ -6,10 +6,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/lazysnail1024/k8s-crd-toolkit/index"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
@@ -38,12 +37,14 @@ type incoming struct {
 	err     error
 }
 type buffer struct {
+	uri         string
 	snapshot    source.Snapshot
 	version     int
 	revision    source.Revision
 	unavailable string
 }
 type publication struct {
+	phase       string
 	uri         string
 	version     *int
 	diagnostics []analysis.Diagnostic
@@ -63,18 +64,22 @@ type pendingQuery struct {
 }
 
 type queryResult struct {
-	proof  *readProof
-	trace  string
-	ctx    context.Context
-	id     json.RawMessage
-	epoch  uint64
-	answer any
-	code   int
-	why    string
+	proof          *readProof
+	editGeneration *uint64 // Configuration pin proofs cover the complete workspace.
+	trace          string
+	ctx            context.Context
+	id             json.RawMessage
+	epoch          uint64
+	answer         any
+	code           int
+	why            string
 }
 
 type completed struct {
-	stats struct {
+	more        bool
+	incremental *workspaceIndex
+	queryProof  *readProof
+	stats       struct {
 		Scope                string   `json:"scope"`
 		Root                 string   `json:"root,omitempty"`
 		Phase                string   `json:"phase,omitempty"`
@@ -86,6 +91,12 @@ type completed struct {
 		ParsedFiles          int      `json:"parsedFiles"`
 		DomainDocuments      int      `json:"domainDocuments"`
 		FullScan             bool     `json:"fullScan"`
+		DiscoveryWork        int      `json:"discoveryWork"`
+		KnownFiles           int      `json:"knownFiles"`
+		QueueDepth           int      `json:"queueDepth"`
+		SummaryBytes         int      `json:"summaryBytes"`
+		State                string   `json:"state,omitempty"`
+		Complete             bool     `json:"complete"`
 	}
 	documentOnly    bool
 	failures        map[string]error
@@ -126,6 +137,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		}
 	}()
 	buffers := map[string]buffer{}
+	workspaceState := newWorkspaceIndex()
+	defer workspaceState.close()
+	workEvents := workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 	diskGenerations := map[string]uint64{}
 	roots := []string{}
 	published := map[string][]byte{}
@@ -137,12 +151,15 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	canEdit := false
 	canWatch := false
 	override := ""
-	var cancel context.CancelFunc
+	var cancel, cancelDocument context.CancelFunc
 	var latest completed
 	var documents completed // Partial facts never become the editable workspace.
 	defer func() {
 		if cancel != nil {
 			cancel()
+		}
+		if cancelDocument != nil {
+			cancelDocument()
 		}
 	}()
 	send := func(value any) error {
@@ -180,32 +197,50 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": why}})
 		}
 	}
-	var active, pending bool
-	scanPending := map[string]bool{}
+	var active, pending, documentActive, documentPending bool
 	debounce := time.NewTimer(time.Hour)
 	debounce.Stop()
 	defer debounce.Stop()
 	var ready <-chan time.Time
-	launch := func(inputChanged bool, rescanRoots ...string) {
-		for _, root := range rescanRoots {
-			if root != "" {
-				scanPending[root] = true
-			}
-		}
+	launch := func(inputChanged bool) {
 		if inputChanged {
 			editGeneration++
 		}
 		epoch++
-		if cancel != nil {
-			cancel()
+		if inputChanged {
+			documentPending = true
+			if cancelDocument != nil {
+				cancelDocument()
+			}
 		}
 		pending = true
 		debounce.Reset(120 * time.Millisecond)
 		ready = debounce.C
 	}
-	rootForURI := func(uri string) string {
-		path, _ := workspace.PathFromURI(uri)
-		return workspace.Owner(roots, path)
+	acceptBuffer := func(uri, text string) (source.Snapshot, error) {
+		if old, open := workspaceState.documents.Snapshot(source.URI(uri)); open {
+			return workspaceState.documents.Change(source.URI(uri), old.Revision(), []source.Change{{Range: source.Span{Start: 0, End: len(old.Text())}, Text: text}})
+		}
+		return workspaceState.documents.Open(source.URI(uri), text)
+	}
+	recordFileEvent := func(uri string) {
+		path, err := workspace.PathFromURI(uri)
+		root := workspace.Owner(roots, path)
+		if err != nil || root == "" {
+			return
+		}
+		workspaceState.documents.Invalidate(source.URI(uri))
+		workspaceState.withdraw(uri)
+		if filepath.Base(path) == ".argocd-ls.yaml" {
+			workEvents.reset[root] = true
+		}
+		if workEvents.files[uri] || len(workEvents.files) < indexQueueLimit {
+			workEvents.files[uri] = true
+		} else {
+			// Coalescing overflow schedules a bounded full membership pass. The
+			// event's already withdrawn facts cannot be served in the meantime.
+			workEvents.reconcile[root] = true
+		}
 	}
 	fitsBuffer := func(uri string, size int) bool {
 		if size < 0 || size > workspace.MaxFileText {
@@ -223,53 +258,59 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 		return total <= workspace.MaxRetainedText
 	}
 	refuseBuffer := func(uri string, version int, revision source.Revision, reason string) {
-		buffers[uri] = buffer{version: version, revision: revision, unavailable: reason}
+		workspaceState.documents.Close(source.URI(uri))
+		buffers[uri] = buffer{uri: uri, version: version, revision: revision, unavailable: reason}
+		recordFileEvent(uri)
 		// Release current owner facts immediately. Already-running consumers are
 		// cancelled and still must pass the independent epoch delivery guard.
 		for _, request := range requests {
 			request.stop()
 		}
-		launch(true, rootForURI(uri))
+		launch(true)
 		publish(map[string]any{"uri": uri, "version": version, "diagnostics": []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: reason}}})
 	}
 	startAnalysis := func() {
-		if active || !pending || shutdown {
+		if shutdown {
 			return
 		}
-		pending = false
-		active = true
-		ctx, c := context.WithCancel(context.Background())
-		cancel = c
 		copyBuffers := map[string]buffer{}
 		for uri, b := range buffers {
 			copyBuffers[uri] = b
 		}
-		copyRoots := append([]string{}, roots...)
+		copyRoots := append([]string(nil), roots...)
 		current, selected := epoch, override
-		previous := latest
-		previousDocuments := documents
-		rescanRoots := copyRootSet(scanPending)
-		// Acquisition remains owed until a current pass commits it. Starting a
-		// scan must not consume a watcher/save event that cancellation can lose.
+		if documentPending && !documentActive {
+			documentPending, documentActive = false, true
+			ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			cancelDocument = stop
+			previous := documents
+			go func() {
+				defer stop()
+				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous)
+				select {
+				case results <- local:
+				case <-done:
+				}
+			}()
+		}
+		if active || !pending {
+			return
+		}
+		pending, active = false, true
+		ctx, stop := context.WithCancel(context.Background())
+		cancel = stop
+		events := workEvents
+		workEvents = workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 		go func() {
-			defer c()
-			localCtx, stopLocal := context.WithTimeout(ctx, 5*time.Second)
-			local := analyzeDocuments(localCtx, current, copyRoots, copyBuffers, selected, previousDocuments)
-			stopLocal()
-			select {
-			case results <- local:
-			case <-done:
-				return
-			}
-			workspaceCtx, stopWorkspace := context.WithTimeout(ctx, workspaceAnalysisTimeout)
-			defer stopWorkspace()
-			result := analyzeRoots(workspaceCtx, current, copyRoots, copyBuffers, selected, previous, rescanRoots)
+			defer stop()
+			result := workspaceState.advance(ctx, current, copyRoots, copyBuffers, selected, events)
 			select {
 			case results <- result:
 			case <-done:
 			}
 		}()
 	}
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -281,8 +322,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			if initialized && !shutdown {
 				for _, root := range roots {
 					diskGenerations[root]++
+					workEvents.reconcile[root] = true
 				}
-				launch(false, roots...)
+				launch(false)
 			}
 		case q := <-queries:
 			if q.trace != "" {
@@ -295,7 +337,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			}
 			request.stop()
 			delete(requests, key)
-			if shutdown || (q.epoch != epoch && (q.proof == nil || !q.proof.valid(buffers, roots, override, diskGenerations))) {
+			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) {
 				reject(q.id, -32801, "analysis changed")
 				continue
 			}
@@ -305,13 +347,34 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				reply(q.id, q.answer)
 			}
 		case result := <-results:
-			if !result.documentOnly {
+			if result.documentOnly {
+				documentActive = false
+			} else {
 				active = false
-				if pending && ready == nil {
-					startAnalysis()
-				}
 			}
+			if result.more {
+				pending = true
+			}
+			if (pending && !active) || (documentPending && !documentActive) {
+				debounce.Reset(time.Millisecond)
+				ready = debounce.C
+			}
+			if !result.documentOnly && !result.unchangedInputs {
+				// The index commit already happened, even if a newer event makes
+				// this batch's diagnostic delivery stale.
+				editGeneration++
+			}
+
 			if result.epoch != epoch || shutdown {
+				if !shutdown && !result.documentOnly && len(result.publications) > 0 {
+					for _, clear := range workspaceState.retryPublications(result.publications, buffers) {
+						publish(map[string]any{"uri": clear.uri, "diagnostics": clear.diagnostics})
+						delete(published, clear.uri)
+					}
+					pending = true
+					debounce.Reset(time.Millisecond)
+					ready = debounce.C
+				}
 				if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 					trace, _ := json.Marshal(result.stats)
 					fmt.Fprintln(errOut, "argocd-analysis-discarded", string(trace))
@@ -334,47 +397,30 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				documents = result
 				continue
 			}
-			if !result.unchangedInputs {
-				editGeneration++
-			}
 			result.editGeneration = editGeneration
 			latest = result
-			if result.err == nil && result.stats.FullScan {
-				clear(scanPending)
-			}
 			if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 				trace, _ := json.Marshal(result.stats)
 				fmt.Fprintln(errOut, "argocd-analysis", string(trace))
 			}
-			if result.err != nil {
-				fmt.Fprintf(errOut, "analysis incomplete: %v (root=%q phase=%s elapsed=%dms); open-document checks are independent\n", result.err, result.stats.Root, result.stats.Phase, result.stats.ElapsedMilliseconds)
-				code := "ANALYSIS_INCOMPLETE"
-				if e, ok := result.err.(*workspace.Error); ok {
-					code = e.Code
+			for _, publication := range sortedPublications(recoverDocumentPublications(result, documents, roots, buffers)) {
+				if publication.diagnostics == nil {
+					publication.diagnostics = []analysis.Diagnostic{}
 				}
-				if result.failureURI == "" && len(roots) > 0 {
-					result.failureURI = workspace.FileURI(filepath.Join(roots[0], ".argocd-ls.yaml"))
+				if b, ok := buffers[publication.uri]; ok {
+					version := b.version
+					publication.version = &version
 				}
-				var version *int
-				if b, ok := buffers[result.failureURI]; ok {
-					v := b.version
-					version = &v
+				phase := publication.phase
+				if phase == "" {
+					phase = "workspace"
 				}
-				// No partial workspace facts may masquerade as a complete index.
-				result.publications = []publication{{result.failureURI, version, []analysis.Diagnostic{{URI: result.failureURI, Code: code, Source: "argocd-ls", Severity: 1, Message: result.err.Error()}}}}
-				_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/logMessage", "params": map[string]any{"type": 2, "message": "Argo CD analysis incomplete: " + result.err.Error() + "; open-document checks remain independent"}})
-			}
-			current := map[string]bool{}
-			for _, p := range recoverDocumentPublications(result, documents, roots) {
-				current[p.uri] = true
-				publish(map[string]any{"uri": p.uri, "version": p.version, "diagnostics": p.diagnostics})
-			}
-			for uri := range published {
-				if !current[uri] {
-					publish(map[string]any{"uri": uri, "diagnostics": []any{}})
-					delete(published, uri)
+				publish(map[string]any{"uri": publication.uri, "version": publication.version, "diagnostics": publication.diagnostics, "x-argocd-analysis-scope": phase})
+				if publication.version == nil && len(publication.diagnostics) == 0 && !workspaceState.retainsURI(publication.uri) {
+					delete(published, publication.uri)
 				}
 			}
+			continue
 		case event := <-messages:
 			if event.err != nil {
 				if event.err != io.EOF {
@@ -445,9 +491,6 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					continue
 				}
 				override = p.InitializationOptions.TargetVersion
-				for _, root := range roots {
-					scanPending[root] = true
-				}
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
@@ -484,12 +527,15 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if canWatch {
 					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-watch-registration", "method": "client/registerCapability", "params": map[string]any{"registrations": []any{map[string]any{"id": "argocd-workspace-files", "method": "workspace/didChangeWatchedFiles", "registerOptions": map[string]any{"watchers": []any{map[string]any{"globPattern": "**/*", "kind": 7}}}}}}})
 				}
-				launch(true, roots...)
+				launch(true)
 			case "shutdown":
 				if canWatch {
 					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-watch-unregister", "method": "client/unregisterCapability", "params": map[string]any{"unregisterations": []any{map[string]any{"id": "argocd-workspace-files", "method": "workspace/didChangeWatchedFiles"}}}})
 				}
 				shutdown = true
+				if cancelDocument != nil {
+					cancelDocument()
+				}
 				for key, request := range requests {
 					request.stop()
 					reject(json.RawMessage(key), -32800, "server shutting down")
@@ -517,6 +563,14 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if old, ok := buffers[p.TextDocument.URI]; ok && p.TextDocument.Version <= old.version {
 					continue
 				}
+				if len(p.TextDocument.URI) > 4096 {
+					fmt.Fprintln(errOut, "open URI exceeds input budget")
+					continue
+				}
+				if _, exists := buffers[p.TextDocument.URI]; !exists && len(buffers) >= 2048 {
+					fmt.Fprintln(errOut, "open document entry budget exhausted")
+					continue
+				}
 				revision := source.Revision(1)
 				if old, ok := buffers[p.TextDocument.URI]; ok {
 					revision = old.revision + 1
@@ -525,13 +579,14 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					refuseBuffer(p.TextDocument.URI, p.TextDocument.Version, revision, "open buffer text exceeds the 5 MiB file or 128 MiB retained-text budget")
 					continue
 				}
-				s, e := source.New(source.URI(p.TextDocument.URI), revision, p.TextDocument.Text)
+				s, e := acceptBuffer(p.TextDocument.URI, p.TextDocument.Text)
 				if e != nil {
 					fmt.Fprintln(errOut, e)
 					continue
 				}
 				buffers[p.TextDocument.URI] = buffer{snapshot: s, version: p.TextDocument.Version, revision: s.Revision()}
-				launch(true, rootForURI(p.TextDocument.URI))
+				recordFileEvent(p.TextDocument.URI)
+				launch(true)
 			case "textDocument/didChange":
 				var p struct {
 					TextDocument struct {
@@ -608,13 +663,15 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					continue
 				}
 				if valid {
-					buffers[p.TextDocument.URI] = buffer{snapshot: snapshot, version: p.TextDocument.Version, revision: snapshot.Revision()}
-					path, _ := workspace.PathFromURI(p.TextDocument.URI)
-					var rescanRoots []string
-					if filepath.Base(path) == ".argocd-ls.yaml" {
-						rescanRoots = append(rescanRoots, workspace.Owner(roots, path))
+					accepted, err := acceptBuffer(p.TextDocument.URI, snapshot.Text())
+					if err != nil {
+						refuseBuffer(p.TextDocument.URI, p.TextDocument.Version, nextRevision, err.Error())
+						continue
 					}
-					launch(true, rescanRoots...)
+					snapshot = accepted
+					recordFileEvent(p.TextDocument.URI)
+					buffers[p.TextDocument.URI] = buffer{snapshot: snapshot, version: p.TextDocument.Version, revision: snapshot.Revision()}
+					launch(true)
 				} else {
 					fmt.Fprintln(errOut, "rejected invalid incremental edit")
 				}
@@ -626,12 +683,14 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				if json.Unmarshal(m.Params, &p) == nil {
 					_, existed := buffers[p.TextDocument.URI]
+					workspaceState.documents.Close(source.URI(p.TextDocument.URI))
+					recordFileEvent(p.TextDocument.URI)
 					delete(buffers, p.TextDocument.URI)
 					delete(documentPublished, p.TextDocument.URI)
 					if existed {
 						publish(map[string]any{"uri": p.TextDocument.URI, "diagnostics": []analysis.Diagnostic{}, "x-argocd-analysis-scope": "document"})
 					}
-					launch(existed, rootForURI(p.TextDocument.URI))
+					launch(existed)
 				}
 			case "textDocument/didSave", "workspace/didChangeWatchedFiles":
 				var event struct {
@@ -647,22 +706,23 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if event.TextDocument.URI != "" {
 					p, _ := workspace.PathFromURI(event.TextDocument.URI)
 					changedRoots[workspace.Owner(roots, p)] = true
+					recordFileEvent(event.TextDocument.URI)
 				}
 				for _, change := range event.Changes {
 					p, _ := workspace.PathFromURI(change.URI)
 					changedRoots[workspace.Owner(roots, p)] = true
+					recordFileEvent(change.URI)
 				}
 				if len(changedRoots) == 0 {
 					for _, root := range roots {
 						changedRoots[root] = true
+						workEvents.reconcile[root] = true
 					}
 				}
-				var rescanRoots []string
 				for root := range changedRoots {
 					diskGenerations[root]++
-					rescanRoots = append(rescanRoots, root)
 				}
-				launch(false, rescanRoots...)
+				launch(false)
 			case "workspace/didChangeWorkspaceFolders":
 				previousRoots := append([]string(nil), roots...)
 				var p struct {
@@ -696,6 +756,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					if e != nil {
 						continue
 					}
+					// A remove/add pair may be coalesced before a worker runs.
+					// Re-establish its membership and publications even then.
+					workEvents.reset[path] = true
 					exists := false
 					for _, r := range roots {
 						if r == path {
@@ -712,7 +775,14 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					}
 					return roots[i] < roots[j]
 				})
-				launch(!reflect.DeepEqual(previousRoots, roots), roots...)
+				for uri := range published {
+					path, _ := workspace.PathFromURI(uri)
+					if workspace.Owner(roots, path) == "" {
+						publish(map[string]any{"uri": uri, "diagnostics": []analysis.Diagnostic{}})
+						delete(published, uri)
+					}
+				}
+				launch(!reflect.DeepEqual(previousRoots, roots))
 			case "workspace/didChangeConfiguration":
 				var p struct {
 					Settings struct {
@@ -722,7 +792,12 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				if json.Unmarshal(m.Params, &p) == nil {
 					changed := override != p.Settings.TargetVersion
 					override = p.Settings.TargetVersion
-					launch(changed, roots...)
+					if changed {
+						for _, root := range roots {
+							workEvents.reset[root] = true
+						}
+					}
+					launch(changed)
 				}
 
 			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion":
@@ -735,7 +810,6 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				requests[key] = pendingQuery{ctx, stop}
 				input, localInput, current := latest, documents, epoch
 				selected := override
-				queryScan := copyRootSet(scanPending)
 				var queryRoots []string
 				var copied map[string]buffer
 				queryDisk := make(map[string]uint64, len(diskGenerations))
@@ -752,28 +826,31 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				editable := canEdit
 				go func() {
 					var proof *readProof
+					var editProof *uint64
 					var trace bytes.Buffer
-					if os.Getenv("ARGOCD_LS_TRACE") == "1" && (m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve") {
-						input.scopes = append([]scopeResult(nil), input.scopes...)
-						for i := range input.scopes {
-							input.scopes[i].options.Trace = &trace
-						}
-					}
 					var answer any
 					var code int
 					var why string
 					if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
-						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected)
-					} else {
-						var fresh completed
-						if useDocumentQuery(m, input, copied, queryRoots, queryScan) {
-							fresh = localInput
-							if fresh.epoch != current {
-								fresh = analyzeDocuments(ctx, current, queryRoots, copied, selected, localInput)
+						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
+						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+							for i := range input.scopes {
+								input.scopes[i].options.Trace = &trace
 							}
-						} else {
-							fresh = queryInput(ctx, m, input, copied, queryRoots, selected, current, queryScan)
 						}
+						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected)
+						if code == 0 {
+							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+							if proof != nil && localFixAnswer(m, answer) {
+								proof.localize(queryURI(m))
+							}
+							if path, _ := workspace.PathFromURI(queryURI(m)); proof == nil && filepath.Base(path) == ".argocd-ls.yaml" {
+								generation := input.editGeneration
+								editProof = &generation
+							}
+						}
+					} else {
+						fresh := workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						answer, code, why = readRequest(ctx, m, fresh, current, queryRoots)
 						if code == 0 {
 							// The proof must describe the very scopes used by this
@@ -786,7 +863,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 						code, why = -32800, "request cancelled"
 					}
 					select {
-					case queries <- queryResult{proof, trace.String(), ctx, m.ID, current, answer, code, why}:
+					case queries <- queryResult{proof: proof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()
@@ -812,61 +889,51 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 
 // A failed scan must withdraw cross-file claims without withdrawing independently
 // checked current text. The merged view is for publication only, never edits.
-func recoverDocumentPublications(result, documents completed, roots []string) []publication {
-	if result.epoch != documents.epoch || documents.err != nil || (result.err == nil && len(result.failures) == 0) {
+func recoverDocumentPublications(result, documents completed, roots []string, buffers map[string]buffer) []publication {
+	if documents.err != nil {
 		return result.publications
 	}
-	publications := append([]publication(nil), result.publications...)
-	indices := map[string]int{}
-	for i, p := range publications {
-		indices[p.uri] = i
+	checked := map[string]source.Revision{}
+	for _, scope := range documents.scopes {
+		for _, file := range scope.files {
+			checked[string(file.Snapshot.URI())] = file.Snapshot.Revision()
+		}
 	}
-	for _, p := range documents.publications {
-		file, err := workspace.PathFromURI(p.uri)
-		if err != nil || (result.err == nil && result.failures[workspace.Owner(roots, file)] == nil) {
+	publications := append([]publication(nil), result.publications...)
+	for i, failed := range publications {
+		unavailable := false
+		for _, diagnostic := range failed.diagnostics {
+			unavailable = unavailable || diagnostic.Code == "ANALYSIS_INCOMPLETE" || diagnostic.Code == "INPUT_BUDGET_EXCEEDED"
+		}
+		if !unavailable {
 			continue
 		}
-		if i, ok := indices[p.uri]; ok {
-			merged := append([]analysis.Diagnostic{}, p.diagnostics...)
-			for _, diagnostic := range publications[i].diagnostics {
+		for _, local := range documents.publications {
+			if local.uri != failed.uri {
+				continue
+			}
+			current, open := buffers[local.uri]
+			if !open || current.unavailable != "" || checked[local.uri] != current.snapshot.Revision() {
+				continue
+			}
+			path, err := workspace.PathFromURI(local.uri)
+			if err != nil || workspace.Owner(roots, path) == "" {
+				continue
+			}
+			merged := append([]analysis.Diagnostic(nil), local.diagnostics...)
+			for _, diagnostic := range failed.diagnostics {
 				duplicate := false
-				for _, local := range merged {
-					duplicate = duplicate || reflect.DeepEqual(local, diagnostic)
+				for _, existing := range merged {
+					duplicate = duplicate || reflect.DeepEqual(existing, diagnostic)
 				}
 				if !duplicate {
 					merged = append(merged, diagnostic)
 				}
 			}
-			publications[i] = publication{p.uri, p.version, merged}
-		} else {
-			indices[p.uri] = len(publications)
-			publications = append(publications, p)
+			publications[i].diagnostics = merged
 		}
 	}
 	return publications
-}
-
-func useDocumentQuery(m message, latest completed, buffers map[string]buffer, roots []string, rescanRoots map[string]bool) bool {
-	if m.Method != "textDocument/hover" && m.Method != "textDocument/documentSymbol" && m.Method != "textDocument/completion" {
-		return false
-	}
-	var p struct {
-		TextDocument struct {
-			URI string `json:"uri"`
-		} `json:"textDocument"`
-	}
-	if json.Unmarshal(m.Params, &p) != nil {
-		return false
-	}
-	if _, open := buffers[p.TextDocument.URI]; !open {
-		return false
-	}
-	file, err := workspace.PathFromURI(p.TextDocument.URI)
-	if err != nil {
-		return false
-	}
-	root := workspace.Owner(roots, file)
-	return root != "" && (rescanRoots[root] || latest.err != nil || latest.failures[root] != nil)
 }
 
 func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, rescanRoots map[string]bool) completed {
@@ -922,7 +989,7 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 			root := workspace.Owner(roots, file)
 			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
 			v := b.version
-			result.publications = append(result.publications, publication{uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
+			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
 			continue
 		}
 		remaining -= len(b.snapshot.Text())
@@ -1002,7 +1069,7 @@ rootLoop:
 			uri := string(snapshot.URI())
 			if b, ok := buffers[uri]; ok {
 				v := b.version
-				result.publications = append(result.publications, publication{uri, &v, []analysis.Diagnostic{{URI: uri, Code: "HELM_UNRENDERED", Source: "argocd-ls", Severity: 3, Message: "Helm template is not rendered; static Argo CD checks are incomplete. Run the explicit render-check task and inspect its generated YAML diagnostics."}}})
+				result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "HELM_UNRENDERED", Source: "argocd-ls", Severity: 3, Message: "Helm template is not rendered; static Argo CD checks are incomplete. Run the explicit render-check task and inspect its generated YAML diagnostics."}}})
 			}
 		}
 
@@ -1175,7 +1242,7 @@ rootLoop:
 					v := b.version
 					version = &v
 				}
-				result.publications = append(result.publications, publication{uri, version, checked.Diagnostics})
+				result.publications = append(result.publications, publication{"", uri, version, checked.Diagnostics})
 			}
 			options := analysis.DomainOptions{LocalPaths: input.LocalPaths, ControlPlaneNamespace: input.Config.ControlPlaneNamespace, ReferencePolicy: input.Config.ReferencePolicy, Complete: input.Complete && !incomplete && !strings.HasPrefix(scope, "isolated:")}
 			result.scopes = append(result.scopes, scopeResult{checked: checks, projectionStart: projectionStart, root: input.Root, scope: scope, files: currentFiles, documents: docs, options: options})
@@ -1231,7 +1298,7 @@ rootLoop:
 		}
 		if !found {
 			version := b.version
-			result.publications = append(result.publications, publication{uri, &version, []analysis.Diagnostic{}})
+			result.publications = append(result.publications, publication{"", uri, &version, []analysis.Diagnostic{}})
 		}
 	}
 
@@ -1272,7 +1339,7 @@ func (result *completed) failRoot(checkpoint rootCheckpoint, root, uri string, b
 		v := b.version
 		version = &v
 	}
-	result.publications = append(result.publications, publication{uri, version, []analysis.Diagnostic{{URI: uri, Code: code, Source: "argocd-ls", Severity: 1, Message: err.Error()}}})
+	result.publications = append(result.publications, publication{"", uri, version, []analysis.Diagnostic{{URI: uri, Code: code, Source: "argocd-ls", Severity: 1, Message: err.Error()}}})
 }
 
 // Rebuild budget accounting only after a root is rolled back. Schema preparation
@@ -1352,14 +1419,15 @@ func readMessage(reader *bufio.Reader) (message, error) {
 }
 
 type fixData struct {
-	URI      string `json:"uri"`
-	Epoch    uint64 `json:"epoch"`
-	Revision uint64 `json:"revision"`
-	Target   string `json:"target"`
-	FixCode  string `json:"fixCode"`
-	Start    int    `json:"start"`
-	End      int    `json:"end"`
-	NewText  string `json:"newText"`
+	URI         string           `json:"uri"`
+	Epoch       uint64           `json:"epoch"`
+	Revision    uint64           `json:"revision"`
+	Target      string           `json:"target"`
+	InputTarget workspace.Target `json:"inputTarget"`
+	FixCode     string           `json:"fixCode"`
+	Start       int              `json:"start"`
+	End         int              `json:"end"`
+	NewText     string           `json:"newText"`
 }
 
 func replacementEdit(snapshot source.Snapshot, span source.Span, text string) analysis.TextEdit {
@@ -1409,7 +1477,7 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 					if replacement.Span.Start > rangeEnd || replacement.Span.End < rangeStart {
 						continue
 					}
-					data := fixData{URI: p.TextDocument.URI, Epoch: latest.editGeneration, Revision: uint64(b.snapshot.Revision()), Target: doc.Target, FixCode: fix.Code, Start: replacement.Span.Start, End: replacement.Span.End, NewText: replacement.NewText}
+					data := fixData{URI: p.TextDocument.URI, Revision: uint64(b.snapshot.Revision()), Target: doc.Target, InputTarget: inputTarget(latest, p.TextDocument.URI), FixCode: fix.Code, Start: replacement.Span.Start, End: replacement.Span.End, NewText: replacement.NewText}
 					actions = append(actions, map[string]any{"title": fix.Title, "kind": "quickfix", "data": data})
 				}
 			}
@@ -1425,7 +1493,7 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 		}
 		data := envelope.Data
 		b, ok := buffers[data.URI]
-		if !canEdit || !ok || data.Epoch != latest.editGeneration || latest.epoch != epoch || latest.err != nil || data.Revision != uint64(b.snapshot.Revision()) {
+		if !canEdit || !ok || data.InputTarget != inputTarget(latest, data.URI) || latest.epoch != epoch || latest.err != nil || data.Revision != uint64(b.snapshot.Revision()) {
 			return nil, -32801, "code action is stale"
 		}
 		matched := false
@@ -1492,7 +1560,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 				}
 			}
 		}
-		if m.Method == "textDocument/definition" {
+		if m.Method == "textDocument/definition" && latest.incremental == nil {
 			for _, f := range scope.files {
 				if string(f.Snapshot.URI()) == p.TextDocument.URI {
 					if recovered := analysis.RecoverProjectUse(ctx, f.Snapshot, f.Target.Version, p.Position); recovered != nil {
@@ -1509,6 +1577,9 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		case "textDocument/definition":
 			answer = analysis.Definition(scope.documents, scope.options, p.TextDocument.URI, p.Position)
 		case "textDocument/references":
+			if !scope.options.Complete {
+				return nil, -32801, "workspace discovery is incomplete; target uniqueness is unproved"
+			}
 			answer = analysis.References(scope.documents, scope.options, p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)
 		case "textDocument/documentSymbol":
 			answer = analysis.Symbols(scope.documents, p.TextDocument.URI)
@@ -1554,150 +1625,24 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 	return
 }
 
-// queryInput refreshes changed buffers within the requested root without waiting
-// for diagnostic debounce. It never promotes this read-only view to edit state.
-func queryInput(ctx context.Context, m message, latest completed, buffers map[string]buffer, roots []string, override string, epoch uint64, rescanRoots map[string]bool) completed {
-
-	var p struct {
-		TextDocument struct {
-			URI string `json:"uri"`
-		} `json:"textDocument"`
-	}
-	if json.Unmarshal(m.Params, &p) != nil {
-		return latest
-	}
-	file, err := workspace.PathFromURI(p.TextDocument.URI)
-	if err != nil {
-		return latest
-	}
-	root := workspace.Owner(roots, file)
-	if root == "" {
-		return completed{epoch: epoch}
-	}
-	if failure := latest.failures[root]; failure != nil && !rescanRoots[root] {
-		latest.err = failure
-		return latest
-	}
-	if rescanRoots[root] || queryMembershipChanged(latest, buffers, root) {
-		result := analyzeRoots(ctx, epoch, roots, buffers, override, latest, rescanRoots)
-		result.stats.Scope = "query-acquisition"
-		if failure := result.failures[root]; failure != nil {
-			result.err = failure
-		}
-		return result
-	}
-	for _, input := range latest.inputs {
-		if input.Root != root {
-			continue
-		}
-		if override != "" {
-			for _, t := range input.Targets {
-				if t.Version != override {
-					return latest
-				}
-			}
-		}
-		configURI := workspace.FileURI(filepath.Join(root, ".argocd-ls.yaml"))
-		if b, ok := buffers[configURI]; ok { // Raw config bytes are part of the target identity.
-			hash := sha256.Sum256([]byte(b.snapshot.Text()))
-			for _, t := range input.Targets {
-				if t.ConfigHash != hex.EncodeToString(hash[:]) {
-					return latest
-				}
-			}
-		}
-	}
-	fresh := latest
-	fresh.epoch = epoch
-	fresh.scopes = append([]scopeResult(nil), latest.scopes...)
-	analyzer := new(analysis.Analyzer)
-	for _, scope := range latest.scopes {
-		analyzer.ReuseSchemas(scope.documents)
-	}
-	for i, scope := range fresh.scopes {
-		if scope.root != root {
-			continue
-		}
-		scope.files = append([]workspace.File(nil), scope.files...)
-		scope.documents = append([]analysis.Document(nil), scope.documents...)
-		for j, f := range scope.files {
-			b, ok := buffers[string(f.Snapshot.URI())]
-			if !ok {
-				continue
-			}
-			if b.unavailable != "" {
-				return latest
-			}
-			if b.snapshot.Revision() == f.Snapshot.Revision() && b.snapshot.Text() == f.Snapshot.Text() {
-				continue
-			}
-			checked, e := analyzer.Analyze(ctx, b.snapshot, f.Target.Version)
-			if e != nil {
-				return latest
-			}
-			kept := []analysis.Document{}
-			for _, doc := range scope.documents {
-				if doc.Snapshot.URI() != f.Snapshot.URI() {
-					kept = append(kept, doc)
-				}
-			}
-			scope.documents = append(kept, checked.Documents...)
-			scope.files[j].Snapshot = b.snapshot
-		}
-		fresh.scopes[i] = scope
-	}
-	return fresh
-}
-
-// The query fast path may replace text only while acquisition membership is
-// unchanged. Apply the same URI and Helm policies as diagnostic acquisition.
-func queryMembershipChanged(latest completed, buffers map[string]buffer, root string) bool {
-	for _, input := range latest.inputs {
-		for _, f := range input.Files {
-			b, ok := buffers[string(f.Snapshot.URI())]
-			if !ok || b.unavailable != "" {
-				continue
-			}
-			path, err := workspace.PathFromURI(string(b.snapshot.URI()))
-			if err != nil || path != f.Path {
-				return true
-			}
-			if input.Root == root && workspace.IsHelmTemplate(root, path, b.snapshot) {
-				return true
-			}
-		}
-		if input.Root != root {
-			continue
-		}
-		for _, snapshot := range input.Skipped {
-			b, ok := buffers[string(snapshot.URI())]
-			if !ok || b.unavailable != "" {
-				continue
-			}
-			path, err := workspace.PathFromURI(string(b.snapshot.URI()))
-			if err != nil || !workspace.IsHelmTemplate(root, path, b.snapshot) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func copyRootSet(roots map[string]bool) map[string]bool {
-	copied := make(map[string]bool, len(roots))
-	for root := range roots {
-		copied[root] = true
-	}
-	return copied
-}
-
-// A read proof only spans the queried scope, while edits retain the global epoch.
-// It permits unrelated input churn without accepting stale text or dependencies.
+// A proof spans only the immutable inputs actually used for an answer. Local
+// edits need the selected buffer and configuration; candidate edits and reads
+// additionally retain the relevant cross-file identities and positions.
 type readProof struct {
-	root, override    string
-	diskGeneration    uint64
-	files, knownFiles map[string]bool
-	buffers           map[string]buffer
+	engine                 *workspaceIndex
+	catalog                *workspace.Catalog
+	scope                  index.Scope
+	scopeName              string
+	complete               bool
+	hashes                 map[source.URI][32]byte
+	candidates             map[index.Key][]index.Definition
+	uses                   map[index.Key][]index.Use
+	allProjects, localOnly bool
+	projectGeneration      uint64
+	root, override         string
+	diskGeneration         uint64
+	files, knownFiles      map[string]bool
+	buffers                map[string]buffer
 }
 
 func traceReadRequest(out io.Writer, m message, input completed, proof *readProof) {
@@ -1718,15 +1663,8 @@ func traceReadRequest(out io.Writer, m message, input completed, proof *readProo
 }
 
 func newReadProof(m message, input completed, buffers map[string]buffer, roots []string, override string, disk map[string]uint64) *readProof {
-	var p struct {
-		TextDocument struct {
-			URI string `json:"uri"`
-		} `json:"textDocument"`
-	}
-	if json.Unmarshal(m.Params, &p) != nil {
-		return nil
-	}
-	path, err := workspace.PathFromURI(p.TextDocument.URI)
+	uri := queryURI(m)
+	path, err := workspace.PathFromURI(uri)
 	if err != nil {
 		return nil
 	}
@@ -1735,6 +1673,11 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 		return nil
 	}
 	proof := &readProof{root: root, override: override, diskGeneration: disk[root], files: map[string]bool{}, knownFiles: map[string]bool{}, buffers: buffers}
+	if input.queryProof != nil {
+		proof.engine, proof.catalog, proof.scope, proof.scopeName, proof.complete = input.queryProof.engine, input.queryProof.catalog, input.queryProof.scope, input.queryProof.scopeName, input.queryProof.complete
+		proof.hashes, proof.candidates = input.queryProof.hashes, input.queryProof.candidates
+		proof.uses, proof.allProjects, proof.projectGeneration = input.queryProof.uses, input.queryProof.allProjects, input.queryProof.projectGeneration
+	}
 	found := false
 	for _, scope := range input.scopes {
 		if scope.root != root {
@@ -1744,7 +1687,7 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 		for _, f := range scope.files {
 			uri := string(f.Snapshot.URI())
 			proof.knownFiles[uri] = true
-			if uri == p.TextDocument.URI {
+			if uri == queryURI(m) {
 				selected = true
 			}
 		}
@@ -1761,7 +1704,10 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 	return proof
 }
 func (proof *readProof) valid(current map[string]buffer, roots []string, override string, disk map[string]uint64) bool {
-	if proof.override != override || proof.diskGeneration != disk[proof.root] {
+	if proof.engine != nil && !proof.engine.proofValid(proof) {
+		return false
+	}
+	if proof.override != override || (proof.engine == nil && proof.diskGeneration != disk[proof.root]) {
 		return false
 	}
 	relevant := func(uri string) bool {
@@ -1795,7 +1741,13 @@ func (proof *readProof) valid(current map[string]buffer, roots []string, overrid
 			if !wasOpen || !same(old, b) {
 				return false
 			}
-		} else if !proof.knownFiles[uri] && (!wasOpen || !same(old, b)) {
+		} else if !proof.localOnly && !proof.knownFiles[uri] && (!wasOpen || !same(old, b)) {
+			if proof.catalog != nil {
+				target, included, err := proof.catalog.Select(p, true)
+				if err == nil && (!included || target.Scope != proof.scopeName) {
+					continue
+				}
+			}
 			return false
 		}
 	}

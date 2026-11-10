@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Cached field and pin edits across real unchanged and changed LSP input epochs."""
-import argparse,hashlib,json,pathlib,sys,time
+"""Local field proofs and complete-workspace pin proofs across real LSP events."""
+import argparse,hashlib,json,os,pathlib,sys,time
 import audit_repair_e2e as wire
+from persistent_workspace_e2e import Client, Traces, wait_until
 p=argparse.ArgumentParser();p.add_argument('binary',type=pathlib.Path);p.add_argument('output',type=pathlib.Path);p.add_argument('--skip-periodic',action='store_true');a=p.parse_args();wire.BINARY=a.binary.resolve();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];clients=[]
+os.environ['ARGOCD_LS_TRACE']='1'
 CONFIG=wire.CONFIG.replace('"3.0.0"','"3.5.6"');TEXT=wire.APP.replace('project: team','proj: team')
 def record(name,checks,observed=None):rows.append({'id':name,'checks':checks,'observed':observed,'passed':all(checks.values())})
 def create(name):
- folder=out/name;root=folder/'workspace';root.mkdir(parents=True);app=wire.write(root,'app.yaml',TEXT);config=wire.write(root,'.argocd-ls.yaml',CONFIG);project=wire.write(root,'project.yaml',wire.PROJECT);c=wire.LSP(folder,[root]);clients.append(c);c.send('workspace/didChangeConfiguration',{'settings':{'targetVersion':'3.0.0'}});c.open(config,CONFIG,11);c.open(app,TEXT,7);c.diag(app,7);ready(c,app);return c,root,app,config,project
+ folder=out/name;root=folder/'workspace';root.mkdir(parents=True);app=wire.write(root,'app.yaml',TEXT);config=wire.write(root,'.argocd-ls.yaml',CONFIG);project=wire.write(root,'project.yaml',wire.PROJECT);c=Client(folder,[root]);c.trace=Traces(c);clients.append(c);c.send('workspace/didChangeConfiguration',{'settings':{'targetVersion':'3.0.0'}});c.open(config,CONFIG,11);c.open(app,TEXT,7);c.diag(app,7);ready(c,app);return c,root,app,config,project
 def ready(c,path,timeout=6):
  end=time.monotonic()+timeout;responses=[]
  while time.monotonic()<end:
@@ -16,7 +18,13 @@ def ready(c,path,timeout=6):
   time.sleep(.02)
  raise TimeoutError('current analysis did not complete')
 def action(c,path,line,code):
- r=c.request('textDocument/codeAction',{'textDocument':{'uri':path.as_uri()},'range':{'start':{'line':line,'character':0},'end':{'line':line+1,'character':0}},'context':{'diagnostics':[]}});return next(x for x in r.get('result',[]) if x['data']['fixCode']==code)
+ end=time.monotonic()+6
+ while time.monotonic()<end:
+  r=c.request('textDocument/codeAction',{'textDocument':{'uri':path.as_uri()},'range':{'start':{'line':line,'character':0},'end':{'line':line+1,'character':0}},'context':{'diagnostics':[]}})
+  found=next((x for x in r.get('result',[]) if x['data']['fixCode']==code),None)
+  if found is not None:return found
+  time.sleep(.02)
+ raise AssertionError('expected action did not become available: '+code)
 def actions(c,app,config):return [action(c,app,5,'FIX_FIELD_NAME'),action(c,config,1,'FIX_PIN_VERSION')]
 def apply(text,change):
  lines=text.splitlines(keepends=True)
@@ -25,11 +33,15 @@ def apply(text,change):
  return text
 def resolve_pair(name,c,pair,app,config,positive):
  for label,item,path,version,before,after in [('field',pair[0],app,7,TEXT,wire.APP),('pin',pair[1],config,11,CONFIG,wire.CONFIG)]:
-  r=c.request('codeAction/resolve',item)
-  if positive:
+  local_unaffected=label=='field' and name in ['dependency','dependency-delete','dependency-restore','target-restore']
+  expected=positive or local_unaffected
+  r=c.request('codeAction/resolve',item);attempts=1;end=time.monotonic()+6
+  while expected and r.get('error',{}).get('code')==-32801 and time.monotonic()<end:
+   time.sleep(.02);r=c.request('codeAction/resolve',item);attempts+=1
+  if expected:
    changes=r.get('result',{}).get('edit',{}).get('documentChanges',[]);checks={'oneVersionedChange':len(changes)==1 and changes[0]['textDocument']=={'uri':path.as_uri(),'version':version},'exactBytes':len(changes)==1 and apply(before,changes[0])==after}
   else:checks={'stale':r.get('error',{}).get('code')==-32801,'noEdit':'edit' not in r.get('result',{})}
-  record(name+'-'+label,checks,r)
+  record(name+'-'+label,checks,{'response':r,'attempts':attempts,'localIndependentOfProjectInputs':local_unaffected})
 try:
  c,root,app,config,project=create('unchanged');pair=actions(c,app,config);resolve_pair('initial',c,pair,app,config,True)
  for _ in range(3):
@@ -37,14 +49,17 @@ try:
  ready(c,app);resolve_pair('repeated-save',c,pair,app,config,True)
  c.send('workspace/didChangeWatchedFiles',{'changes':[{'uri':project.as_uri(),'type':2}]});ready(c,app);resolve_pair('unchanged-watch',c,pair,app,config,True)
  if not a.skip_periodic:
-  # Observe the actual natural timer causing a pending query, then its completed replacement.
-  pending=False;observed=[];end=c.start+36
-  while time.monotonic()<end:
-   r=c.request('textDocument/codeAction',{'textDocument':{'uri':app.as_uri()},'range':{'start':{'line':5,'character':0},'end':{'line':6,'character':0}},'context':{'diagnostics':[]}})
-   if r.get('error',{}).get('code')==-32801:pending=True;observed.append(r)
-   elif pending and 'result' in r:observed.append(r);break
-   time.sleep(.02 if time.monotonic()>c.start+29 else .2)
-  record('periodic-observed',{'pendingThenCurrent':pending and bool(observed) and 'result' in observed[-1]},observed);resolve_pair('unchanged-periodic',c,pair,app,config,True)
+  # Local schema actions need not become unavailable during a scan. Observe
+  # the actual terminal reconciliation trace before reusing the unchanged pin.
+  mark=c.trace.mark()
+  def periodic_complete():
+   for row in c.trace.since(mark):
+    stats=row['stats']
+    if row['delivered'] and stats.get('fullScan') and stats.get('state')=='Ready' and stats.get('complete') and stats.get('queueDepth')==0 and stats.get('knownFiles',0)>=2:return row
+   return None
+  ready_trace=wait_until(c,periodic_complete,36,'complete natural reconciliation')
+  observed=c.trace.since(mark)
+  record('periodic-observed',{'completeReconciliation':ready_trace['stats']['complete'] and any(row['stats'].get('fullScan') for row in observed)},observed);resolve_pair('unchanged-periodic',c,pair,app,config,True)
  c.close()
  cases=['text','same-text-new-version','config-bytes','target','scope','dependency','dependency-delete','ownership','refusal','close','text-restore','target-restore','dependency-restore']
  for name in cases:

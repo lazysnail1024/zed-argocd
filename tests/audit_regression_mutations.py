@@ -21,11 +21,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def mutation(ident, path, before, after, consumer, case, failure, failed_checks,
-             required_checks=(), positive_cases=(), assertion_error=False):
+             required_checks=(), positive_cases=(), assertion_error=False, additional_failures=()):
     return {"id": ident, "file": path, "before": before, "after": after,
             "consumer": consumer, "case": case, "expectedFailure": failure,
             "failureChecks": list(failed_checks), "requiredChecks": list(required_checks),
-            "positiveCases": list(positive_cases), "assertionErrorExpected": assertion_error}
+            "positiveCases": list(positive_cases), "assertionErrorExpected": assertion_error,
+            "additionalFailures": dict(additional_failures)}
 
 
 MUTATIONS = [
@@ -33,40 +34,59 @@ MUTATIONS = [
              "if effectiveSpec == nil {", "if false {",
              "semantic_regressions_e2e.py", "patch", "patch-spec-null", ("cli_no_panic",),
              positive_cases=("patch-empty-object",), assertion_error=True),
-    mutation("R-02-consume-scan-on-start", "internal/lsp/server.go",
-             "rescanRoots := copyRootSet(scanPending)",
-             "rescanRoots := copyRootSet(scanPending)\n\t\tclear(scanPending)",
-             "lsp_regressions_e2e.py", "rescan-cancel", "rescan-cancel-rename",
-             ("settled-definition-needs-no-new-event",),
-             ("initial-diagnostic-control", "initial-definition-control", "scan-start-before-cancellation-1",
+    # Losing a new URI's related-priority admission loses both its notification
+    # and queued work. Existing files and later configuration rediscovery remain
+    # usable, so the failure must be the missing newly created target.
+    mutation("R-02-drop-new-file-events", "internal/lsp/incremental.go",
+             "func (s *workspaceIndex) enqueue(uri source.URI, read bool, priority shared.Priority) {\n\tfile := s.files[uri]",
+             "func (s *workspaceIndex) enqueue(uri source.URI, read bool, priority shared.Priority) {\n\tfile := s.files[uri]\n\tif file == nil && priority == shared.Related {\n\t\treturn\n\t}",
+             "lsp_regressions_e2e.py", "rescan-cancel", "rescan-cancel-create",
+             ("settled-definition-needs-no-new-event", "latest-diagnostics-include-known-change"),
+             ("initial-ready-control", "initial-diagnostic-control", "initial-definition-control",
               "restored-positive-control", "unaffected-root-stays-usable", "clean-server-exit")),
+    # The last completed batch now contains metadata, not query scope facts.
+    # Building a read proof from that batch falls back to a global epoch and
+    # incorrectly rejects an independent-scope edit. Actual dependencies must
+    # still be rejected in the same consumer's separate race control.
     mutation("R-03-proof-from-old-scope", "internal/lsp/server.go",
              "proof = newReadProof(m, fresh, copied, queryRoots, selected, queryDisk)",
              "proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)",
              "lsp_regressions_e2e.py", "scope-proof", "scope-proof-merge",
-             ("fresh-scope-proof-rejects-only-actual-dependencies",),
+             ("independent-scope-query-stays-valid",),
              ("exact-initial-reference-control", "versioned-edit-positive-control",
-              "dependency-edit-processed-before-query-delivery", "settled-reference-control", "clean-server-exit")),
-    mutation("R-04-global-parser-failure", "internal/lsp/server.go",
-             "result.failRoot(checkpoint, root, uri, buffers, e)",
-             "result.err = e\n\t\t\t\t\tresult.failureURI = uri\n\t\t\t\t\treturn result",
+              "dependency-edit-processed-before-query-delivery", "fresh-scope-proof-rejects-only-actual-dependencies",
+              "settled-reference-control", "changed-current-buffer-rejects-old-edit",
+              "changed-config-rejects-old-edit", "clean-server-exit")),
+    # Parse failures are file facts. Expanding their completeness veto to every
+    # root denies exhaustive references in a fully known, healthy root.
+    mutation("R-04-global-parser-completeness", "internal/lsp/incremental.go",
+             "return root.issues[scope] == 0 && root.issues[\"\"] == 0",
+             "for _, candidate := range s.roots {\n\t\tfor _, issues := range candidate.issues {\n\t\t\tif issues > 0 {\n\t\t\t\treturn false\n\t\t\t}\n\t\t}\n\t}\n\treturn root.issues[scope] == 0 && root.issues[\"\"] == 0",
              "lsp_regressions_e2e.py", "parser-root", "parser-root-depth-open-failed-first",
-             ("during-failure-definition", "during-failure-schema-diagnostic-retained"),
-             ("before-failure-definition", "before-failure-schema-diagnostic-retained", "bounded-input-error-explained",
-              "after-repair-definition", "after-repair-schema-diagnostic-retained", "clean-server-exit")),
+             ("during-failure-references",),
+             ("before-failure-references", "during-failure-definition", "during-failure-schema-diagnostic-retained",
+              "bounded-input-error-explained", "failed-root-cannot-supply-stale-authority",
+              "after-repair-references", "after-repair-schema-diagnostic-retained", "clean-server-exit")),
     mutation("R-05-ignore-effective-paths", "internal/analysis/local_paths.go",
              "documents, _ = appSetVariants(doc)", "documents = nil",
              "workspace_regressions_e2e.py", "local-paths", "path-patch-absent", ("missingWarning",),
              ("warningOnlyExitZero",), ("path-patch-exists", "path-patch-restored")),
-    mutation("R-06-skip-buffer-classification", "internal/workspace/workspace.go",
-             "if changed[f.Path] {", "if false && changed[f.Path] {",
+    mutation("R-06-skip-buffer-classification", "internal/lsp/incremental.go",
+             "if workspace.IsHelmTemplate(rootPath, path, snapshot) {",
+             "if false && workspace.IsHelmTemplate(rootPath, path, snapshot) {",
              "workspace_regressions_e2e.py", "helm", "helm-unsaved-version-2", ("onlyUnrenderedInfo",),
              ("queryUsesCurrentClass",), ("helm-pure-yaml-control",)),
-    mutation("R-07-raw-uri-membership", "internal/workspace/workspace.go",
-             "members[f.Path] = i",
-             "raw, _ := url.Parse(string(f.Snapshot.URI()))\n\t\tmembers[filepath.FromSlash(raw.Path)] = i",
-             "workspace_regressions_e2e.py", "uri", "uri-symlink-incremental-work", ("noDiskReads",),
-             ("threeCompletedEdits", "oneParsedFile", "onlyAppAndProjectDomain"), ("uri-canonical-incremental-work",)),
+    # Canonical identity and the spelling used in client results are different
+    # responsibilities. Using the spelling as an acquisition key duplicates an
+    # aliased resource while the canonical-path control still works.
+    mutation("R-07-raw-buffer-identity", "internal/lsp/incremental.go",
+             "canonical := source.URI(workspace.FileURI(path))\n\t\topen[canonical] = b",
+             "canonical := source.URI(uri)\n\t\topen[canonical] = b",
+             "workspace_regressions_e2e.py", "uri", "uri-symlink-navigation",
+             ("definitionClientURI", "commentDoesNotChangeDiagnostics"), ("referencesClientURI",),
+             positive_cases=("uri-canonical-navigation", "uri-canonical-incremental-work",
+                             "uri-symlink-versioned-client-edit"),
+             additional_failures=(("uri-symlink-incremental-work", ("noDiskReads",)),)),
     mutation("R-08-trust-truncated-prefix", "internal/analysis/reference_recovery.go",
              "func (r referenceRecovery) permits(ctx context.Context, parts []string) bool {",
              "func (r referenceRecovery) permits(ctx context.Context, parts []string) bool {\n\treturn true",
@@ -134,6 +154,15 @@ def behavior_failure(report, spec):
     checks = row.get("checks", {})
     if isinstance(checks, list):
         checks = {check["id"]: check.get("passed") for check in checks}
+    for ident, names in spec.get("additionalFailures", {}).items():
+        additional = rows.get(ident, {})
+        if additional.get("passed") is not False or additional.get("error"):
+            return False
+        values = additional.get("checks", {})
+        if isinstance(values, list):
+            values = {check["id"]: check.get("passed") for check in values}
+        if not all(values.get(name) is False for name in names):
+            return False
     # Require the specific faulty behavior and its independent preconditions.
     # Cleanup, missing race coverage or a transport timeout cannot kill a mutant.
     return (all(checks.get(name) is False for name in spec["failureChecks"])

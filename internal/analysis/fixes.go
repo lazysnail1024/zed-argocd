@@ -22,9 +22,21 @@ func ResolveFix(ctx context.Context, doc Document, scope []Document, options Dom
 func fixesInRange(ctx context.Context, doc Document, scope []Document, options DomainOptions, span source.Span, selected *Fix) []Fix {
 	options.Context = ctx
 	out := []Fix{}
-	if !options.Complete || ctx.Err() != nil || doc.Root.Span().Start > span.End || doc.Root.Span().End < span.Start {
+	if ctx.Err() != nil || doc.Root.Span().Start > span.End || doc.Root.Span().End < span.Start {
 		return out
 	}
+	// Correcting a field spelling or enum is a document edit. Its safety proof
+	// covers schema and local domain errors in that input, even while unrelated
+	// files are still being discovered. Selecting a different Project requires
+	// the complete candidate set and retains the cross-resource proof below.
+	localScope := []Document{}
+	for _, candidate := range scope {
+		if candidate.Snapshot.URI() == doc.Snapshot.URI() {
+			localScope = append(localScope, candidate)
+		}
+	}
+	localOptions := options
+	localOptions.Complete = false
 	add := func(code, title string, path []string, value any) {
 		if !doc.exact(path) {
 			return
@@ -44,7 +56,11 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 		if selected != nil && (selected.Code != code || selected.Plan.Replacements[0].NewText != string(b)) {
 			return
 		}
-		if (selected == nil && code == "FIX_REFERENCE_CANDIDATE") || safeScopePlan(ctx, doc, scope, options, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
+		checkScope, checkOptions := localScope, localOptions
+		if code == "FIX_REFERENCE_CANDIDATE" {
+			checkScope, checkOptions = scope, options
+		}
+		if (selected == nil && code == "FIX_REFERENCE_CANDIDATE") || safeScopePlan(ctx, doc, checkScope, checkOptions, plan, map[string]string{"FIX_REFERENCE_CANDIDATE": "CD_PROJECT_UNRESOLVED", "FIX_ENUM_VALUE": "SCHEMA_CONSTRAINT"}[code]) {
 			out = append(out, Fix{code, title, plan})
 		}
 	}
@@ -56,11 +72,11 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 		if selected != nil && (selected.Code != fix.Code || selected.Plan.Replacements[0].NewText != fix.Plan.Replacements[0].NewText) {
 			continue
 		}
-		if safeScopePlan(ctx, doc, scope, options, fix.Plan, "SCHEMA_UNKNOWN_FIELD") {
+		if safeScopePlan(ctx, doc, localScope, localOptions, fix.Plan, "SCHEMA_UNKNOWN_FIELD") {
 			out = append(out, fix)
 		}
 	}
-	if doc.Kind == "Application" && options.ControlPlaneNamespace != "" {
+	if options.Complete && doc.Kind == "Application" && options.ControlPlaneNamespace != "" {
 		project := literal(object(doc.Value["spec"])["project"])
 		unresolved := true
 		for _, candidate := range scope {

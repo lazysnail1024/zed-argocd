@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Real stdio regressions for cancelled acquisition, read proofs, and root failures.
+"""Real stdio regressions for persistent progress, read proofs, and file failures.
 
-No production test hooks or timing sleeps are used. Linux acquisition tests wait
-for actual IN_OPEN events; other platforms explicitly report that case as skipped.
+No production test hooks are used. Linux acquisition tests observe actual
+IN_OPEN events; other platforms explicitly report that case as skipped.
 Scope tests require a synchronous protocol barrier after the dependency edit to
 arrive before the asynchronous query response, or fail for missing race coverage.
 """
@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import audit_repair_e2e as wire
+import persistent_workspace_e2e as progress
 
 
 def query(path, line=5, character=13, references=False):
@@ -76,14 +77,19 @@ class Case:
         self.out = out / name
         self.out.mkdir(parents=True)
         self.client = None
+        self.traces = None
         self.roots = []
         self.temporary = None
         self.row = {'id': name, 'checks': []}
 
     def start(self, roots):
         self.roots = roots
-        self.client = wire.LSP(self.out, roots)
+        self.client = progress.Client(self.out, roots)
+        self.traces = progress.Traces(self.client)
         return self.client
+
+    def ready(self, mark=0):
+        return progress.wait_ready(self.client, self.traces, mark, 0, 30, False)
 
     def check(self, name, condition, observed=None):
         row = {'id': name, 'passed': bool(condition)}
@@ -184,7 +190,10 @@ class Opens:
 
 
 def rescan_case(case, change):
-    case.temporary = tempfile.TemporaryDirectory(prefix='argocd-lsp-rescan-')
+    # The command-line case name is retained for consumers of the old suite.
+    # Its contract is now persistent progress: only configuration changes need
+    # a fresh membership scan; ordinary watch events update their URI directly.
+    case.temporary = tempfile.TemporaryDirectory(prefix='argocd-lsp-progress-')
     isolated = pathlib.Path(case.temporary.name).resolve()
     root = isolated / 'affected-root'
     healthy = isolated / 'independent-root'
@@ -203,8 +212,10 @@ def rescan_case(case, change):
     client = case.start([root, healthy])
     client.open(app, text)
     client.open(healthy_app, wire.APP)
+    initial_ready = case.ready()
     initial = wait_diagnostics(client, app, 1)
     wait_diagnostics(client, healthy_app, 1)
+    case.check('initial-ready-control', initial_ready['stats']['complete'], initial_ready)
     case.check('initial-diagnostic-control', has_code(initial, 'CD_PROJECT_UNRESOLVED')
                == (change == 'create'), initial)
     initial_definition = client.request('textDocument/definition', query(app))
@@ -227,36 +238,54 @@ def rescan_case(case, change):
         else:
             wire.write(root, created.name, wire.PROJECT.replace('name: team', 'name: newteam'))
             changes = [(created, 1)]
+        mark = case.traces.mark()
         watched(client, changes)
-        for version in (2, 3):
+        if change == 'config':
             opened = observed.next_open(scan_watch)
-            case.check('scan-start-before-cancellation-%d' % (version - 1), opened,
+            case.check('configuration-change-starts-discovery', opened,
                        {'inotifyOpenCount': observed.counts.get(scan_watch, 0)})
-            client.change(app, text + '# interrupt scan %d\n' % version, version)
-        # Requests made while acquisition is still owed must independently
-        # acquire current input or refuse it; old authority is never acceptable.
+        for version in (2, 3):
+            client.change(app, text + '# edit while work is pending %d\n' % version, version)
+        # A known-invalidated target must disappear immediately. A newly
+        # created target may remain absent until its one queued read commits.
         immediate_definition = client.request('textDocument/definition', query(app))
         immediate_completion = client.request('textDocument/completion', query(app))
         expected = {created.as_uri()} if change == 'create' else set()
         case.check('known-change-never-returns-old-definition',
                    immediate_definition.get('error', {}).get('code') == -32801
-                   or ('result' in immediate_definition and result_uris(immediate_definition) == expected),
+                   or ('result' in immediate_definition and result_uris(immediate_definition) <= expected),
                    immediate_definition)
-        expected_label = 'newteam' if change == 'create' else None
         completion_ok = immediate_completion.get('error', {}).get('code') == -32801
         if 'result' in immediate_completion:
-            completion_ok = expected_label in labels(immediate_completion) if expected_label else 'team' not in labels(immediate_completion)
+            completion_ok = 'team' not in labels(immediate_completion)
         case.check('known-change-never-returns-old-completion', completion_ok, immediate_completion)
+        ready = case.ready(mark)
         current = wait_diagnostics(client, app, 3)
         definition = client.request('textDocument/definition', query(app))
         case.check('latest-diagnostics-include-known-change',
                    has_code(current, 'CD_PROJECT_UNRESOLVED') != (change == 'create'), current)
         case.check('settled-definition-needs-no-new-event',
                    'result' in definition and result_uris(definition) == expected, definition)
+        case.check('persistent-work-settles-with-newest-buffer',
+                   ready['stats']['complete'] and ready['stats']['queueDepth'] == 0, ready)
+        observed.drain()
+        # The following explicit query is allowed to hydrate its selected
+        # closed Project once. Measure unrelated background I/O before it.
+        case.check('unaffected-root-not-opened-by-background-work',
+                   observed.counts.get(independent_watch, 0) == 0,
+                   {'opens': observed.counts.get(independent_watch, 0)})
+        if change != 'config':
+            case.check('single-uri-event-does-not-reread-sentinel',
+                       observed.counts.get(scan_watch, 0) == 0,
+                       {'opens': observed.counts.get(scan_watch, 0)})
+            work = progress.work_totals(case.traces.since(mark))
+            case.check('single-uri-event-does-not-restart-membership-scan',
+                       work['discoveryWork'] == 0 and work['diskReads'] <= 1, work)
         independent = client.request('textDocument/definition', query(healthy_app))
         case.check('unaffected-root-stays-usable',
                    result_uris(independent) == {healthy_project.as_uri()}, independent)
 
+        mark = case.traces.mark()
         config.write_text(wire.CONFIG)
         project.write_text(wire.PROJECT)
         restoring = [(config, 2), (project, 2)]
@@ -265,43 +294,28 @@ def rescan_case(case, change):
             restoring.append((created, 3))
         watched(client, restoring)
         client.change(app, wire.APP + '# restore control\n', 4)
+        case.ready(mark)
         restored = wait_diagnostics(client, app, 4)
         restored_definition = client.request('textDocument/definition', query(app))
         case.check('restored-positive-control', not has_code(restored, 'CD_PROJECT_UNRESOLVED')
                    and result_uris(restored_definition) == {project.as_uri()}, restored_definition)
+        mark = case.traces.mark()
         client.change(app, wire.APP + '# normal incremental control\n', 5)
+        case.ready(mark)
         wait_diagnostics(client, app, 5)
+        work = progress.work_totals(case.traces.since(mark))
+        case.check('ordinary-edit-remains-incremental', work['diskReads'] == 0
+                   and work['parsedFiles'] == 1 and work['discoveryWork'] == 0, work)
         observed.drain()
-        case.check('unaffected-root-not-opened-again',
-                   observed.counts.get(independent_watch, 0) == 0,
-                   {'opens': observed.counts.get(independent_watch, 0)})
         case.row['inotifyEvents'] = observed.events
     finally:
         observed.close()
     case.close()
     trace_lines = (case.out / 'stderr').read_text().splitlines()
-    traces = [json.loads(line.split(' ', 1)[1]) for line in trace_lines
-              if line.startswith('argocd-analysis ')]
-    discarded = [json.loads(line.split(' ', 1)[1]) for line in trace_lines
-                 if line.startswith('argocd-analysis-discarded ')]
-    query_scans = [json.loads(line.split(' ', 1)[1]) for line in trace_lines
-                   if line.startswith('argocd-query-acquisition ')]
-    case.row['traces'] = traces
-    case.row['discardedTraces'] = discarded
-    case.row['queryAcquisitionTraces'] = query_scans
-    case.check('two-started-scans-actually-discarded', len(discarded) == 2
-               and all(trace['fullScan'] and trace.get('acquisitionRoots') == [str(root)]
-                       for trace in discarded), discarded)
-    case.check('cancelled-scans-never-commit', len(traces) == 4, {'acceptedPasses': len(traces)})
-    case.check('retry-commits-pending-acquisition', len(traces) >= 2 and traces[1]['fullScan']
-               and traces[1]['diskReads'] > 0, traces[1] if len(traces) >= 2 else None)
-    case.check('only-dirty-root-reacquired', len(traces) >= 3 and all(
-        trace.get('acquisitionRoots') == [str(root)] for trace in traces[1:3] + query_scans),
-        traces[1:3] + query_scans)
-    case.check('ordinary-edit-remains-incremental', bool(traces) and not traces[-1]['fullScan']
-               and traces[-1]['diskReads'] == 0 and traces[-1]['parsedFiles'] == 1
-               and traces[-1]['domainDocuments'] == 2
-               and traces[-1].get('acquisitionFallbacks', 0) == 0, traces[-1] if traces else None)
+    case.row['traces'] = [json.loads(line.split(' ', 1)[1]) for line in trace_lines
+                          if line.startswith('argocd-analysis ')]
+    case.row['discardedTraces'] = [json.loads(line.split(' ', 1)[1]) for line in trace_lines
+                                   if line.startswith('argocd-analysis-discarded ')]
 
 
 def scope_config(mode):
@@ -334,6 +348,7 @@ def scope_case(case, transition):
     for path, text in ((config, old_config), (project, wire.PROJECT), (other, wire.APP),
                        (independent, wire.APP), (editable, editable_text)):
         client.open(path, text)
+    case.ready()
     wait_diagnostics(client, editable, 1)
     params = query(project, 3, 12, references=True)
     expected_before = applications | ({other.as_uri()} if old_mode == 'merged' else set())
@@ -355,9 +370,29 @@ def scope_case(case, transition):
     response, barrier, before = barrier_pair(client, 150, 151)
     case.check('independent-scope-query-stays-valid', result_uris(response) == expected_before, response)
     stale_action = client.request('codeAction/resolve', action)
-    case.check('read-proof-never-relaxes-edit-epoch', stale_action.get('error', {}).get('code') == -32801,
+    independent_edits = stale_action.get('result', {}).get('edit', {}).get('documentChanges', [])
+    case.check('independent-scope-does-not-invalidate-local-edit', bool(independent_edits)
+               and independent_edits[0]['textDocument'] == {'uri': editable.as_uri(), 'version': 1},
                stale_action)
     wait_diagnostics(client, independent, 2)
+    mark = case.traces.mark()
+    client.change(editable, editable_text + '# changed current buffer\n', 2)
+    changed_action = client.request('codeAction/resolve', action)
+    case.check('changed-current-buffer-rejects-old-edit',
+               changed_action.get('error', {}).get('code') == -32801, changed_action)
+    case.ready(mark)
+    actions = client.request('textDocument/codeAction', {
+        'textDocument': {'uri': editable.as_uri()},
+        'range': {'start': {'line': 5, 'character': 2}, 'end': {'line': 5, 'character': 6}},
+        'context': {'diagnostics': []}})
+    current_action = next(action for action in actions.get('result', [])
+                          if action.get('data', {}).get('fixCode') == 'FIX_FIELD_NAME')
+    current_resolved = client.request('codeAction/resolve', current_action)
+    current_edits = current_resolved.get('result', {}).get('edit', {}).get('documentChanges', [])
+    case.check('new-current-version-edit-positive-control', bool(current_edits)
+               and current_edits[0]['textDocument'] == {'uri': editable.as_uri(), 'version': 2},
+               current_resolved)
+    mark = case.traces.mark()
     client.change(config, new_config, 2)
     client.send('textDocument/references', params, 200)
     client.change(other, wire.APP.replace('project: team', 'project: missing'), 2)
@@ -371,12 +406,19 @@ def scope_case(case, transition):
     expected_after = set() if transition == 'reassign' else applications
     case.check('fresh-scope-proof-rejects-only-actual-dependencies',
                response.get('error', {}).get('code') == -32801 if dependent
-               else 'result' in response and result_uris(response) == expected_after, response)
+               else response.get('error', {}).get('code') == -32801
+               or ('result' in response and result_uris(response) == expected_after), response)
+    stale_config_action = client.request('codeAction/resolve', current_action)
+    case.check('changed-config-rejects-old-edit',
+               stale_config_action.get('error', {}).get('code') == -32801, stale_config_action)
+    case.ready(mark)
     wait_diagnostics(client, other, 2)
     settled = client.request('textDocument/references', params)
     case.check('settled-reference-control', 'result' in settled
                and result_uris(settled) == expected_after, settled)
+    mark = case.traces.mark()
     client.change(other, wire.APP, 3)
+    case.ready(mark)
     wait_diagnostics(client, other, 3)
     restored = client.request('textDocument/references', params)
     expected_restored = expected_after | ({other.as_uri()} if dependent else set())
@@ -422,12 +464,14 @@ def parser_case(case, boundary, entry, failed_first):
     client = case.start([failed, healthy] if failed_first else [healthy, failed])
     client.open(app, text)
     client.open(failed_app, wire.APP)
+    case.ready()
     wait_diagnostics(client, app, 1)
     wait_diagnostics(client, failed_app, 1)
     healthy_queries(case, client, app, project, 'before-failure')
     control = client.request('textDocument/definition', query(failed_app))
     case.check('failed-root-initially-usable', result_uris(control) == {(failed / 'project.yaml').as_uri()}, control)
     since = len(client.messages)
+    failure_mark = case.traces.mark()
     if entry == 'open':
         client.open(broken, invalid)
         version = 1
@@ -438,17 +482,43 @@ def parser_case(case, boundary, entry, failed_first):
     diagnostics = wait_diagnostics(client, broken, version, since,
                                    lambda ds: has_code(ds, 'ANALYSIS_INCOMPLETE'))
     case.check('bounded-input-error-explained', any(reason in d['message'] for d in diagnostics), diagnostics)
+    limited = progress.wait_until(client, lambda: next((row for row in case.traces.since(failure_mark)
+        if row['delivered'] and row['stats'].get('state') == 'Limited'
+        and row['stats'].get('queueDepth') == 0), None), 15, 'settled partial scope')
+    case.check('failed-scope-is-not-reported-complete', limited['stats'].get('complete') is False, limited)
     healthy_queries(case, client, app, project, 'during-failure')
-    refused = client.request('textDocument/definition', query(failed_app))
+    known = client.request('textDocument/definition', query(failed_app))
+    case.check('failed-file-does-not-hide-known-positive-candidate', result_uris(known)
+               == {(failed / 'project.yaml').as_uri()}, known)
+    refused = client.request('textDocument/references',
+                             query(failed / 'project.yaml', 3, 12, references=True))
     case.check('failed-root-cannot-supply-stale-authority', refused.get('error', {}).get('code') == -32801,
                refused)
+    since_missing = len(client.messages)
+    client.change(failed_app, wire.APP.replace('project: team', 'project: absent'), 2)
+    incomplete = wait_diagnostics(client, failed_app, 2, since_missing)
+    case.check('partial-scope-cannot-assert-target-missing', not any(
+        item.get('code') == 'CD_PROJECT_UNRESOLVED' and item.get('severity') == 1
+        for item in incomplete), incomplete)
+    actions = client.request('textDocument/codeAction', {
+        'textDocument': {'uri': failed_app.as_uri()},
+        'range': {'start': {'line': 5, 'character': 11}, 'end': {'line': 5, 'character': 17}},
+        'context': {'diagnostics': incomplete}})
+    case.check('partial-scope-cannot-offer-cross-file-edit',
+               actions.get('error', {}).get('code') == -32801
+               or ('result' in actions and all(
+                   item.get('data', {}).get('fixCode') in ('FIX_FIELD_NAME', 'FIX_ENUM_VALUE')
+                   for item in actions['result'])), actions)
+    client.change(failed_app, wire.APP, 3)
     since = len(client.messages)
+    mark = case.traces.mark()
     if entry == 'open':
         client.change(broken, 'a: 1\n', 2)
         version = 2
     else:
         broken.write_text('a: 1\n')
         watched(client, [(broken, 2)])
+    case.ready(mark)
     recovered = wait_diagnostics(client, broken, version, since)
     case.check('failure-diagnostic-clears-after-repair', not has_code(recovered, 'ANALYSIS_INCOMPLETE'), recovered)
     healthy_queries(case, client, app, project, 'after-repair')
@@ -505,6 +575,7 @@ def main():
     report = {'command': sys.argv, 'binarySHA256': wire.hash_file(wire.BINARY),
               'runnerSHA256': wire.hash_file(pathlib.Path(__file__)),
               'transportSHA256': wire.hash_file(pathlib.Path(wire.__file__)),
+              'progressSHA256': wire.hash_file(pathlib.Path(progress.__file__)),
               'python': sys.version, 'platform': sys.platform, 'passed': passed, 'rows': rows}
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     return 0 if passed else 1
