@@ -143,6 +143,28 @@ func (i *Index) Commit(ticket Ticket, facts Facts) (Change, error) {
 	return Change{i.generation, changed, sortedURIs(affected)}, nil
 }
 
+// Reuse restores the retained commit without copying its facts. The caller must
+// first verify that the input bytes and all interpretation settings are unchanged.
+// The original ticket must still be current, and the committed scope must match.
+// ErrNoPrevious leaves the ticket available for a normal Commit after analysis.
+func (i *Index) Reuse(ticket Ticket) (Change, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	e, err := i.ticketEntry(ticket)
+	if err != nil {
+		return Change{}, err
+	}
+	if e.data == nil || e.data.scope != e.scope {
+		return Change{}, ErrNoPrevious
+	}
+	if err := i.advance(); err != nil {
+		return Change{}, err
+	}
+	e.serial = 0
+	i.attach(e.scope, e.uri, false)
+	return Change{Generation: i.generation, Affected: []source.URI{e.uri}}, nil
+}
+
 // Remove releases all retained facts and budgets and invalidates pending
 // tickets. Removing an unknown URI is a no-op and does not change generations.
 func (i *Index) Remove(uri source.URI) (Change, error) {

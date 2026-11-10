@@ -36,13 +36,36 @@ func Prepare(ctx context.Context, root, override string, config *string, roots [
 // Select applies the same scope/exclusion/ownership rules as Load. Open files
 // excluded from the workspace retain their isolated document-only scope.
 func (c *Catalog) Select(file string, opened bool) (Target, bool, error) {
-	root, cfg := c.Input.Root, c.Input.Config
-	if !inside(root, file) || (len(c.roots) > 0 && Owner(c.roots, file) != root) {
-		return Target{}, false, nil
+	selection, included, err := selectFile(c.Input.Root, file, c.Input.Config, c.roots, opened, false)
+	if err != nil || !included {
+		return Target{}, included, err
+	}
+	for _, target := range c.Input.Targets {
+		if target.Scope == selection.scope {
+			if selection.isolated {
+				target.Scope = "isolated:" + file
+				target.ID += ":" + target.Scope
+			}
+			return target, true, nil
+		}
+	}
+	return Target{}, false, failure("SCOPE_UNKNOWN", "file scope is unavailable")
+}
+
+type fileSelection struct {
+	scope    string
+	isolated bool
+}
+
+// Both one-shot and streaming acquisition use this policy after canonicalizing
+// the path. Explicit CLI files may be excluded; open excluded files are isolated.
+func selectFile(root, file string, cfg Config, roots []string, opened, selected bool) (fileSelection, bool, error) {
+	if !inside(root, file) || (len(roots) > 0 && Owner(roots, file) != root) {
+		return fileSelection{}, false, nil
 	}
 	rel, err := filepath.Rel(root, file)
 	if err != nil {
-		return Target{}, false, err
+		return fileSelection{}, false, err
 	}
 	rel = filepath.ToSlash(rel)
 	owner := "root"
@@ -60,7 +83,7 @@ func (c *Catalog) Select(file string, opened bool) (Target, bool, error) {
 		}
 	}
 	if matches > 1 {
-		return Target{}, false, failure("SCOPE_OVERLAP", "file belongs to multiple scopes: "+rel)
+		return fileSelection{}, false, failure("SCOPE_OVERLAP", "file belongs to multiple scopes: "+rel)
 	}
 	excluded := false
 	for _, glob := range cfg.Exclude {
@@ -69,19 +92,7 @@ func (c *Catalog) Select(file string, opened bool) (Target, bool, error) {
 	for _, part := range strings.Split(rel, "/") {
 		excluded = excluded || excludedDir(part)
 	}
-	if excluded && !opened {
-		return Target{}, false, nil
-	}
-	for _, target := range c.Input.Targets {
-		if target.Scope == owner {
-			if excluded {
-				target.Scope = "isolated:" + file
-				target.ID += ":" + target.Scope
-			}
-			return target, true, nil
-		}
-	}
-	return Target{}, false, failure("SCOPE_UNKNOWN", "file scope is unavailable")
+	return fileSelection{scope: owner, isolated: excluded && opened}, !excluded || opened || selected, nil
 }
 
 // ScanExclusions only turns rules applying to that basename everywhere into

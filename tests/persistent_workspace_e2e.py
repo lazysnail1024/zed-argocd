@@ -148,6 +148,22 @@ def work_totals(rows):
             for name in ("diskReads", "parsedFiles", "discoveryWork", "domainDocuments")}
 
 
+def wait_settled(client, traces, mark, allow_limited=False, timeout=15):
+    """A configuration publication alone is not a completed pin-proof input."""
+    if not allow_limited:
+        return wait_ready(client, traces, mark, 0, timeout, False)
+
+    def find():
+        for row in traces.since(mark):
+            stats = row["stats"]
+            if (row["delivered"] and stats.get("state") in ("Ready", "Limited")
+                    and stats.get("queueDepth") == 0):
+                return row
+        return None
+
+    return wait_until(client, find, timeout, "terminal Ready or Limited")
+
+
 def padded(text, minimum):
     missing = minimum - len(text.encode("utf-8"))
     if missing <= 0:
@@ -328,16 +344,18 @@ def main():
             expected.add(name)
         mark = traces.mark()
         client.send("workspace/didChangeWatchedFiles", {"changes": changes})
-        burst_ready = wait_ready(client, traces, mark, args.count + args.burst,
-                                 args.ready_timeout, args.allow_legacy_ready)
-        burst_rows = traces.since(mark)
+        # Change the current file while the burst still fills the ready queue
+        # and its overflow. CD_DESTINATION_CONFLICT requires domain work, so a
+        # schema-only foreground publication cannot satisfy this observation.
         edited = app_text.replace("project: team", "project: event-")
-        mark = traces.mark()
+        foreground_started = time.monotonic()
         client.change(app, edited, 2)
         current = diagnostic(client, app, 0, lambda p: p.get("version") == 2
                              and has_code(p, "CD_DESTINATION_CONFLICT"))
+        foreground_seconds = current["elapsed"] - (foreground_started - client.start)
         edited_ready = wait_ready(client, traces, mark, args.count + args.burst,
                                   args.ready_timeout, args.allow_legacy_ready)
+        burst_rows = traces.since(mark)
         completion = client.request("textDocument/completion", {
             "textDocument": {"uri": app.as_uri()}, "position": point(edited, "event-", after=True)})
         observed = {item.get("label") for item in completion.get("result", [])}
@@ -346,11 +364,14 @@ def main():
             "burstExceedsQueueCapacity": args.burst > 512,
             "allCandidatesRetained": observed == expected,
             "queueBoundRespected": not queue_depths or max(queue_depths) <= 512,
+            "queueActuallySaturated": bool(queue_depths) and max(queue_depths) == 512,
             "currentBufferStillUpdates": current["params"].get("version") == 2,
+            "foregroundDomainUpdateWithinTwoSeconds": foreground_seconds <= 2,
         }, {"expectedCandidates": len(expected), "observedCandidates": len(observed),
             "missing": sorted(expected - observed), "unexpected": sorted(observed - expected),
             "responseError": completion.get("error"), "maxQueueDepth": max(queue_depths, default=None),
-            "ready": burst_ready, "editedReady": edited_ready, "work": work_totals(burst_rows),
+            "foregroundSeconds": foreground_seconds,
+            "ready": edited_ready, "work": work_totals(burst_rows),
             "rssKiB": rss_kib(client)})
     except Exception as error:
         rows.append({"id": phase, "passed": False, "error": repr(error)})

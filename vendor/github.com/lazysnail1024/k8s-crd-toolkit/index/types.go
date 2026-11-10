@@ -58,6 +58,7 @@ type Limits struct {
 var (
 	ErrStaleTicket = errors.New("index: stale ticket")
 	ErrLimit       = errors.New("index: capacity exceeded")
+	ErrNoPrevious  = errors.New("index: no retained facts for this scope")
 )
 
 // Ticket is an opaque, single-use permission to replace one file's facts.

@@ -71,17 +71,28 @@ func (q *Queue) Put(job Job) error {
 func (q *Queue) Pop() (Job, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	priority, ok := nextPriority(&q.cursor, func(priority Priority) bool { return q.lanes[priority].Len() != 0 })
+	if !ok {
+		return Job{}, false
+	}
+	element := q.lanes[priority].Front()
+	job := element.Value.(Job)
+	q.lanes[priority].Remove(element)
+	delete(q.pending, job.URI)
+	return job, true
+}
+
+// Both queue APIs share the service policy. Availability includes overflow in
+// WorkQueue, so a small ready capacity cannot starve a lower-priority lane.
+func nextPriority(cursor *int, available func(Priority) bool) (Priority, bool) {
 	for range turns {
-		priority := turns[q.cursor]
-		q.cursor = (q.cursor + 1) % len(turns)
-		if element := q.lanes[priority].Front(); element != nil {
-			job := element.Value.(Job)
-			q.lanes[priority].Remove(element)
-			delete(q.pending, job.URI)
-			return job, true
+		priority := turns[*cursor]
+		*cursor = (*cursor + 1) % len(turns)
+		if available(priority) {
+			return priority, true
 		}
 	}
-	return Job{}, false
+	return 0, false
 }
 
 func (q *Queue) Remove(uri source.URI) {

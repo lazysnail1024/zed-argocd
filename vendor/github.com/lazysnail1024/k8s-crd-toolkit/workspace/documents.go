@@ -131,6 +131,15 @@ func (d *Documents) Change(uri source.URI, base source.Revision, changes []sourc
 	return s, nil
 }
 
+// OpenBytes returns the bytes retained by the authoritative open buffers.
+// A caller using it to reserve a separate read budget must still fence changes
+// to those buffers while accepting its read results.
+func (d *Documents) OpenBytes() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.bytes
+}
+
 func (d *Documents) Snapshot(uri source.URI) (source.Snapshot, bool) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()

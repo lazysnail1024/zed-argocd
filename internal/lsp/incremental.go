@@ -46,29 +46,25 @@ type indexedFile struct {
 	schema, diagnostics  []analysis.Diagnostic
 	incomplete           bool
 	err                  error
-	seen                 uint64
-	// Dirty state belongs to the file registry, including when the bounded
-	// queue is full. A full queue delays work; it never loses an event.
-	dirty, workRead, queued bool
-	priority                shared.Priority
-	orderSlot               int
-	bytes                   int
-	event                   uint64
-	invalidated             bool
+	seen                 shared.Observation
+	// The queue owns waiting/running identity. This flag only selects whether
+	// the next analysis needs fresh input or can use committed domain facts.
+	workRead    bool
+	bytes       int
+	event       uint64
+	invalidated bool
 }
 
 type indexedRoot struct {
 	catalog                  *workspace.Catalog
 	err                      error
 	scanner                  *shared.Scanner
-	round                    uint64
+	membership               shared.Membership
+	scanPass                 shared.ScanPass
 	discovered, scanComplete bool
 	rescan, finalDomain      bool
 	readPending, pending     int
-	visited, discoveredFiles int
-	generation               uint64
 	issues                   map[string]int
-	invalidated              int
 	scopeReads, scopeInvalid map[string]int
 	projectGeneration        map[string]uint64
 	deferredDomain           map[source.URI]bool // Bounded by registered files, no retained source.
@@ -76,37 +72,35 @@ type indexedRoot struct {
 	configEvent              uint64
 }
 
-// workspaceIndex is one LSP session, not a second language-server framework.
-// One background worker mutates it; short locks let queries borrow immutable
-// summaries while that worker is outside the lock doing filesystem/parse work.
+// workspaceIndex retains the domain payload and completeness evidence for one
+// LSP session. Short locks let queries borrow immutable summaries while its
+// background worker is outside the lock doing filesystem/parse work.
 // No closed-file Snapshot, CST or projected YAML graph is stored here.
 type workspaceIndex struct {
-	mu                   sync.RWMutex
-	documents            *shared.Documents
-	facts                *index.Index
-	queue                *shared.Queue
-	roots                map[string]*indexedRoot
-	files                map[source.URI]*indexedFile
-	open                 map[source.URI]buffer
-	read                 map[source.URI]bool
-	order                []source.URI
-	freeSlots            []int
-	workCursor, unqueued int
-	override             string
-	rootOrder            []string
-	summaryBytes         int
-	analyzer             analysis.Analyzer
-	closed               bool
-	running              bool
-	event                uint64
-	configEvents         map[string]uint64
+	mu           sync.RWMutex
+	documents    *shared.Documents
+	facts        *index.Index
+	queue        *shared.WorkQueue
+	roots        map[string]*indexedRoot
+	files        map[source.URI]*indexedFile
+	open         map[source.URI]buffer
+	override     string
+	rootOrder    []string
+	summaryBytes int
+	analyzer     analysis.Analyzer
+	closed       bool
+	running      bool // An active advance owns scanner shutdown while outside mu.
+	event        uint64
+	configEvents map[string]uint64
 }
 
 func newWorkspaceIndex() *workspaceIndex {
 	documents, _ := shared.NewDocuments(shared.DocumentLimits{Entries: indexFileLimit, FileBytes: workspace.MaxFileText, OpenBytes: workspace.MaxRetainedText})
 	facts, _ := index.New(index.Limits{Files: indexFileLimit, Symbols: 500000, References: 1000000, Bytes: indexSummaryBytes})
-	queue, _ := shared.NewQueue(indexQueueLimit)
-	return &workspaceIndex{documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, read: map[source.URI]bool{}, configEvents: map[string]uint64{}}
+	// A removed in-flight job keeps its execution slot until Complete, while a
+	// replacement file may already be admitted within the unchanged file limit.
+	queue, _ := shared.NewWorkQueue(indexQueueLimit, indexFileLimit+1)
+	return &workspaceIndex{documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, configEvents: map[string]uint64{}}
 }
 
 func indexScope(root, scope string) index.Scope { return index.Scope(root + "\x00" + scope) }
@@ -137,10 +131,12 @@ func (s *workspaceIndex) withdraw(spelling string) {
 	copy := *file
 	s.event++
 	copy.event = s.event
+	if root := s.roots[copy.root]; root != nil {
+		copy.seen = root.membership.Observe()
+	}
 	if !copy.invalidated {
 		copy.invalidated = true
 		if root := s.roots[copy.root]; root != nil {
-			root.invalidated++
 			root.scopeInvalid[copy.target.Scope]++
 		}
 	}
@@ -185,89 +181,34 @@ func (s *workspaceIndex) enqueue(uri source.URI, read bool, priority shared.Prio
 			root.err = fmt.Errorf("workspace exceeds 100,000 candidate files")
 			return
 		}
-		slot := len(s.order)
-		if len(s.freeSlots) > 0 {
-			slot = s.freeSlots[len(s.freeSlots)-1]
-			s.freeSlots = s.freeSlots[:len(s.freeSlots)-1]
-			s.order[slot] = uri
-		} else {
-			s.order = append(s.order, uri)
-		}
-		file = &indexedFile{uri: uri, path: path, spelling: string(uri), root: root.catalog.Input.Root, orderSlot: slot, priority: priority}
+		file = &indexedFile{uri: uri, path: path, spelling: string(uri), root: root.catalog.Input.Root}
 		file.target, _, _ = root.catalog.Select(path, true)
 		file.bytes = retainedFileBytes(file)
 		if s.summaryBytes+file.bytes > indexSummaryBytes {
-			s.order[slot] = ""
-			s.freeSlots = append(s.freeSlots, slot)
 			root.err = fmt.Errorf("workspace file metadata exceeds %d MiB budget", indexSummaryBytes/(1024*1024))
 			return
 		}
 		s.summaryBytes += file.bytes
 		s.files[uri] = file
 	}
+	waiting := s.queue.Waiting(uri)
+	if err := s.queue.Put(shared.Job{URI: uri, Priority: priority}); err != nil {
+		root.err = err
+		return
+	}
 	copy := *file
-	if !copy.dirty {
+	if read {
+		copy.seen = root.membership.Observe()
+	}
+	if !waiting {
 		root.pending++
-		s.unqueued++
-		copy.priority = priority
 	}
 	if read && !copy.workRead {
 		root.readPending++
 		root.scopeReads[copy.target.Scope]++
 	}
-	copy.dirty, copy.workRead = true, copy.workRead || read
-	if priority < copy.priority {
-		copy.priority = priority
-	}
-	// Make room for a foreground edit without dropping the displaced file's
-	// dirty bit. The eviction search is bounded by the 512 queued identities.
-	if !copy.queued && copy.priority == shared.Current && s.queue.Len() == indexQueueLimit {
-		for candidate := range s.read {
-			old := s.files[candidate]
-			if old != nil && old.priority == shared.Background {
-				displaced := *old
-				displaced.queued = false
-				s.files[candidate] = &displaced
-				s.queue.Remove(candidate)
-				delete(s.read, candidate)
-				s.unqueued++
-				break
-			}
-		}
-	}
-	if err := s.queue.Put(shared.Job{URI: uri, Priority: copy.priority}); err == nil {
-		if !copy.queued {
-			s.unqueued--
-		}
-		copy.queued = true
-		s.read[uri] = copy.workRead
-	}
+	copy.workRead = copy.workRead || read
 	s.files[uri] = &copy
-}
-
-func (s *workspaceIndex) fillQueue() {
-	if s.unqueued == 0 || len(s.order) == 0 {
-		return
-	}
-	for visited := 0; visited < min(len(s.order), indexQueueLimit*2) && s.queue.Len() < indexQueueLimit; visited++ {
-		if s.workCursor >= len(s.order) {
-			s.workCursor = 0
-		}
-		uri := s.order[s.workCursor]
-		s.workCursor++
-		file := s.files[uri]
-		if file == nil || !file.dirty || file.queued {
-			continue
-		}
-		if s.queue.Put(shared.Job{URI: uri, Priority: file.priority}) != nil {
-			break
-		}
-		copy := *file
-		copy.queued = true
-		s.files[uri] = &copy
-		s.read[uri] = copy.workRead
-		s.unqueued--
-	}
 }
 
 func (s *workspaceIndex) remove(uri source.URI) publication {
@@ -281,9 +222,7 @@ func (s *workspaceIndex) remove(uri source.URI) publication {
 	if root := s.roots[old.root]; root != nil {
 		delete(root.deferredDomain, uri)
 	}
-	s.order[old.orderSlot] = ""
-	s.freeSlots = append(s.freeSlots, old.orderSlot)
-	if old.dirty {
+	if s.queue.Waiting(uri) {
 		if root := s.roots[old.root]; root != nil {
 			root.pending--
 			if old.workRead {
@@ -291,15 +230,8 @@ func (s *workspaceIndex) remove(uri source.URI) publication {
 				root.scopeReads[old.target.Scope]--
 			}
 		}
-		if !old.queued {
-			s.unqueued--
-		}
-		delete(s.read, uri)
-		s.queue.Remove(uri)
 	}
-	if root := s.roots[old.root]; root != nil {
-		root.generation++
-	}
+	s.queue.Remove(uri)
 	if old.err != nil || old.incomplete {
 		if root := s.roots[old.root]; root != nil {
 			root.issues[old.target.Scope]--
@@ -307,7 +239,6 @@ func (s *workspaceIndex) remove(uri source.URI) publication {
 	}
 	if old.invalidated {
 		if root := s.roots[old.root]; root != nil {
-			root.invalidated--
 			root.scopeInvalid[old.target.Scope]--
 		}
 	}
@@ -328,10 +259,9 @@ func (s *workspaceIndex) startScan(root *indexedRoot) {
 	if root.catalog == nil {
 		return
 	}
-	root.round++
+	root.scanPass = root.membership.Start()
 	root.discovered, root.scanComplete, root.finalDomain = false, false, true
 	root.passActive = true
-	root.visited, root.discoveredFiles = 0, 0
 	root.scanner, root.err = shared.NewScanner([]string{root.catalog.Input.Root}, shared.ScanOptions{Extensions: []string{".yaml", ".yml"}, ExcludeDirs: root.catalog.ScanExclusions(), MaxDirectories: indexFileLimit})
 }
 
@@ -432,10 +362,7 @@ func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[
 				publications = append(publications, s.remove(uri))
 			}
 		}
-		root := &indexedRoot{catalog: catalog, err: err, generation: 1, issues: map[string]int{}, scopeReads: map[string]int{}, scopeInvalid: map[string]int{}, projectGeneration: map[string]uint64{}, deferredDomain: map[source.URI]bool{}, configEvent: configEvent}
-		if previous != nil {
-			root.generation = previous.generation + 1
-		}
+		root := &indexedRoot{catalog: catalog, err: err, issues: map[string]int{}, scopeReads: map[string]int{}, scopeInvalid: map[string]int{}, projectGeneration: map[string]uint64{}, deferredDomain: map[source.URI]bool{}, configEvent: configEvent}
 		s.roots[path] = root
 		if err == nil {
 			s.startScan(root)
@@ -600,7 +527,7 @@ func hasProject(summary analysis.Summary) bool {
 	return false
 }
 
-func (s *workspaceIndex) related(file *indexedFile, references, allProjects bool) []analysis.Document {
+func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, references, allProjects bool) []analysis.Document {
 	docs := append([]analysis.Document(nil), file.summary.Documents...)
 	seen := map[source.URI]bool{file.uri: true}
 	add := func(uri source.URI) {
@@ -614,14 +541,14 @@ func (s *workspaceIndex) related(file *indexedFile, references, allProjects bool
 	}
 	scope := indexScope(file.root, file.target.Scope)
 	keys := map[index.Key]bool{}
-	for _, ref := range file.summary.Facts.References {
+	for _, ref := range facts.References {
 		keys[ref.Target] = true
 	}
-	for _, key := range file.summary.Facts.Dependencies {
+	for _, key := range facts.Dependencies {
 		keys[key] = true
 	}
 	if references {
-		for _, symbol := range file.summary.Facts.Symbols {
+		for _, symbol := range facts.Symbols {
 			keys[symbol.Key] = true
 		}
 	}
@@ -666,7 +593,8 @@ func (s *workspaceIndex) domain(ctx context.Context, file *indexedFile) ([]analy
 		return file.schema, 0
 	}
 	catalog := root.catalog
-	docs := s.related(file, false, false)
+	entry, _, _ := s.facts.GetFile(file.uri)
+	docs := s.related(file, entry.Facts, false, false)
 	complete := s.scopeComplete(root, file.target.Scope)
 	s.mu.RUnlock()
 	paths, err := catalog.LocalPaths(ctx, file.summary.Repositories)
@@ -756,7 +684,7 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 		if errors.Is(err, shared.ErrStale) || errors.Is(err, shared.ErrOverlay) {
 			return
 		}
-		file = &indexedFile{uri: uri, path: path, spelling: spelling, root: rootPath, target: target, err: err, seen: root.round, orderSlot: old.orderSlot, event: expectedEvent}
+		file = &indexedFile{uri: uri, path: path, spelling: spelling, root: rootPath, target: target, err: err, event: expectedEvent}
 		if snapshot.URI() != "" {
 			file.hash = sha256.Sum256([]byte(snapshot.Text()))
 			file.revision = snapshot.Revision()
@@ -766,7 +694,6 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 			copy := *old
 			file = &copy
 			file.revision = snapshot.Revision()
-			file.seen = root.round
 			file.invalidated = false
 		} else if err == nil {
 			var checked analysis.Result
@@ -801,7 +728,11 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 			ticket, beginErr := s.facts.Begin(uri, indexScope(rootPath, target.Scope), file.revision)
 			err = beginErr
 			if err == nil {
-				change, err = s.facts.Commit(ticket, file.summary.Facts)
+				if same {
+					change, err = s.facts.Reuse(ticket)
+				} else {
+					change, err = s.facts.Commit(ticket, file.summary.Facts)
+				}
 			}
 		}
 		if err != nil {
@@ -817,14 +748,17 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 			root.issues[file.target.Scope]++
 		}
 		if current.invalidated {
-			root.invalidated--
 			root.scopeInvalid[current.target.Scope]--
 		}
 		file.invalidated = false
+		file.seen = root.membership.Observe()
+		file.workRead = current.workRead
+		// Index owns the committed symbols/references. The retained byte charge
+		// still includes those facts, alongside this file's domain summary.
+		file.summary.Facts = index.Facts{}
 		file.bytes = retainedFileBytes(file)
 		s.summaryBytes += file.bytes - current.bytes
 		s.files[uri] = file
-		root.generation++
 		if !same && (hasProject(current.summary) || hasProject(file.summary)) {
 			root.projectGeneration[file.target.Scope]++
 		}
@@ -890,6 +824,51 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 	result.publications = append(result.publications, publication{phase: phase, uri: spelling, version: version, diagnostics: diagnostics})
 }
 
+func (s *workspaceIndex) processNext(ctx context.Context, result *completed) bool {
+	s.mu.Lock()
+	job, ok := s.queue.Pop()
+	if !ok {
+		s.mu.Unlock()
+		return false
+	}
+	read, readScope := false, ""
+	var root *indexedRoot
+	if file := s.files[job.URI]; file != nil {
+		root = s.roots[file.root]
+		read, readScope = file.workRead, file.target.Scope
+		copy := *file
+		copy.workRead = false
+		s.files[job.URI] = &copy
+	}
+	s.mu.Unlock()
+	defer s.queue.Complete(job)
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if root != nil {
+			root.pending--
+		}
+	}()
+	fileCtx, stop := context.WithTimeout(ctx, workspaceAnalysisTimeout)
+	defer stop()
+	released := false
+	releaseRead := func() {
+		if !read || released {
+			return
+		}
+		released = true
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if root != nil {
+			root.readPending--
+			root.scopeReads[readScope]--
+		}
+	}
+	defer releaseRead()
+	s.process(fileCtx, job.URI, read, releaseRead, result)
+	return true
+}
+
 func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, events workspaceEvents) (result completed) {
 	started := time.Now()
 	s.mu.Lock()
@@ -918,19 +897,17 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 			result.stats.AcquisitionRoots = append(result.stats.AcquisitionRoots, path)
 		}
 	}
-	s.fillQueue()
 	s.mu.Unlock()
 	for _, path := range roots {
 		s.mu.RLock()
 		root := s.roots[path]
-		canScan := root != nil && root.scanner != nil && s.unqueued == 0
+		canScan := root != nil && root.scanner != nil && s.queue.Backlog() == 0
 		s.mu.RUnlock()
 		if !canScan || s.queue.Len() >= indexQueueLimit-indexScanWork {
 			continue
 		}
 		batch, err := root.scanner.Next(ctx, indexScanWork)
 		s.mu.Lock()
-		root.visited += batch.Visited
 		result.stats.DiscoveryWork += batch.Visited
 		for _, path := range batch.Files {
 			if workspace.Owner(roots, path) != root.catalog.Input.Root {
@@ -940,7 +917,6 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 			if _, included, selectErr := root.catalog.Select(path, false); selectErr == nil && !included {
 				continue
 			}
-			root.discoveredFiles++
 			if s.files[uri] == nil && len(s.files) >= indexFileLimit {
 				root.err = fmt.Errorf("workspace exceeds 100,000 candidate files")
 				_ = root.scanner.Close()
@@ -948,20 +924,10 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 				root.discovered, root.scanComplete = true, false
 				break
 			}
-			if old := s.files[uri]; old != nil {
-				if old.seen == root.round {
-					continue
-				}
-				copy := *old
-				copy.seen = root.round
-				s.files[uri] = &copy
+			if old := s.files[uri]; old != nil && root.membership.Seen(old.seen) {
+				continue
 			}
 			s.enqueue(uri, true, shared.Background)
-			if file := s.files[uri]; file != nil {
-				copy := *file
-				copy.seen = root.round
-				s.files[uri] = &copy
-			}
 		}
 		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			root.err = err
@@ -973,9 +939,9 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 			}
 			_ = root.scanner.Close()
 			root.scanner = nil
-			if batch.Complete {
+			if root.membership.Finish(root.scanPass, batch.Complete) {
 				for uri, file := range s.files {
-					if file.root == path && file.seen != root.round {
+					if file.root == path && root.scanPass.Missing(file.seen) {
 						if _, opened := s.open[uri]; !opened {
 							result.publications = append(result.publications, s.remove(uri))
 						}
@@ -986,54 +952,15 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 		s.mu.Unlock()
 	}
 	for i := 0; i < indexBatchFiles && ctx.Err() == nil; i++ {
-		job, ok := s.queue.Pop()
-		if !ok {
+		if !s.processNext(ctx, &result) {
 			break
 		}
-		s.mu.Lock()
-		read := s.read[job.URI]
-		delete(s.read, job.URI)
-		if file := s.files[job.URI]; file != nil {
-			copy := *file
-			copy.dirty, copy.queued, copy.workRead = false, false, false
-			s.files[job.URI] = &copy
-		}
-		path, _ := workspace.PathFromURI(string(job.URI))
-		root := s.roots[workspace.Owner(roots, path)]
-		readScope := ""
-		if file := s.files[job.URI]; file != nil {
-			readScope = file.target.Scope
-		}
-		s.mu.Unlock()
-		fileCtx, stop := context.WithTimeout(ctx, workspaceAnalysisTimeout)
-		released := false
-		releaseRead := func() {
-			if !read || released {
-				return
-			}
-			released = true
-			s.mu.Lock()
-			if root != nil {
-				root.readPending--
-				root.scopeReads[readScope]--
-			}
-			s.mu.Unlock()
-		}
-		s.process(fileCtx, job.URI, read, releaseRead, &result)
-		releaseRead()
-		stop()
-		s.mu.Lock()
-		if root != nil {
-			root.pending--
-		}
-		s.mu.Unlock()
 		if time.Since(started) >= 40*time.Millisecond {
 			break
 		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fillQueue()
 	for path, root := range s.roots {
 		if root.catalog != nil {
 			result.inputs = append(result.inputs, root.catalog.Input)
@@ -1105,23 +1032,23 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 
 // lookup copies only immutable pointers. Slow reads and parsing happen after
 // releasing the state lock so foreground requests do not wait behind discovery.
-func (s *workspaceIndex) lookup(uri string) (*indexedFile, *workspace.Catalog, bool, uint64) {
+func (s *workspaceIndex) lookup(uri string) (*indexedFile, *workspace.Catalog, bool) {
 	path, err := workspace.PathFromURI(uri)
 	if err != nil {
-		return nil, nil, false, 0
+		return nil, nil, false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	file := s.files[source.URI(workspace.FileURI(path))]
 	root := s.roots[workspace.Owner(s.rootOrder, path)]
 	if root == nil {
-		return file, nil, false, 0
+		return file, nil, false
 	}
 	if root.catalog != nil && root.configEvent != s.configEvents[root.catalog.Input.Root] {
-		return file, nil, false, root.generation
+		return file, nil, false
 	}
 	complete := file != nil && s.scopeComplete(root, file.target.Scope)
-	return file, root.catalog, complete, root.generation
+	return file, root.catalog, complete
 }
 
 func (s *workspaceIndex) retainsURI(uri string) bool {
@@ -1131,8 +1058,8 @@ func (s *workspaceIndex) retainsURI(uri string) bool {
 }
 
 // A persistent commit can outlive the protocol epoch in which its work began.
-// Keep its publication obligation on the existing dirty records when the owner
-// declines that batch. Revalidation uses retained facts; it does not reread YAML.
+// Return its publication obligation to the shared queue when the owner declines
+// that batch. Revalidation uses retained facts; it does not reread YAML.
 // A removed closed file needs only a clear, which cannot overwrite a newer open
 // buffer's local result.
 func (s *workspaceIndex) retryPublications(values []publication, buffers map[string]buffer) []publication {

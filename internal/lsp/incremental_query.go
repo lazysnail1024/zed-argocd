@@ -105,7 +105,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	if workspace.Owner(roots, path) == "" {
 		return completed{epoch: epoch}
 	}
-	old, catalog, complete, _ := s.lookup(uri)
+	old, catalog, complete := s.lookup(uri)
 	if catalog == nil {
 		return localInput()
 	}
@@ -230,7 +230,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	allProjects := m.Method == "textDocument/completion" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	references := m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	s.mu.RLock()
-	documents := s.related(selected, references, allProjects)
+	documents := s.related(selected, summary.Facts, references, allProjects)
 	proof := &readProof{engine: s, catalog: catalog, scope: indexScope(selected.root, selected.target.Scope), scopeName: selected.target.Scope, complete: complete, hashes: map[source.URI][32]byte{}, candidates: map[index.Key][]index.Definition{}, uses: map[index.Key][]index.Use{}, allProjects: allProjects}
 	if root := s.roots[selected.root]; root != nil {
 		proof.projectGeneration = root.projectGeneration[selected.target.Scope]
