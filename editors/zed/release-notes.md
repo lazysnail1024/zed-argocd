@@ -12,8 +12,7 @@ accompanying `SHA256SUMS`. The adapter downloads and verifies its pinned native
 server when needed. A separate `serverPath` or PATH installation must be
 upgraded independently.
 
-Existing alpha.1 and alpha.2 releases remain available. The ZIP contains the
-precompiled WASM, snippets and original Rust dependency notices;
-`zed-adapter.json` records the exact source. Automated acceptance covers
+The ZIP contains the precompiled WASM, snippets and original Rust dependency
+notices; `zed-adapter.json` records the exact source. Automated acceptance covers
 native CLI/LSP and adapter packaging, not real Zed GUI behavior or store
 publication.

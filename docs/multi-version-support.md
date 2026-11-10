@@ -1,210 +1,79 @@
-# Version coverage and automatic compatibility
+# 版本目录与自动兼容
 
-The native server defaults to `auto`. A user does not need an editor setting or
-`.argocd-ls.yaml` merely to obtain version coverage. An explicitly configured exact
-version still selects that version's collected schema and local static rules.
+默认 target 为 `auto`，不要求用户创建配置文件。显式 exact target 使用该版本采集到的 CRD 和本仓静态规则。配置入口见[配置说明](configuration.md)。
 
-## Collected window
+## 当前离线目录
 
-The checked-in inventory covers every numeric stable tag from **2.0.0 through
-3.6.1**, across majors 2 and 3: **370 tags**. Application and AppProject each cover
-370 targets; ApplicationSet covers 330 (312 bundled CRDs and 18 fixed optional
-addon references). There are 59 distinct source schemas. Release metadata was captured at the
-2026-11-05 cutoff. There are 364 matching GitHub Release records and six additional
-numeric tags without a corresponding Release record in the captured API pages:
+以下数据来自已提交的 [compat/catalog.lock.json](../compat/catalog.lock.json)，采集截止为 **2026-11-05T23:59:59Z**；它描述该快照，不表示今天上游的最新发布状态。
 
-- 2.1.13
-- 3.0.7, 3.0.8, 3.0.9 and 3.0.10
-- 3.4.0
+| 项目 | 当前内容 |
+| --- | --- |
+| 版本窗口 | Argo CD 2.0.0–3.6.1，major 2 与 3 |
+| 数字稳定 tag | 370 |
+| Application / AppProject | 各 370 个 target |
+| ApplicationSet | 330 个 target：312 个 bundled CRD，18 个固定 addon 引用 |
+| 不同源 Schema | 59 |
 
-These six tags are included. Absence of Release metadata is not interpreted as
-proof of why a release is missing. RC and other prerelease suffixes are excluded.
-The official Release list determines the latest stable release and major window;
-the official tag list supplies the complete numeric-tag inventory through that
-release. Tags are resolved through annotated tag objects to immutable commits.
-Every source CRD, normalized schema, inventory response and tag object has a
-recorded SHA-256 digest. `compat/catalog.lock.json` retains the complete provenance;
-`internal/assets/catalog.json` contains only the runtime projection.
+采集器用官方 Release 列表确定截止时的最新稳定版本与相邻两个 major，再用 tag 列表补全该窗口内的数字稳定 tag。预发布后缀不进入窗口；没有匹配 Release 记录的数字 tag 仍可进入目录，不据此推测缺失 Release 的原因。annotated tag 解析到不可变 commit，来源响应、tag object、CRD 和规范化 Schema 都记录 SHA-256。
 
-ApplicationSet was a separate upstream project before it was bundled in Argo CD.
-Alpha.2 also follows the fixed optional stable addon references in the covered
-Argo CD 2.3.x tags: 2.3.0 selects ApplicationSet v0.4.0, and the other collected
-2.3.x tags select v0.4.1. The install reference, resolved upstream commit and CRD
-digest remain in the catalog provenance. These historical schemas restore fields
-such as `ksonnet` in ApplicationSet templates.
+ApplicationSet 覆盖包括 Argo CD 2.3.x 固定引用的独立 addon：2.3.0 指向 ApplicationSet v0.4.0，其余采集到的 2.3.x 指向 v0.4.1。安装引用、commit 和 CRD digest 留在来源记录中。没有 bundled CRD 或固定独立安装引用的 exact target 不借用新版本 Schema；自动模式汇集已证明的来源，并不提供一个独立的 standalone ApplicationSet 产品版本目录。
 
-An exact target without either a bundled CRD or a fixed standalone installation
-reference remains without that schema. We do not silently substitute a newer
-ApplicationSet schema into an older exact target. Automatic mode includes the
-bundled and explicitly referenced ApplicationSet CRDs across the covered tags.
-This catalog is not a separate version catalog for the old standalone
-ApplicationSet project.
+### 文件职责
 
-## What automatic mode means
+| 路径 | 用途 |
+| --- | --- |
+| [compat/catalog.lock.json](../compat/catalog.lock.json) | 版本、tag/commit、CRD 与规范化资产的完整来源和 readiness |
+| [compat/upstream](../compat/upstream/) | 采集的上游响应与 tag object |
+| [compat/local-rules-sources.json](../compat/local-rules-sources.json) | 已实现本地规则对应的 controller 源码证据；领域矩阵据此选取版本 |
+| [schemas](../schemas/) | 以内容身份存储的采集/规范化输入 |
+| [internal/assets/catalog.json](../internal/assets/catalog.json) | 编译进运行时的精简目录 |
+| [internal/assets/schemas](../internal/assets/schemas/) | 运行时 exact 和自动兼容 Schema 资产 |
+| [tools/collect_catalog.py](../tools/collect_catalog.py)、[tools/normalize_schemas.py](../tools/normalize_schemas.py) | 来源采集、Schema 生成、报告接纳与 readiness 生成 |
 
-Argo CD manifests retain `argoproj.io/v1alpha1` across multiple product versions,
-so the document alone does not identify the installed controller release.
-Automatic mode checks whether a document satisfies a complete schema variant
-from at least one covered release. Completion and hover use the whole release
-branches compatible with the document's existing field names. An unconstrained
-document can discover every covered field; an existing old `ksonnet` field narrows
-suggestions so they do not introduce the incompatible newer `enabled` field, and
-vice versa. The active field is excluded from that selection. Missing required
-fields and ordinary value errors do not suppress useful suggestions while
-editing. If existing names already match no complete branch, queries fall back
-to the covered declarations so the document can still be repaired. Validation
-continues to diagnose that incompatible document independently.
+这些是版本支持的构建和验证数据，不是可随文档清理删除的历史附件。
 
-The validator uses a root `anyOf` of whole release schemas. It does not merge
-individual fields into one permissive schema. For example, old ksonnet source
-options and the newer `syncPolicy.automated.enabled` field are individually
-supported; a combination that never occurs in a covered schema is diagnosed as
-`SCHEMA_VERSION_COMBINATION`. Malformed known fields retain `SCHEMA_TYPE` and
-missing mandatory values retain `SCHEMA_REQUIRED`.
+## 自动模式的判断
 
-Structured objects in automatic schemas have an explicit additional-property
-boundary. Otherwise an older schema could accept a malformed newer field merely
-because that older schema did not know its name. Kubernetes preserve-unknown
-objects and genuinely open maps keep their declared extension behavior. Unknown
-names outside every covered schema remain `SCHEMA_UNKNOWN_FIELD` warnings. The
-original exact-version schemas are kept unchanged.
+Argo CD 各产品版本共享 `argoproj.io/v1alpha1`，文件不能据此识别实际 controller 版本。自动模式要求文档满足至少一个已覆盖版本的**完整 Schema**，通过根 `anyOf` 组织；不会将不同版本字段合成宽松的并集。
 
-The generated compatibility schemas share repeated nodes using local `$defs`.
-The three automatic assets totaled **854,610 bytes** in alpha.1. The server loads only the
-resource kind it needs, and query traversal deduplicates shared compiled nodes.
-It does not compile 370 independent schema sets at startup, fetch the network at
-runtime, or maintain a second constraint interpreter for completion.
+例如旧 `ksonnet` 与新的 `syncPolicy.automated.enabled` 分别被支持，但一个从未同时包含两者的版本组合报告 `SCHEMA_VERSION_COMBINATION`。已知字段类型错误仍为 `SCHEMA_TYPE`，必需值缺失仍为 `SCHEMA_REQUIRED`。
 
-The identity response reports `defaultTargetVersion: "auto"` and
-`supportedVersions: {min, max, majors, releaseCount}`. An automatic target does
-not offer a pin action; explicit scoped pins remain available.
+自动 Schema 对结构化对象设置额外字段边界，防止旧分支因不认识新字段而放过新字段中的错误。上游声明的 preserve-unknown 对象和开放 map 保留扩展行为；所有分支都不认识的字段报告 `SCHEMA_UNKNOWN_FIELD` warning。exact target 的原始 Schema 不因此被改写。
 
-## Scope of the evidence
+补全和悬停根据已有字段名筛选完整版本分支，排除正在编辑的字段；缺少 required 字段或普通值错误不阻塞修复建议。已有名称无法匹配任何完整分支时，查询回退到覆盖声明帮助修复，验证仍独立报告不兼容。查询与校验共用编译后的 Schema，不维护第二套约束解释器。实现见 [schema_queries.go](../internal/analysis/schema_queries.go)。
 
-The coverage claim concerns the collected CRD declarations, editor schema
-queries and the implemented local static checks. It does not claim that all
-controller executions, remote Helm/Kustomize rendering, runtime admission rules,
-Kubernetes versions or every combination of dynamic ApplicationSet expressions
-have been executed. Existing dynamic-field and external-reference limitations
-remain visible in diagnostics and the report's `notEvaluated` entries.
+生成数据用本地 `$defs` 共享重复结构，运行时按实际 kind 准备 Schema，遍历去重；不在启动时编译 370 套独立 Schema，也不在打开文件时请求网络。身份响应提供 `defaultTargetVersion: "auto"` 和 `supportedVersions: {min, max, majors, releaseCount}`；auto 目标没有 pin action，显式 scope 目标仍支持经验证的 pin。
 
-`semanticsVerified` is the existing catalog readiness field: it records passage
-of this local contract, not an assertion of complete controller equivalence.
-The historical deeper controller-source audit remains in
-`compat/local-rules-sources.json`; its domain matrix selects only versions with
-that source evidence. The broader current catalog is exercised by the new
-independent CRD and editor-query gates.
+## 覆盖声明的边界
 
-## Refresh and acceptance
+覆盖指采集 CRD、编辑器 Schema 查询和本仓已实现的静态检查。动态 ApplicationSet 表达式、远程渲染、controller 执行、Kubernetes admission 和完整运行时策略不是这些结果的证明范围；不确定项通过诊断及报告 `notEvaluated` 保留。
 
-Run from the repository root with Python/PyYAML and the project's Go toolchain:
+`semanticsVerified` 是本地验证合同的 readiness 字段，不表示每个版本的 controller 行为均已复现。针对 controller 源码的领域矩阵与覆盖整个目录的 CRD/查询矩阵分别运行。当前文档索引的完整性也与版本目录 readiness 分开，见[当前架构](architecture.md)。
+
+## 更新与接纳
+
+使用项目规定的 Go/C 工具链以及 Python/PyYAML，从仓库根目录执行。先将 `catalog_cutoff` 设为本次采集明确采用的 UTC 截止时间；重新采集当前快照可用 `2026-11-05T23:59:59Z`。
 
 ```sh
-python3 tools/collect_catalog.py --cutoff 2026-11-05T23:59:59Z
+catalog_cutoff=2026-11-05T23:59:59Z
+python3 tools/collect_catalog.py --cutoff "$catalog_cutoff"
 python3 tools/normalize_schemas.py
 go test -mod=vendor ./internal/assets ./internal/analysis
 go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
-python3 tests/multi_version_e2e.py build/argocd-ls artifacts/bootstrap --bootstrap
-python3 tools/normalize_schemas.py --accept-report artifacts/bootstrap/report.json
+python3 tests/multi_version_e2e.py build/argocd-ls artifacts/catalog-bootstrap --bootstrap
+python3 tools/normalize_schemas.py --accept-report artifacts/catalog-bootstrap/report.json
 go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
-python3 tests/multi_version_e2e.py build/argocd-ls artifacts/multi-version
+python3 tests/multi_version_e2e.py build/argocd-ls artifacts/catalog-final
 ```
 
-Use a fresh output directory for each acceptance run. Collection deliberately
-clears readiness. Acceptance requires a passing bootstrap report with every exact
-tag and the matching catalog digest. The final gate verifies the public complete
-report and zero-configuration LSP behavior after readiness is enabled. A changed
-schema loses its prior validation marker.
+每次验证使用新的输出目录。采集主动清除 readiness，只有覆盖全部 exact tag、digest 匹配且通过的 bootstrap 报告可以接纳；之后重新构建，再验证完整公开报告和零配置 LSP。改变 Schema 会撤销旧验证标记。
 
-The default E2E runs every exact tag. `--representatives` selects one target per
-distinct schema bundle for additional operating systems while retaining the
-inventory, automatic-mode and LSP checks. Linux should run the complete inventory.
-There is no `--all-targets` option for this new runner. The older AppSet override
-runner has its own `--all-targets` option, selecting releases that actually contain
-the `templatePatch` and `goTemplate` fields its fixtures exercise. Its deeper
-override scenarios run once per distinct ApplicationSet schema hash and complete
-`localRules` object, plus `auto` independently. The current 180 eligible exact
-targets form 17 groups, so all groups and automatic mode require 198 scenarios.
-The report records every group's representative and covered versions and checks
-that no eligible target was omitted or duplicated. The separate compatibility
-matrix continues to execute every exact tag.
-
-## Alpha.2 verification and ablation
-
-The corrected catalog contains 370 Application and AppProject targets, and 330
-ApplicationSet targets: 312 bundled CRDs plus 18 fixed 2.3.x addon references.
-The 40 earlier targets have immutable directory evidence showing no
-ApplicationSet manifest path. The 59 distinct source schemas produce 865,934
-bytes of automatic schemas, an increase of 11,324 bytes over alpha.1.
-
-Local validation passes all 374 matrix rows, 16 automatic LSP scenarios, 173,002
-constraint nodes and 10,642 field declarations at 2,155 paths. The evidence
-manifest records these results separately from the retained alpha.1 history.
-
-Six ablation groups include the passing baseline and five removals. Removing the
-historical addon branch loses valid old ApplicationSet diagnostics, completion
-and hover. Removing object boundaries, historical schemas or query filtering
-also breaks their respective behavior assertions. Removing shared definitions
-increases automatic schemas to 9,099,786 bytes and exhausts the existing
-20-second compatibility probe deadline; that variant's functional acceptance
-is explicitly incomplete, not reported as passing. These mechanisms remain.
-
-Native packaging now reads identical CRD legal declarations once. On the fixed
-alpha.1 comparison catalog, 370 legal reads become one and 246 irrelevant vendor
-file-type checks are removed. Packaging the same real native build before and
-after produces identical archive and package-manifest bytes. The complete
-packaging suite passes 40 checks, including rejection of a later conflicting
-hash for the same legal path. Windows timing remains subject to its native CI
-gate; the optimization does not increase its deadline.
-
-## Alpha.1 verification and ablation
-
-The following alpha.1 observations are retained unchanged. They predate the
-alpha.2 historical ApplicationSet correction; the acceptance artifacts from the
-alpha.2 release provide its own verification results and measurements.
-
-| Check | Result |
+| 验证入口 | 覆盖方式 |
 | --- | --- |
-| Official release/tag and immutable asset inventory | 370 stable tags; all digests and commit identities match |
-| Exact-target and default real CLI/LSP matrix | 374 rows pass, including every exact tag |
-| Compiled constraint traversal | 170,411 nodes across all 58 distinct source schemas pass |
-| Automatic field queries | 10,516 field declarations at 2,113 distinct paths pass |
-| Automatic whole-version LSP selection | 12 positive/negative scenarios pass, including active-field edits, arrays and incomplete documents |
-| Existing readiness and identity | 21 cases pass |
-| Existing strict-target schema queries | 100 cases pass |
-| AppSet overrides across all schema/rule groups and automatic mode | 198 cases pass; 17 groups cover all 180 eligible exact targets |
-| Explicit and default pin behavior | 3 scenarios pass |
+| [multi_version_e2e.py](../tests/multi_version_e2e.py) | 默认执行每个 exact tag、inventory、auto 和 LSP；Linux CI 使用完整目录 |
+| 同一入口的 `--representatives` | 其他原生平台按不同 Schema bundle 选代表，同时保留 inventory、auto 和 LSP 检查 |
+| [multi_version_test.go](../internal/analysis/multi_version_test.go) | 已声明字段的自动查询覆盖 |
+| [appset_overrides_e2e.py](../tests/appset_overrides_e2e.py)的 `--all-targets` | 对具备所测字段的 target 按确切 AppSet Schema hash 与完整 localRules 分组，深入场景每组一次，auto 独立执行；报告记录每组所有覆盖版本 |
+| [ablate_multi_version.py](../tests/ablate_multi_version.py) | 编译受控删除变体，对照历史分支、对象边界、共享定义和查询分支的行为 |
 
-Run the isolated counterfactual builds with:
-
-```sh
-python3 tests/ablate_multi_version.py build/argocd-ls artifacts/multi-version-ablation
-```
-
-| Removed feature | Observed consequence | Decision |
-| --- | --- | --- |
-| Structured object boundaries | Both old and new wrong-type fields and the impossible combination are accepted | Retain |
-| Historical whole-schema branches, keeping only the newest schema | A valid old ksonnet field becomes unknown; historical type checking is lost | Retain |
-| Shared local definitions, inlining every branch instead | Application probes still pass; automatic JSON grows from 854,610 to 8,991,596 bytes, and the three-kind CLI fixture exceeds 30 seconds | Retain |
-| Whole-release selection for editor queries | The validator still rejects incompatible combinations, but completion again suggests `enabled` beside old `ksonnet` and `ksonnet` beside new `enabled` | Retain |
-| Separate legacy `collect_remaining.py` pipeline | The unified collector already discovers and resolves the complete rolling window | Delete |
-
-The final baseline three-kind cold CLI sample had a median of 179.65 ms over five
-runs on this Linux host. The inline-definition mutant timed out at 30 seconds.
-These observations justify keeping the shared data representation; they are not
-portable benchmark guarantees. Full stdout, commands, reports and mutation build
-logs are retained under the artifact output directories. A compact evidence
-manifest is kept in `compat/multi-version-verification.json`.
-
-The complete local Linux release-mode native gate at `374d214` finished with
-30 of 31 steps passing, including all eight regression mutations. Its original
-AppSet override step timed out at 480.047 seconds after 1,880 of 1,991 CLI
-executions. Repeating the same deep override cases for identical patch schemas
-and local-rule contracts provided no additional combination coverage. Grouping
-those inputs preserves all 11 scenario assertions and the separate 370-target
-compatibility gate. The corrected 198-scenario run passed using the same release
-binary; an independent coverage audit verified all 180 eligible exact targets,
-all 17 distinct combinations and the separate automatic-mode execution. The
-observed span from the first fixture write to the final report was 51.912 seconds,
-excluding initial catalog loading. The initial timeout report is retained as a
-failure, alongside the passing targeted follow-up; no timeout budget was raised.
+`multi_version_e2e.py` 没有 `--all-targets` 选项。AppSet 深层场景的分组不替代全 tag 兼容矩阵；具体 CI 命令以 [native_ci.py](../tests/native_ci.py)和 [native.yml](../.github/workflows/native.yml)为准。已发生的漏采来源和重复执行问题见[经验教训](lessons-learned.md)。

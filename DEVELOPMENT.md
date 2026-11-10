@@ -7,7 +7,7 @@ are vendored; no Rust toolchain or editor checkout is needed.
 
 ```sh
 go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
-go vet -mod=vendor ./...
+go vet -mod=vendor ./cmd/... ./internal/...
 ./build/argocd-ls version --json
 ./build/argocd-ls check --root /path/to/yaml --format json
 ```
@@ -31,18 +31,21 @@ and publishes the native assets. An exact version-tag push or a manual run on
 ## Shared toolkit source
 
 The toolkit dependency is pinned to source commit
-`79c46c0625b94d61156e40994ac603db69e2438f`, represented by Go pseudo-version
-`v0.0.0-20261110063134-79c46c0625b9`. It does not require a toolkit release tag.
+`b1e411d4b3abe5c1ad70518be161c1daff717d61`, represented by Go pseudo-version
+`v0.0.0-20261110114800-b1e411d4b3ab`. It does not require a toolkit release tag.
 The vendored `source`, `yamlview`, `edit`, `index`, and `workspace` packages match
 that commit; builds need no sibling checkout or local `replace` directive.
-`contracts/toolkit-design-2.md` is the byte-identical API contract, with its
-implementation and content identities in `contracts/toolkit.lock.json` and
+[contracts/toolkit-design-3.md](contracts/toolkit-design-3.md) is the byte-identical
+API contract, with its implementation and content identities in `contracts/toolkit.lock.json` and
 `contracts/toolkit-snapshot.json`.
 
 When advancing the source pin, update the Go dependency, contract snapshot and
 lock identities together. Regenerate vendor with `go mod vendor`, then run
 `python3 tools/vendor_c.py` to restore and verify the native parser source trees.
 Keep `go.sum`, vendored sources and provenance records in the same change.
+The contract snapshot is hash-checked build input, not an editable architecture
+note. State ownership and the boundary between toolkit and Argo CD policy are
+documented in [the current architecture](docs/architecture.md).
 
 ## Zed adapter
 
@@ -73,6 +76,24 @@ Rust toolchain on the user's machine. See [distribution](docs/distribution.md).
 
 ## Changes and tests
 
+From the repository root, use the existing consumers for the affected boundary:
+
+```sh
+go test -mod=vendor ./internal/...
+go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
+python3 tests/mixed_parent_index_e2e.py build/argocd-ls artifacts/mixed-parent
+python3 tests/persistent_workspace_e2e.py build/argocd-ls artifacts/persistent --count 1000 --padding 4096
+python3 tests/config_uri_e2e.py build/argocd-ls artifacts/config-uris
+```
+
+Use a fresh output directory per run. The complete native entry point is
+`python3 tests/native_ci.py --platform <native-platform> --output artifacts/native-check`;
+run it on the matching actual host. It builds and executes the required gates.
+The Linux workflow additionally executes the large workspace, work-count,
+mutation and race consumers. [native.yml](.github/workflows/native.yml) and
+[tests/native_ci.py](tests/native_ci.py) are the executable gate definitions.
+Specific regressions map to their consumers in [lessons learned](docs/lessons-learned.md).
+
 Use the existing real-process E2E consumers for changed behavior. Keep raw failure
 output and reject timeouts, missing reports and unexpected successful mutants.
 Foreign-platform synthetic archives test aggregation rules only; they do not
@@ -82,5 +103,7 @@ schema query fixtures.
 Version collection and normalization preserve upstream commit IDs and SHA-256
 source identities. The default auto window is derived from the latest two stable
 majors. A new catalog must pass version compatibility consumers before release.
-See [configuration](docs/configuration.md), [architecture](docs/architecture.md),
-and the ablation report for the current boundaries and measured experiments.
+See [version collection and acceptance](docs/multi-version-support.md) for the
+catalog update procedure and [the documentation index](docs/README.md) for current
+configuration, implementation and distribution boundaries. Source changes do not
+update already published native binaries or the adapter's committed download pin.
