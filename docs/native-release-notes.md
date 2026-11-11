@@ -1,27 +1,15 @@
-# Argo CD language server — 0.0.1-alpha.3
+# Argo CD language server — 0.0.1-alpha.4
 
-This prerelease fixes open-file diagnostics in large workspaces, including one
-Zed window with several Git repositories under a shared parent directory.
+This prerelease distributes the shared CRD editing, bounded current-file analysis and navigation improvements merged into main after alpha.3.
 
-- Open Argo CD YAML buffers are analyzed first, independently of the full
-  workspace scan. Schema errors, hover and field completion can arrive even when
-  a sibling repository contains an oversized or unparseable YAML file.
-- A failed or timed-out workspace scan reports incomplete analysis without
-  clearing diagnostics already validated against current open-buffer contents.
-- Cross-file navigation and edits still require a sufficiently complete index;
-  nested Git repositories remain in the declared workspace scope.
-- Analysis logs can distinguish document and workspace phases. See
-  [current source architecture and limitations](https://github.com/lazysnail1024/zed-argocd/blob/main/docs/architecture.md).
+- Shared toolkit YAML value/source projection and Schema queries replace duplicate private implementations; Argo CD resource/version semantics and safety proofs remain in the language server.
+- Current-file diagnostics and light queries use bounded scheduling, independent of slow or incomplete workspace indexing. Per-file input budgets avoid false errors when other open YAML buffers are large.
+- Workspace symbols and source-aware navigation are expanded. Versioned field/enum code actions and multi-source Application references can be resolved and edited.
+- Static AppProject names and their Application/ApplicationSet references can be renamed together only with a complete, closed scope, explicit namespace, unique sources, current document versions and validated binding preservation. Ambiguous or incomplete edits are refused.
+- Incremental workspace readiness and stable diagnostic publication reduce unnecessary full-file rescans and transient errors in parent workspaces containing many Git repositories.
 
-The zero-configuration Argo CD compatibility window remains **2.0.0–3.6.1**.
-This includes the fixed standalone ApplicationSet CRDs referenced by covered
-Argo CD tags.
+The zero-configuration Argo CD compatibility window remains **2.0.0–3.6.1**. No target cluster version is inferred.
 
-Native binaries and archives cover Linux amd64/arm64, macOS amd64/arm64 and
-Windows amd64. Each artifact is supplied with verification records and
-`SHA256SUMS`. The separately versioned Zed adapter
-`zed-v0.0.1-alpha.3` pins this native release.
+Native binaries and archives cover Linux amd64/arm64, macOS amd64/arm64 and Windows amd64, with source/build records, original legal notices and `SHA256SUMS`. Independently versioned `zed-v0.0.1-alpha.4` pins this `v0.0.1-alpha.4` server.
 
-The tests cover native CLI/LSP, real stdio protocol behavior, six-repository
-workspaces, version compatibility and package distribution. They do **not** constitute real Zed
-GUI acceptance or publication to the Zed extension store.
+These CLI/LSP, resource, and distribution tests do **not** constitute real Zed GUI acceptance or publication to the Zed extension store. Previous prerelease tags and downloads remain unchanged.

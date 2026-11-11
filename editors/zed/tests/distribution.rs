@@ -684,15 +684,17 @@ fn invalid_pins_cannot_escape_or_select_arbitrary_release_urls() {
 #[test]
 fn pinned_alpha_is_verified_cached_and_rejects_another_release_identity() {
     let version = distribution::server_version();
-    assert_eq!(version, "0.0.1-alpha.3");
+    // Keep the independent native pin under test without fixing a release number.
+    // An ablation that couples it to CARGO_PKG_VERSION must still fail here.
+    assert_eq!(version, include_str!("../native-server-version").trim());
     let root = Scratch::new();
     let mut host = FakeHost::online(target(), version);
     let path = distribution::install(&mut host, &root.0, target(), version).unwrap();
     assert_eq!(
         host.downloads,
         [
-            format!("{BASE}/v0.0.1-alpha.3/SHA256SUMS"),
-            format!("{BASE}/v0.0.1-alpha.3/argocd-ls-0.0.1-alpha.3-linux-amd64")
+            format!("{BASE}/v{version}/SHA256SUMS"),
+            format!("{BASE}/v{version}/{}", target().asset(version))
         ]
     );
     assert_eq!(fs::read(&path).unwrap(), release(version));
@@ -708,7 +710,7 @@ fn pinned_alpha_is_verified_cached_and_rejects_another_release_identity() {
     *wrong.binary_mut(target(), version) = release("0.0.1-alpha.1");
     *wrong.manifest_mut(version) = sums(target(), version, &release("0.0.1-alpha.1"));
     let error = distribution::install(&mut wrong, &root.0, target(), version).unwrap_err();
-    assert!(error.contains("matching version 0.0.1-alpha.3"));
+    assert!(error.contains(&format!("matching version {version}")));
     assert!(root.generations(target(), version).is_empty());
 }
 
