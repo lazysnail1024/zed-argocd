@@ -54,7 +54,7 @@ MUTATIONS = [
              "lsp_regressions_e2e.py", "scope-proof", "scope-proof-merge",
              ("independent-scope-query-stays-valid",),
              ("exact-initial-reference-control", "versioned-edit-positive-control",
-              "dependency-edit-processed-before-query-delivery", "fresh-scope-proof-rejects-only-actual-dependencies",
+              "barrier-and-dependent-edit-order", "fresh-scope-proof-rejects-only-actual-dependencies",
               "settled-reference-control", "changed-current-buffer-rejects-old-edit",
               "changed-config-rejects-old-edit", "clean-server-exit")),
     # Parse failures are file facts. Expanding their completeness veto to every
