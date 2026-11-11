@@ -105,6 +105,15 @@ func newWorkspaceIndex() *workspaceIndex {
 
 func indexScope(root, scope string) index.Scope { return index.Scope(root + "\x00" + scope) }
 
+// A remove/add of the same workspace root invalidates its interpretation even
+// before the debounced background worker rebuilds the catalog.
+func (s *workspaceIndex) invalidateRoot(root string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.event++
+	s.configEvents[root] = s.event
+}
+
 // Withdraw at notification time, before debounce or disk I/O. The event fence
 // also prevents an already-running job from reintroducing superseded facts.
 func (s *workspaceIndex) withdraw(spelling string) {
@@ -527,7 +536,7 @@ func hasProject(summary analysis.Summary) bool {
 	return false
 }
 
-func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, references, allProjects bool) []analysis.Document {
+func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, references, allProjects bool) ([]analysis.Document, bool) {
 	docs := append([]analysis.Document(nil), file.summary.Documents...)
 	seen := map[source.URI]bool{file.uri: true}
 	add := func(uri source.URI) {
@@ -567,19 +576,20 @@ func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, reference
 	if allProjects {
 		// Completion and explicit candidate fixes need candidate identities, not
 		// every source file or retained syntax tree in the scope.
-		for uri, candidate := range s.files {
-			if candidate.root != file.root || candidate.target.Scope != file.target.Scope {
-				continue
-			}
-			for _, doc := range candidate.summary.Documents {
-				if doc.Kind == "AppProject" {
-					add(uri)
-					break
-				}
-			}
+		namespace := ""
+		if root := s.roots[file.root]; root != nil && root.catalog != nil {
+			namespace = root.catalog.Input.Config.ControlPlaneNamespace
 		}
+		candidates, err := s.facts.SymbolsWithPrefix(scope, analysis.ProjectKey(namespace, ""), "", 1000)
+		if err != nil {
+			return docs, false
+		}
+		for _, candidate := range candidates.Items {
+			add(candidate.URI)
+		}
+		return docs, !candidates.Truncated
 	}
-	return docs
+	return docs, true
 }
 
 func (s *workspaceIndex) domain(ctx context.Context, file *indexedFile) ([]analysis.Diagnostic, int) {
@@ -594,7 +604,7 @@ func (s *workspaceIndex) domain(ctx context.Context, file *indexedFile) ([]analy
 	}
 	catalog := root.catalog
 	entry, _, _ := s.facts.GetFile(file.uri)
-	docs := s.related(file, entry.Facts, false, false)
+	docs, _ := s.related(file, entry.Facts, false, false)
 	complete := s.scopeComplete(root, file.target.Scope)
 	s.mu.RUnlock()
 	paths, err := catalog.LocalPaths(ctx, file.summary.Repositories)

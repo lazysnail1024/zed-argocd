@@ -75,6 +75,7 @@ type pendingQuery struct {
 
 type queryResult struct {
 	proof          *readProof
+	symbolProof    *symbolReadProof
 	editGeneration *uint64 // Configuration pin proofs cover the complete workspace.
 	trace          string
 	ctx            context.Context
@@ -86,10 +87,11 @@ type queryResult struct {
 }
 
 type completed struct {
-	more        bool
-	incremental *workspaceIndex
-	queryProof  *readProof
-	stats       struct {
+	candidatesTruncated bool
+	more                bool
+	incremental         *workspaceIndex
+	queryProof          *readProof
+	stats               struct {
 		Scope                string   `json:"scope"`
 		Root                 string   `json:"root,omitempty"`
 		Phase                string   `json:"phase,omitempty"`
@@ -141,6 +143,10 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	results := make(chan completed, 1)
 	queries := make(chan queryResult, 8)
 	requests := map[string]pendingQuery{}
+	// Reservations remain held until workers exit, including after the client
+	// cancels and its request ID is removed. Edits cannot occupy read slots.
+	readSlots := make(chan struct{}, 4)
+	editSlots := make(chan struct{}, 1)
 	defer func() {
 		for _, request := range requests {
 			request.stop()
@@ -184,6 +190,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	// use the new bytes so this state does not retain older result data.
 	publish := func(params map[string]any) {
 		uri := params["uri"].(string)
+		if diagnostics, ok := params["diagnostics"].([]analysis.Diagnostic); ok && diagnostics == nil {
+			params["diagnostics"] = []analysis.Diagnostic{}
+		}
 		if _, ok := params["x-argocd-analysis-scope"]; !ok {
 			params["x-argocd-analysis-scope"] = "workspace"
 		}
@@ -302,7 +311,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			previous := documents
 			go func() {
 				defer stop()
-				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous)
+				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous, "")
 				select {
 				case results <- local:
 				case <-done:
@@ -353,7 +362,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			}
 			request.stop()
 			delete(requests, key)
-			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) {
+			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
 				reject(q.id, -32801, "analysis changed")
 				continue
 			}
@@ -434,9 +443,6 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				fmt.Fprintln(errOut, "argocd-analysis", string(trace))
 			}
 			for _, publication := range sortedPublications(recoverDocumentPublications(result, documents, roots, buffers)) {
-				if publication.diagnostics == nil {
-					publication.diagnostics = []analysis.Diagnostic{}
-				}
 				if b, ok := buffers[publication.uri]; ok {
 					version := b.version
 					publication.version = &version
@@ -525,18 +531,20 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
 				capabilities := map[string]any{
-					"textDocumentSync":       map[string]any{"openClose": true, "change": 2, "save": true},
-					"hoverProvider":          true,
-					"definitionProvider":     true,
-					"referencesProvider":     true,
-					"documentSymbolProvider": true,
-					"completionProvider":     map[string]any{},
+					"textDocumentSync":        map[string]any{"openClose": true, "change": 2, "save": true},
+					"hoverProvider":           true,
+					"definitionProvider":      true,
+					"referencesProvider":      true,
+					"documentSymbolProvider":  true,
+					"workspaceSymbolProvider": true,
+					"completionProvider":      map[string]any{},
 					"workspace": map[string]any{
 						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
 					},
 				}
 				if canEdit {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+					capabilities["renameProvider"] = map[string]any{"prepareProvider": true}
 				}
 				reply(m.ID, map[string]any{
 					"capabilities": capabilities,
@@ -773,6 +781,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					if e != nil {
 						continue
 					}
+					workspaceState.invalidateRoot(path)
 					remaining := roots[:0]
 					for _, r := range roots {
 						if r != path {
@@ -786,6 +795,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					if e != nil {
 						continue
 					}
+					workspaceState.invalidateRoot(path)
 					// A remove/add pair may be coalesced before a worker runs.
 					// Re-establish its membership and publications even then.
 					workEvents.reset[path] = true
@@ -830,10 +840,20 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					launch(changed)
 				}
 
-			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion":
+			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
+					continue
+				}
+				slots := readSlots
+				if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+					slots = editSlots
+				}
+				select {
+				case slots <- struct{}{}:
+				default:
+					reject(m.ID, -32803, "request capacity is busy; retry the current request")
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -855,13 +875,42 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				editable := canEdit
 				go func() {
+					defer func() { <-slots }()
 					var proof *readProof
+					var symbolProof *symbolReadProof
 					var editProof *uint64
 					var trace bytes.Buffer
 					var answer any
 					var code int
 					var why string
-					if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
+					if m.Method == "workspace/symbol" {
+						var params struct {
+							Query string `json:"query"`
+						}
+						if err := json.Unmarshal(m.Params, &params); err != nil {
+							code, why = -32602, "invalid workspace symbol parameters"
+						} else {
+							var complete bool
+							var err error
+							answer, symbolProof, complete, err = workspaceState.workspaceSymbols(ctx, params.Query)
+							if err != nil {
+								code, why = -32803, err.Error()
+							}
+							if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+								fmt.Fprintf(&trace, "argocd-workspace-symbols complete=%t\n", complete)
+							}
+						}
+					} else if m.Method == "textDocument/prepareRename" || m.Method == "textDocument/rename" {
+						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
+						var localRename bool
+						answer, code, why, localRename = workspaceState.renameRequest(ctx, m, &input, copied, editable)
+						if code == 0 {
+							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+							if proof != nil && localRename {
+								proof.localize(queryURI(m))
+							}
+						}
+					} else if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
 						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 							for i := range input.scopes {
@@ -893,7 +942,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 						code, why = -32800, "request cancelled"
 					}
 					select {
-					case queries <- queryResult{proof: proof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
+					case queries <- queryResult{proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()
@@ -967,14 +1016,15 @@ func recoverDocumentPublications(result, documents completed, roots []string, bu
 }
 
 func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string) completed {
-	return analyze(ctx, epoch, roots, buffers, override, completed{}, false)
+	return analyze(ctx, epoch, roots, buffers, override, completed{}, false, "")
 }
 
-func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed) completed {
+func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentURI string) completed {
 	selected := map[string]bool{}
+	selectedFile, _ := workspace.PathFromURI(documentURI)
 	for uri := range buffers {
 		file, err := workspace.PathFromURI(uri)
-		if err == nil {
+		if err == nil && (documentURI == "" || file == selectedFile) {
 			if root := workspace.Owner(roots, file); root != "" {
 				selected[root] = true
 			}
@@ -986,10 +1036,10 @@ func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers
 			activeRoots = append(activeRoots, root)
 		}
 	}
-	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true)
+	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true, documentURI)
 }
 
-func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool) (result completed) {
+func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool, documentURI string) (result completed) {
 	started := time.Now()
 	defer func() { result.stats.ElapsedMilliseconds = time.Since(started).Milliseconds() }()
 	result = completed{epoch: epoch, failures: map[string]error{}, documentOnly: documentOnly}
@@ -1010,24 +1060,32 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 	}
 	seen := map[string]bool{}
 	analyzer := retainedAnalyzer(previous, nil)
+	var cachedDocument source.URI
 	remaining := workspace.MaxRetainedText
 	openFiles := map[string]source.Snapshot{}
+	selectedFile, _ := workspace.PathFromURI(documentURI)
+	selectedConfig := filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
 	for uri, b := range buffers {
-		if b.unavailable != "" {
-			file, _ := workspace.PathFromURI(uri)
-			root := workspace.Owner(roots, file)
-			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
-			v := b.version
-			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
-			continue
-		}
+		// A selected-file query still reserves every accepted open byte before
+		// narrowing acquisition to its source and authoritative configuration.
 		remaining -= len(b.snapshot.Text())
 		if remaining < 0 {
 			result.err = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: "open buffer text exceeds 128 MiB"}
 			result.failureURI = uri
 			return result
 		}
-		if file, e := workspace.PathFromURI(uri); e == nil {
+		file, pathErr := workspace.PathFromURI(uri)
+		if documentURI != "" && file != selectedFile && file != selectedConfig {
+			continue
+		}
+		if b.unavailable != "" {
+			root := workspace.Owner(roots, file)
+			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
+			v := b.version
+			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
+			continue
+		}
+		if pathErr == nil {
 			openFiles[file] = b.snapshot
 		}
 	}
@@ -1128,7 +1186,7 @@ rootLoop:
 				return result
 			}
 			reused := false
-			if reusableRoot {
+			if reusableRoot && !documentOnly {
 				for _, old := range previous.scopes {
 					if old.root == input.Root && old.scope == scope && old.projectionStart == projectionStart && sameScopeFiles(old.files, currentFiles) && analyzer.ReuseProjections(old.documents) {
 						// This is the single latest-result cache. Fresh acquisition
@@ -1187,6 +1245,11 @@ rootLoop:
 					result.failureURI = uri
 					return result
 				}
+				// Match the persistent index's per-file expansion boundary while
+				// preserving aggregate admission for all documents in that file.
+				if documentOnly {
+					analyzer.BeginFile()
+				}
 				var checked analysis.Result
 				var e error
 				reusedFile := false
@@ -1195,6 +1258,13 @@ rootLoop:
 						if old, ok := priorScope.checked[f.Snapshot.URI()]; ok && analyzer.ReuseProjections(old.Documents) {
 							checked = old
 							reusedFile = true
+						} else if documentOnly && documentURI == "" && previous.documentOnly {
+							if publication, ok := oldPublications[uri]; ok {
+								// Diagnostics require the same file/revision/target
+								// and root configuration, not a retained value graph.
+								checked = analysis.Result{Diagnostics: publication.diagnostics, Incomplete: true}
+								reusedFile = true
+							}
 						}
 					}
 				}
@@ -1203,7 +1273,6 @@ rootLoop:
 					checked, e = analyzer.Analyze(ctx, f.Snapshot, f.Target.Version)
 					result.stats.ParsedFiles++
 				}
-				checks[f.Snapshot.URI()] = checked
 				if e != nil {
 					if ctx.Err() != nil {
 						result.err = ctx.Err()
@@ -1221,6 +1290,24 @@ rootLoop:
 					analyzer = retainedAnalyzer(previous, result.scopes)
 					continue rootLoop
 				}
+				diagnostics := checked.Diagnostics
+				if documentOnly {
+					var limited bool
+					diagnostics, limited = boundedDiagnostics(checked.Diagnostics)
+					incomplete = incomplete || limited
+					// Keep at most one file's full values in the existing latest
+					// result; all other files retain only their checked publication.
+					if cachedDocument == "" && len(checked.Documents) > 0 {
+						cachedDocument = f.Snapshot.URI()
+					}
+					if cachedDocument != f.Snapshot.URI() {
+						checked.Documents = nil
+					} else {
+						checks[f.Snapshot.URI()] = checked
+					}
+				} else {
+					checks[f.Snapshot.URI()] = checked
+				}
 				incomplete = incomplete || checked.Incomplete
 				docs = append(docs, checked.Documents...)
 				var version *int
@@ -1228,7 +1315,7 @@ rootLoop:
 					v := b.version
 					version = &v
 				}
-				result.publications = append(result.publications, publication{"", uri, version, checked.Diagnostics})
+				result.publications = append(result.publications, publication{"", uri, version, diagnostics})
 			}
 			options := analysis.DomainOptions{LocalPaths: input.LocalPaths, ControlPlaneNamespace: input.Config.ControlPlaneNamespace, ReferencePolicy: input.Config.ReferencePolicy, Complete: input.Complete && !incomplete && !strings.HasPrefix(scope, "isolated:")}
 			result.scopes = append(result.scopes, scopeResult{checked: checks, projectionStart: projectionStart, root: input.Root, scope: scope, files: currentFiles, documents: docs, options: options})
@@ -1257,6 +1344,9 @@ rootLoop:
 	// Open skipped documents still receive an explicit empty replacement.
 	for uri, b := range buffers {
 		path, err := workspace.PathFromURI(uri)
+		if documentURI != "" && path != selectedFile && path != selectedConfig {
+			continue
+		}
 		if err != nil || workspace.Owner(roots, path) == "" {
 			continue
 		}
@@ -1557,7 +1647,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		case "textDocument/hover":
 			for _, doc := range scope.documents {
 				if string(doc.Snapshot.URI()) == p.TextDocument.URI {
-					if hover := analysis.SchemaHover(doc, p.Position); hover != nil {
+					if hover := analysis.SchemaHover(ctx, doc, p.Position); hover != nil {
 						answer = hover
 						break
 					}
@@ -1593,6 +1683,9 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		}
 		break
 	}
+	if m.Method == "textDocument/completion" && latest.candidatesTruncated {
+		answer = map[string]any{"isIncomplete": true, "items": answer}
+	}
 	return
 }
 
@@ -1610,6 +1703,8 @@ type readProof struct {
 	uses                   map[index.Key][]index.Use
 	allProjects, localOnly bool
 	projectGeneration      uint64
+	allScope               bool
+	scopeGeneration        uint64
 	root, override         string
 	diskGeneration         uint64
 	files, knownFiles      map[string]bool
@@ -1648,6 +1743,7 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 		proof.engine, proof.catalog, proof.scope, proof.scopeName, proof.complete = input.queryProof.engine, input.queryProof.catalog, input.queryProof.scope, input.queryProof.scopeName, input.queryProof.complete
 		proof.hashes, proof.candidates = input.queryProof.hashes, input.queryProof.candidates
 		proof.uses, proof.allProjects, proof.projectGeneration = input.queryProof.uses, input.queryProof.allProjects, input.queryProof.projectGeneration
+		proof.allScope, proof.scopeGeneration = input.queryProof.allScope, input.queryProof.scopeGeneration
 	}
 	found := false
 	for _, scope := range input.scopes {

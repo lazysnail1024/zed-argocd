@@ -175,7 +175,7 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			return result, err
 		}
 		root := doc.Root()
-		raw, err := documentText(s, doc.Span())
+		raw, err := s.Slice(doc.Span())
 		if err != nil {
 			return result, err
 		}
@@ -194,7 +194,7 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			result.Incomplete = true
 			continue
 		}
-		projected, err := projectValuesWithin(ctx, raw, root, maxProjectionNodes-a.projectionNodes)
+		projected, err := projectValuesWithin(ctx, s, doc, maxProjectionNodes-a.projectionNodes)
 		if err != nil {
 			if ctx.Err() != nil {
 				return result, ctx.Err()
@@ -256,7 +256,12 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 		a.ReuseProjections([]Document{document})
 		if document.Value != nil {
 			result.Documents = append(result.Documents, document)
-			for _, unknown := range UnknownFields(document) {
+			unknownFields, queryErr := UnknownFields(ctx, document)
+			if queryErr != nil {
+				result.Incomplete = true
+				return result, queryErr
+			}
+			for _, unknown := range unknownFields {
 				unknownPaths[strings.Join(unknown.Path, "/")] = true
 				d := diagnostic(document, unknown.Path, "SCHEMA_UNKNOWN_FIELD", 2, "Field is not declared by this target Schema")
 				d.Range = nodeRange(document, unknown.Key)

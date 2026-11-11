@@ -23,6 +23,10 @@ def invoke(name,root,command,expected=0):
  if expected==2:
   reason={'real-release-refused':'provenance','wrong-platform':'platform','unsafe-version':'version','commit-mismatch':'commit','dirty-tracked':'provenance','dirty-untracked':'provenance','existing-output':'already exist','tampered-hash':'hash','package-platform-mismatch':'binary path','missing-dependency-notice':'inventory','modified-license':'license','conflicting-crd-legal-declaration':'CRD legal source changed'}.get(name)
   if reason:checks['failureReason']=reason.lower() in r.get('error','').lower()
+  if name in ['required-embed','required-include']:
+   reasons=['pattern required.txt: no matching files found'] if name=='required-embed' else ['required.h: No such file or directory',"'required.h' file not found"]
+   checks['missingDependencyReason']=any(reason.lower() in r.get('error','').lower() for reason in reasons)
+   checks['failedGoBuild']=any(len(step.get('command',[]))>1 and step['command'][1]=='build' and isinstance(step.get('exit'),int) and step['exit']!=0 for step in r.get('steps',[]))
  active=None
  record({'id':name,'command':cmd,'exit':status,'elapsedSeconds':time.monotonic()-started,'checks':checks,'passed':all(checks.values())});return r
 save()
@@ -60,7 +64,7 @@ try:
  # A declared source that requires an undeclared input must fail, not read through the snapshot boundary.
  required=[('embed','package main\nimport _ "embed"\n//go:embed required.txt\nvar required string\nfunc init(){println(required)}\n','required.txt','UNDECLARED EMBED'),('include','package main\n// #include "required.h"\nimport "C"\n','required.h','/* UNDECLARED NATIVE HEADER */\n')]
  for label,code,missing,value in required:
-  isolated=out/('required-'+label+'-source');shutil.copytree(fixture,isolated);source=isolated/'cmd/argocd-ls/required_delivery.go';source.write_text(code);dependency=source.parent/missing;dependency.write_text(value);(isolated/'.git/info/exclude').write_text('/cmd/argocd-ls/'+missing+'\n')
+  isolated=out/('required-'+label+'-source');shutil.copytree(fixture,isolated);source=isolated/'cmd/argocd-ls/required_delivery.go';source.write_bytes(code.encode('utf-8'));dependency=source.parent/missing;dependency.write_bytes(value.encode('utf-8'));(isolated/'.git/info/exclude').write_text('/cmd/argocd-ls/'+missing+'\n')
   for command in [['git','add','cmd/argocd-ls/required_delivery.go'],['git','-c','commit.gpgsign=false','commit','-m','Synthetic required input only']]:
    r=subprocess.run(command,cwd=isolated,env=env,capture_output=True);assert r.returncode==0,r.stderr
   requiredCommit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=isolated).decode().strip();invoke('required-'+label,isolated,['build','--output',str(out/('required-'+label+'-build')),'--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',requiredCommit],2)

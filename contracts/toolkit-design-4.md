@@ -1,14 +1,14 @@
 # Toolkit public API contract
 
-Contract ID: `toolkit-design-3`. Consumers pin an implementation source commit; no release is required. This revision adds shared work and scan lifecycle bookkeeping, authoritative open-byte accounting, and safe reuse of unchanged index facts. Existing `source`, `yamlview`, `edit`, and `toolkit-design-2` APIs remain available. The provider is k8s-crd-toolkit. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
+Contract ID: `toolkit-design-4`. Consumers pin an implementation source commit; no release is required. The provider is k8s-crd-toolkit. The current API covers source coordinates, YAML structure and effective values, compiled-schema editor queries, checked text edits, incremental facts, and input/work/discovery bookkeeping. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
 
 This file is the sole editable source of the API definition. Consumers retain a byte-identical snapshot and its SHA-256. The contract ID describes the contract revision; Go module SemVer selects an implementation. Upgrades must explicitly update both the snapshot and implementation lock. Changing only a digest does not establish compatibility.
 
 ## Dependencies and inputs
 
-The public packages are `source`, `yamlview`, `edit`, `index`, and `workspace`. All four other packages depend only on `source` within this module; `index` and `workspace` are independently usable. They contain no Argo GVKs or fields, schemas, LSP, namespace interpretation, or product versions. Only `workspace.Scanner` performs filesystem discovery. No package writes user files, starts workers, installs watchers, or accesses clusters. A URI is an opaque caller-supplied string; callers own path normalization and file identity. Scanner paths are native absolute filesystem paths, not URIs.
+The public packages are `source`, `yamlview`, `yamlvalue`, `schemaquery`, `edit`, `index`, and `workspace`. `yamlvalue` uses `source` and `yamlview`; the other original infrastructure packages depend only on `source` within this module. `schemaquery` accepts the existing `github.com/santhosh-tekuri/jsonschema/v6` compiled graph and does not depend on the YAML or workspace packages. These packages contain no Argo GVKs or fields, bundled schemas, LSP, namespace interpretation, or product versions. Only `workspace.Scanner` performs filesystem discovery. No package writes user files, starts workers, installs watchers, or accesses clusters. A URI is an opaque caller-supplied string; callers own path normalization and file identity. Scanner paths are native absolute filesystem paths, not URIs.
 
-The following Go declarations define the public API. See README for usage and validation. Consumers must not import internal packages or third-party ASTs. The API does not introduce `any` configuration bags or domain callbacks.
+The following Go declarations define the public API. See README for usage and validation. Consumers must not import internal packages; no third-party YAML AST is exposed. Compiled JSON Schema metadata is an explicit dependency of `schemaquery`, borrowed immutably. `any` below represents JSON-compatible data values, not configuration bags. There are no domain callbacks or registries.
 
 ## source: immutable text and coordinates
 
@@ -59,6 +59,7 @@ func (v View) Documents() []Document
 func (v View) Issues() []ParseIssue
 func (d Document) Root() Node
 func (d Document) Span() source.Span
+func (d Document) ContentSpan(s source.Snapshot) (source.Span, error)
 func (d Document) Complete() bool
 func (n Node) Kind() NodeKind
 func (n Node) Span() source.Span
@@ -70,12 +71,74 @@ func (n Node) Damaged() bool
 
 - Input must be a valid Snapshot. Output exposes no underlying parser or C pointers. Parse completes all necessary copying and releases underlying resources before returning; consumers need not call Close.
 - Documents follow source order. A `---` inside a block scalar is not a document separator. Duplicate keys remain separate Members rather than overwriting one another in a map. Members and Elements return empty slices when not applicable.
-- Span and Raw refer to the original bytes of the same input snapshot. They do not decode quotes or escapes, infer YAML types, or expand aliases or merges. Strict YAML-to-JSON conversion and decoded-position mapping belong to consumers.
+- Span and Raw refer to the original bytes of the same input snapshot. They do not decode quotes or escapes, infer YAML types, or expand aliases or merges. Consumers may use `yamlvalue` for bounded effective values; product-specific decoded-position mapping remains outside `yamlview`.
+- ContentSpan first verifies that the full original Document.Span bytes match the supplied snapshot, returning an error on mismatch or invalid range. It then returns a source span with the same start, optionally omitting a suffix proven by the complete CST to contain only ASCII printable comment nodes and intervening ASCII space/CR/LF. It preserves all bytes before the first omitted comment, including block-scalar whitespace, and never changes Document.Span, Node.Span, or Raw. It may conservatively return the original span, and always does so for documents containing any TAB or incomplete documents; non-ASCII comments or significant bytes also stop omission. This is a decoder-input optimization, not a source size, input budget, edit range, or replacement for strict YAML validation. A zero Document returns an empty span for a valid snapshot.
 - An empty document has an Empty root. Damaged nodes have kind Error or Damaged=true and must not masquerade as ordinary scalars. Empty documents have Complete=true; damaged documents have Complete=false. Adjacent complete documents that can be reliably recovered remain usable.
 - Ordinary syntax damage is recorded in Issues and may return a partial View. Infrastructure failures, cancellation, and budget overruns return errors; their results must not be treated as complete views. Context cancellation uses the standard cancellation error chain.
 - Fixed supported limits are 5 MiB of input, 2,000 documents per stream, and syntax depth 256. Exceeding a limit explicitly returns an error. There is no budget policy interface. Future increases require resource and cancellation validation first.
 - Documents, Issues, Members, and Elements return copies that cannot mutate internal state. The same snapshot produces the same observable structure. Nodes belong only to that input and must not be used to edit another revision.
 - A complete syntax view does not establish that an object is valid Kubernetes input or passes domain checks.
+
+## yamlvalue: effective values and source provenance
+
+```go
+type Options struct {
+    MaxNodes, MaxVisits int
+    RejectExplicitTags bool
+    Fields []string
+}
+type Result struct {
+    Value any
+    Origin *Origin
+    Nodes, LogicalNodes int
+    Shared map[source.Span]bool
+    Fields map[string]string
+}
+type Error struct { Code, Message string }
+type Origin struct {
+    Node, Key yamlview.Node
+    Kind string
+    Children map[string]*Origin
+}
+func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Document, options Options) (Result, error)
+func (origin *Origin) At(parts []string) Origin
+func Shared(anchors map[source.Span]bool, span source.Span) bool
+```
+
+- Project requires a complete document from the supplied snapshot. It produces JSON-compatible values using the pinned mature YAML decoders. Duplicate or non-string mapping keys, unknown tags, cyclic aliases, ambiguous merges, and invalid projections fail explicitly. A scalar exceeding 1 MiB or expanded depth greater than 256 is rejected. Ordinary documents use the strict YAML-to-JSON path; aliases and merges receive bounded expansion and provenance. Explicit mapping entries override merges, and earlier mappings in a merge sequence override later mappings.
+- Project uses ContentSpan only to avoid repeatedly decoding proven trailing ASCII comments. Full original document bytes still establish snapshot correspondence; source/provenance positions and input-byte accounting remain based on the original snapshot. Documents containing TAB retain their full span. Non-ASCII comments and control characters remain in the decoder input, preserving strict rejection behavior and the interpretation of YAML Unicode line separators.
+- MaxNodes bounds expanded non-alias nodes. Zero allows ordinary documents but no alias/merge expansion; negative limits fail. Positive MaxVisits additionally bounds visits including aliases and ordinary syntax nodes; zero disables this extra visit limit. Callers choose budgets and account for an entire stream or request. Nodes charges expansion work; LogicalNodes charges the effective expanded value. Both are zero for ordinary documents and do not represent RSS.
+- RejectExplicitTags also rejects standard explicit tags. Custom tags are always unsupported. The option is caller policy, not inferred from a resource kind or version.
+- Origin is absent for ordinary documents, whose locations remain in the original YAML view. For projected values, `exact` means an independent original location, `derived` points to an alias/merge use, and `ambiguous` marks a location shared through an anchor. At uses effective map keys or decimal array indices; for a missing child it retains the nearest known origin, so callers must independently verify path existence. Shared tests containment in a reused anchor span. A derived or shared location is not an independent edit target.
+- Fields requests root string values selected by the caller. Independently known values can be returned even on projection failure, but never establish validity, complete recognition, or a complete effective value. Consumers must handle the error and keep these hints separate from committed complete facts.
+- The internal YAML graph is temporary and is not exposed. Result maps belong to the caller; provenance can retain input nodes and must not be stored as a closed-file index summary. No schema, GVK table, resource identity, inheritance policy, or edit decision is provided.
+- Context is checked during traversal and between decoder calls; a single decoder call is not preemptible. Input and work bounds remain necessary. Error.Code identifies `YAML_PROJECTION_INCOMPLETE` or `INPUT_BUDGET_EXCEEDED` where applicable; error text is descriptive rather than a stable protocol.
+
+## schemaquery: bounded editor queries over compiled JSON Schema
+
+```go
+type Limits struct { Work, Depth int }
+type Result struct {
+    Nodes []*jsonschema.Schema
+    Ambiguous bool
+    Complete bool
+}
+var ErrBudget error
+var ErrUnsupported error
+func Lookup(ctx context.Context, root *jsonschema.Schema, path []string, value any, limits Limits) (Result, error)
+func Values(ctx context.Context, root *jsonschema.Schema, path []string, value any, limits Limits) ([]any, error)
+func AllowsKey(ctx context.Context, root *jsonschema.Schema, path []string, value any, limits Limits) (bool, error)
+func Type(ctx context.Context, root *jsonschema.Schema, path []string, value any, limits Limits) (string, error)
+func SelectShapes(ctx context.Context, branches []*jsonschema.Schema, value any, active []string, limits Limits) ([]*jsonschema.Schema, error)
+```
+
+- Callers compile, load, select, and retain schemas. The compiled graph and input value must remain immutable during a call. Returned schema pointers refer to that graph. The package owns no compiler, registry, persistent cache, product-version rules, YAML parser, or validator replacement.
+- Paths use property names and decimal array indices. Queries traverse properties/items, static references, and allOf/anyOf/oneOf. Explicit finite sibling constraints select viable alternatives; the active path is excluded so an unfinished field does not hide its own repair candidates. Ambiguous means multiple shapes remain possible, not that the document is invalid.
+- Values returns deduplicated finite enum/const candidates in deterministic JSON-representation order. Candidate validation uses the existing compiled validator and preserves exactly-one semantics for oneOf. Lookup and acceptance checks share one work budget; partial candidates never masquerade as a complete result.
+- AllowsKey respects enclosing object closure without requiring placeholder values or a completed object. Product annotations such as Kubernetes preserve-unknown-fields must be reflected in the supplied open schema or handled by the consumer. Type returns the queried type description; an empty successful result and an error have different meanings.
+- SelectShapes compares existing field names and ignores the active field, missing required values, ordinary value errors, and negative `not` assertions. A negative assertion in another field cannot prevent querying an independent field. This does not relax Lookup/Values path checks or the compiled validator; conditional and dynamic shapes remain explicitly unsupported. The caller decides whether an empty selection retains its original version catalog.
+- Unsupported path-dependent constructs, including conditional/dynamic shapes inspected by the query, return ErrUnsupported. Exhaustion returns ErrBudget. A failed Lookup has Complete=false and no complete partial answer. Consumers must propagate unknown/incomplete state and must not interpret either error as a missing field or safe edit.
+- Zero Limits fields use Work=100000 and Depth=256; negative limits permit no work. A validator call counts as one visit. Context is checked between operations, but the validator does not expose preemption within a call; callers must also bound schema and value sizes. Work limits are not a wall-clock deadline.
 
 ## edit: atomic text replacements on one snapshot
 
@@ -160,6 +223,7 @@ func (i *Index) Definitions(scope Scope, key Key) ([]Definition, State)
 func (i *Index) References(scope Scope, key Key) ([]Use, State)
 func (i *Index) Dependents(scope Scope, key Key) ([]source.URI, State)
 func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, error)
+func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit int) (SymbolResult, error)
 ```
 
 ### Identity and ownership
@@ -186,7 +250,7 @@ func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, err
 - Definitions and References return fresh locations; Dependents intentionally also includes old pending summaries so a target change can still schedule its callers. All URI sets are deduplicated and sorted. Definitions sort by URI, Span, and symbol ID; References sort by URI and Span.
 - SemanticDigest must reflect meaning relevant to consumers but absent from the public facts, for example a template signature, domain ownership, or policy. The index additionally compares symbol identity/key/name/kind, reference target, and dependency multisets. Array order and spans do not affect semantic equality; duplicate reference/dependency counts do. Reusing a digest cannot hide a changed key or relation.
 - A semantic or scope change returns the changed URI plus direct dependents of its old and new definition keys in Change.Affected. This includes previously unresolved uses and duplicate-candidate changes. A position-only change updates locations and revision but returns only the changed URI. Navigation caches must still use scope Generation/revision freshness rather than relying on Affected to detect moved locations. The caller schedules downstream recomputation and further propagation; the library does not run analysis.
-- Symbols performs a case-sensitive substring search over fresh names. A positive limit bounds retained result items, sorted deterministically; Truncated reports additional known matches. Search still visits known symbols in the scope and is not a filesystem search or a completeness proof.
+- Symbols performs a case-sensitive substring search over fresh names. SymbolsWithPrefix additionally requires the opaque key to start with prefix, before applying the result limit; an empty prefix is equivalent to Symbols. Callers encode kind/namespace partitions themselves. A positive limit bounds retained result items, sorted deterministically; Truncated reports additional known matches. Search still visits known symbols in the scope and is not a filesystem search or a completeness proof. No caller predicate executes under the index lock.
 
 ### Capacity
 

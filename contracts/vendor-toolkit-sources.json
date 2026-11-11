@@ -17,11 +17,15 @@
   },
   {
     "path": "index/query.go",
-    "sha256": "ddee76538a578fc240f4643d8c3a4ca0cb545d5692ebfa079236ba07c15b294f"
+    "sha256": "2171b3e1a0c100527a3443984d7e22843959cfa6a4fb07b70c3e1506901d2599"
   },
   {
     "path": "index/types.go",
     "sha256": "29411ceeda29aabf09ef46bc25234a1700694d913d584b87f6d3ab7240422d51"
+  },
+  {
+    "path": "schemaquery/query.go",
+    "sha256": "e9717126ca75c1f1e9f4402d275ee2a3eb81a6d7c392afb7b52b91440934d3a2"
   },
   {
     "path": "source/snapshot.go",
@@ -46,6 +50,22 @@
   {
     "path": "workspace/workqueue.go",
     "sha256": "4d2451ef0e5561ebe69eed7061f075a31ce638849d3bd3769e2b1455008c196a"
+  },
+  {
+    "path": "yamlvalue/fields.go",
+    "sha256": "4d91d6f66d8012c465d583c40aed6b38f0551cc23ddbd34172dd5dd0e6b8a3a3"
+  },
+  {
+    "path": "yamlvalue/limits.go",
+    "sha256": "a88d5f82453423bab9d4dc9d9872723dc41662eb5caf35786f23b8e1de4220fb"
+  },
+  {
+    "path": "yamlvalue/origin.go",
+    "sha256": "d2a688323c068d5f9f2f7ca8d58451ea3a290e53186ef81b3a4f41e75a8da146"
+  },
+  {
+    "path": "yamlvalue/project.go",
+    "sha256": "e03c06a2074a986121fe7786e00bed6d1510d1bffe7be24637c0a68f62e6f63a"
   },
   {
     "path": "yamlview/internal/parser/grammar/LICENSE",
@@ -97,6 +117,6 @@
   },
   {
     "path": "yamlview/view.go",
-    "sha256": "21ade1691bc6c5062da69391785a1e4935a8194464c5b7f7de7e20f406b25711"
+    "sha256": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   }
 ]

@@ -1,8 +1,10 @@
 package analysis
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lazysnail1024/k8s-crd-toolkit/schemaquery"
 	"os"
 	"sort"
 	"strings"
@@ -116,10 +118,17 @@ func TestAutoQueriesCoverEveryDeclaredField(t *testing.T) {
 				value = map[string]any{part.name: value}
 			}
 		}
-		doc := automaticQueryDocument(Document{Target: "auto", Value: object(value), CompiledSchema: compiled[expect.kind]}, parts)
+		doc, err := automaticQueryDocument(context.Background(), Document{Target: "auto", Value: object(value), CompiledSchema: compiled[expect.kind]}, parts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query, err := schemaquery.Lookup(context.Background(), doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+		if err != nil {
+			t.Fatal(err)
+		}
 		observed := map[string]bool{}
-		for _, facet := range queryAt(doc, parts) {
-			for name := range facet.schema.Properties {
+		for _, facet := range query.Nodes {
+			for name := range facet.Properties {
 				observed[name] = true
 			}
 		}

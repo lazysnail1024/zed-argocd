@@ -2,6 +2,27 @@
 """Real task-tree and partial-report checks for the native CI process boundary."""
 import argparse,hashlib,json,os,pathlib,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
+
+def open_active_report(path):
+ # The observer must allow the writer to atomically replace its report. A
+ # normal Windows open omits delete sharing and can make that replace fail.
+ if os.name!='nt':return path.open(encoding='utf-8')
+ import ctypes,msvcrt
+ from ctypes import wintypes as w
+ kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+ kernel.CreateFileW.argtypes=[w.LPCWSTR,w.DWORD,w.DWORD,w.LPVOID,w.DWORD,w.DWORD,w.HANDLE]
+ kernel.CreateFileW.restype=w.HANDLE
+ kernel.CloseHandle.argtypes=[w.HANDLE];kernel.CloseHandle.restype=w.BOOL
+ handle=kernel.CreateFileW(str(path),0x80000000,0x1|0x2|0x4,None,3,0x80,None) # READ; SHARE_READ|WRITE|DELETE; OPEN_EXISTING
+ if handle==w.HANDLE(-1).value:raise ctypes.WinError(ctypes.get_last_error())
+ try:fd=msvcrt.open_osfhandle(handle,os.O_RDONLY|os.O_NOINHERIT)
+ except BaseException:
+  kernel.CloseHandle(handle);raise
+ # The descriptor owns the handle after open_osfhandle succeeds.
+ try:return os.fdopen(fd,encoding='utf-8')
+ except BaseException:
+  os.close(fd);raise
+
 # Helpers terminate themselves after a finite interval even on the old broken boundary.
 if len(sys.argv)>1 and sys.argv[1]=='--child':
  d=pathlib.Path(sys.argv[2]);(d/'ready').write_text(str(os.getpid()));print('child ready',flush=True);print('child stderr',file=sys.stderr,flush=True);start=time.monotonic()
@@ -35,6 +56,18 @@ if len(sys.argv)>1 and sys.argv[1]=='--gate-driver':
  sys.exit(0 if ci.accepted() else 1)
 ap=argparse.ArgumentParser();ap.add_argument('output',type=pathlib.Path);ap.add_argument('--platform',required=True);a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
 try:
+ # Hold the observer open across replacement so this Windows sharing contract
+ # is deterministic instead of depending on a short polling race.
+ d=out/'report-replacement';d.mkdir();reportPath=d/'report.json';pending=d/'report.pending.json'
+ before={'generation':1};after={'generation':2}
+ reportPath.write_text(json.dumps(before),encoding='utf-8');pending.write_text(json.dumps(after),encoding='utf-8')
+ try:
+  with open_active_report(reportPath) as opened:
+   pending.replace(reportPath);original=json.load(opened)
+  current=json.loads(reportPath.read_text(encoding='utf-8'))
+  checks={'replaceWhileObserved':True,'openedSnapshotUnchanged':original==before,'newSnapshotVisible':current==after}
+  rows.append({'id':'report-replacement','checks':checks,'passed':all(checks.values())})
+ except Exception as e:rows.append({'id':'report-replacement','passed':False,'error':repr(e)})
  for mode in ['wait','exit']:
   d=out/mode;d.mkdir();command=[sys.executable,__file__,'--driver',str(d),a.platform,mode];start=time.monotonic();p=None
   try:
@@ -43,7 +76,7 @@ try:
     reportPath=d/'boundary/report.json'
     if reportPath.exists():
      try:
-      candidate=json.loads(reportPath.read_text())
+      with open_active_report(reportPath) as opened:candidate=json.load(opened)
       if candidate.get('activeCommand',{} ) and candidate['activeCommand']['id']=='tree':observed=candidate;break
      except (OSError,ValueError):pass
     time.sleep(.01)
@@ -69,5 +102,5 @@ try:
   if mode=='failure':checks['retainedFailure']=report['rows'][1]['exit']==7 and (d/'gate/regression.stdout').read_text().strip()=='regression consumer'
   rows.append({'id':'gate-'+mode,'command':command,'checks':checks,'passed':all(checks.values())})
 finally:
- report={'platform':a.platform,'python':sys.version,'command':sys.argv,'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'boundarySHA256':hashlib.sha256((ROOT/'tests/native_ci.py').read_bytes()).hexdigest(),'rows':rows,'passed':len(rows)==5 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+ report={'platform':a.platform,'python':sys.version,'command':sys.argv,'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'boundarySHA256':hashlib.sha256((ROOT/'tests/native_ci.py').read_bytes()).hexdigest(),'rows':rows,'passed':len(rows)==6 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 sys.exit(0 if report['passed'] else 1)

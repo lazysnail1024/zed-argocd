@@ -75,10 +75,9 @@ def main():
    with tempfile.TemporaryDirectory(prefix='argocd-native-source-') as temporary:
     snapshot=pathlib.Path(temporary)
     if windows:
-     # GCC can expand Windows short names and use forward slashes in __FILE__.
-     canonicalSnapshot=pathlib.Path(os.path.realpath(snapshot,strict=True))
-     prefixes=dict.fromkeys([str(snapshot),snapshot.as_posix(),str(canonicalSnapshot),canonicalSnapshot.as_posix()])
-     env['CGO_CPPFLAGS']=' '.join('"-ffile-prefix-map='+prefix+'=//_/_/argocd-native-source"' for prefix in prefixes)
+     # Give Go's -trimpath and GCC the same long path. Random snapshot paths
+     # in CGO_CPPFLAGS would invalidate the cache for identical native inputs.
+     snapshot=pathlib.Path(os.path.realpath(snapshot,strict=True))
     for name,expected in sources.items():
      value=content(ROOT/name)
      if digest(value)!=expected:raise ValueError('Source changed before snapshot: '+name)

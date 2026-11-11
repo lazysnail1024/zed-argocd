@@ -93,7 +93,7 @@ func applicationSetExpansion(ctx context.Context, value map[string]any, remainin
 }
 
 func applicationSetBudgetError() error {
-	return &projectionError{"INPUT_BUDGET_EXCEEDED", "ApplicationSet template expansion exceeds the node, string, or depth budget (100,000 nodes; 64 MiB strings; depth 256)"}
+	return &projectionError{Code: "INPUT_BUDGET_EXCEEDED", Message: "ApplicationSet template expansion exceeds the node, string, or depth budget (100,000 nodes; 64 MiB strings; depth 256)"}
 }
 
 func applicationSetValueCost(ctx context.Context, value any, mapsOnly, goTemplate, originPaths bool, remaining int) (applicationSetCost, error) {

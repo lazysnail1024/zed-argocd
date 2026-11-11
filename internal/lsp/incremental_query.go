@@ -71,6 +71,7 @@ func localFixAnswer(m message, answer any) bool {
 
 func (proof *readProof) localize(uri string) {
 	proof.localOnly, proof.complete, proof.allProjects = true, false, false
+	proof.allScope = false
 	proof.candidates, proof.uses = nil, nil
 	proof.files, proof.knownFiles = map[string]bool{uri: true}, map[string]bool{uri: true}
 	proof.hashes = nil // Local fixes require an open authoritative buffer.
@@ -80,11 +81,6 @@ func (proof *readProof) localize(uri string) {
 // and positions come from detached immutable summaries. Query reads never
 // advance the background reconciliation baseline or publish diagnostics.
 func (s *workspaceIndex) query(ctx context.Context, m message, latest, local completed, buffers map[string]buffer, roots []string, override string, epoch uint64) completed {
-	localInput := func() completed {
-		result := analyzeDocuments(ctx, epoch, roots, buffers, override, local)
-		result.editGeneration = latest.editGeneration
-		return result
-	}
 	var params struct {
 		TextDocument struct {
 			URI string `json:"uri"`
@@ -97,6 +93,11 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	uri := params.TextDocument.URI
 	if m.Method == "codeAction/resolve" {
 		uri = params.Data.URI
+	}
+	localInput := func() completed {
+		result := analyzeDocuments(ctx, epoch, roots, buffers, override, local, uri)
+		result.editGeneration = latest.editGeneration
+		return result
 	}
 	path, err := workspace.PathFromURI(uri)
 	if err != nil {
@@ -230,7 +231,9 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	allProjects := m.Method == "textDocument/completion" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	references := m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	s.mu.RLock()
-	documents := s.related(selected, summary.Facts, references, allProjects)
+	documents, candidatesComplete := s.related(selected, summary.Facts, references, allProjects)
+	result.candidatesTruncated = !candidatesComplete
+	complete = complete && candidatesComplete
 	proof := &readProof{engine: s, catalog: catalog, scope: indexScope(selected.root, selected.target.Scope), scopeName: selected.target.Scope, complete: complete, hashes: map[source.URI][32]byte{}, candidates: map[index.Key][]index.Definition{}, uses: map[index.Key][]index.Use{}, allProjects: allProjects}
 	if root := s.roots[selected.root]; root != nil {
 		proof.projectGeneration = root.projectGeneration[selected.target.Scope]
@@ -305,6 +308,12 @@ func (s *workspaceIndex) proofValid(proof *readProof) bool {
 	}
 	if proof.allProjects && root.projectGeneration[proof.scopeName] != proof.projectGeneration {
 		return false
+	}
+	if proof.allScope {
+		_, state := s.facts.Definitions(proof.scope, "")
+		if state.Generation != proof.scopeGeneration || !s.scopeComplete(root, proof.scopeName) {
+			return false
+		}
 	}
 	for uri, hash := range proof.hashes {
 		file := s.files[uri]

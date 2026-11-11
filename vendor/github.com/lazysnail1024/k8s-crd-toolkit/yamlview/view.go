@@ -34,9 +34,11 @@ type ParseIssue struct {
 	Message string
 }
 type Document struct {
-	root     Node
-	span     source.Span
-	complete bool
+	root       Node
+	span       source.Span
+	raw        string
+	contentEnd int
+	complete   bool
 }
 type View struct {
 	documents []Document
@@ -48,12 +50,27 @@ func (v View) Issues() []ParseIssue  { return append([]ParseIssue(nil), v.issues
 func (d Document) Root() Node        { return d.root }
 func (d Document) Span() source.Span { return d.span }
 func (d Document) Complete() bool    { return d.complete }
-func (n Node) Kind() NodeKind        { return n.kind }
-func (n Node) Span() source.Span     { return n.span }
-func (n Node) Members() []Member     { return append([]Member(nil), n.members...) }
-func (n Node) Elements() []Node      { return append([]Node(nil), n.elements...) }
-func (n Node) Raw() string           { return n.raw }
-func (n Node) Damaged() bool         { return n.damaged }
+
+// ContentSpan preserves semantic bytes while omitting a suffix proven to be
+// ASCII comments and whitespace. The full original document must still match
+// the supplied snapshot; Span and all node ranges remain lossless.
+func (d Document) ContentSpan(s source.Snapshot) (source.Span, error) {
+	raw, err := s.Slice(d.span)
+	if err != nil {
+		return source.Span{}, err
+	}
+	if raw != d.raw {
+		return source.Span{}, fmt.Errorf("yamlview: document does not belong to snapshot")
+	}
+	return source.Span{Start: d.span.Start, End: d.contentEnd}, nil
+}
+
+func (n Node) Kind() NodeKind    { return n.kind }
+func (n Node) Span() source.Span { return n.span }
+func (n Node) Members() []Member { return append([]Member(nil), n.members...) }
+func (n Node) Elements() []Node  { return append([]Node(nil), n.elements...) }
+func (n Node) Raw() string       { return n.raw }
+func (n Node) Damaged() bool     { return n.damaged }
 func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 	if e := ctx.Err(); e != nil {
 		return View{}, e
@@ -108,14 +125,14 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 		}
 		issues(tree)
 		if tree.Kind == "ERROR" {
-			v.documents = append(v.documents, Document{convert(tree, text), source.Span{Start: tree.Start, End: tree.End}, false})
+			v.documents = append(v.documents, document(tree, text, false))
 			continue
 		}
 		for _, c := range tree.Children {
 			if c.Kind == "document" {
-				v.documents = append(v.documents, Document{convert(c, text), source.Span{Start: c.Start, End: c.End}, !c.Damaged})
+				v.documents = append(v.documents, document(c, text, !c.Damaged))
 			} else if c.Damaged {
-				v.documents = append(v.documents, Document{convert(c, text), source.Span{Start: c.Start, End: c.End}, false})
+				v.documents = append(v.documents, document(c, text, false))
 			}
 		}
 	}
@@ -127,6 +144,46 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 	}
 	return v, nil
 }
+
+func document(p parser.Node, text string, complete bool) Document {
+	d := Document{root: convert(p, text), span: source.Span{Start: p.Start, End: p.End}, raw: text[p.Start:p.End], contentEnd: p.End, complete: complete}
+	// Tabs can be invalid indentation even when the CST accepts them. Keep
+	// the whole document so truncation cannot turn a rejected line into EOF.
+	if !complete || strings.IndexByte(d.raw, '\t') >= 0 {
+		return d
+	}
+	// Walk real CST comments backwards. Source gaps must contain only YAML
+	// whitespace; documents containing tabs were already excluded above.
+	// Closing punctuation, null-value colons, tags, anchors and
+	// document markers must never be removed as a side effect of this bound.
+	var trim func(parser.Node) bool
+	trim = func(n parser.Node) bool {
+		if n.Kind == "comment" {
+			if n.End > d.contentEnd || strings.Trim(text[n.End:d.contentEnd], " \t\r\n") != "" {
+				return false
+			}
+			// The pinned CST and strict YAML decoders disagree about some
+			// Unicode line separators and invalid control characters inside
+			// comments. Keep those bytes for the strict decoder to interpret.
+			for i := n.Start; i < n.End; i++ {
+				if text[i] < ' ' || text[i] > '~' {
+					return false
+				}
+			}
+			d.contentEnd = n.Start
+			return true
+		}
+		for i := len(n.Children) - 1; i >= 0; i-- {
+			if !trim(n.Children[i]) {
+				return false
+			}
+		}
+		return len(n.Children) != 0
+	}
+	trim(p)
+	return d
+}
+
 func convert(p parser.Node, text string) Node {
 	n := Node{span: source.Span{Start: p.Start, End: p.End}, raw: text[p.Start:p.End], damaged: p.Damaged}
 	switch p.Kind {

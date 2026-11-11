@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lazysnail1024/k8s-crd-toolkit/schemaquery"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
 	"sigs.k8s.io/yaml"
@@ -144,7 +145,7 @@ func References(documents []Document, options DomainOptions, uri string, p Posit
 	}
 	return result
 }
-func SchemaHover(doc Document, p Position) *Hover {
+func SchemaHover(ctx context.Context, doc Document, p Position) *Hover {
 	offset, e := doc.Snapshot.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})
 	if e != nil {
 		return nil
@@ -153,7 +154,7 @@ func SchemaHover(doc Document, p Position) *Hover {
 	if !ok || (!isKey && node.Kind() != yamlview.Scalar && node.Kind() != yamlview.Alias) {
 		return nil
 	}
-	text := schemaHoverText(doc, parts)
+	text := schemaHoverText(ctx, doc, parts)
 	if text == "" {
 		return nil
 	}
@@ -165,7 +166,7 @@ func SchemaHover(doc Document, p Position) *Hover {
 	}
 	return hover
 }
-func Complete(doc Document, p Position) []Completion {
+func Complete(ctx context.Context, doc Document, p Position) []Completion {
 	result := []Completion{}
 	offset, e := doc.Snapshot.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})
 	if e != nil {
@@ -208,26 +209,22 @@ func Complete(doc Document, p Position) []Completion {
 		if e1 != nil || e2 != nil {
 			return result
 		}
-		return fieldCompletions(doc, parts[:len(parts)-1], prefix, Range{Position{a.Line, a.UTF16Column}, Position{b.Line, b.UTF16Column}}, "", parts[len(parts)-1])
+		return fieldCompletions(ctx, doc, parts[:len(parts)-1], prefix, Range{Position{a.Line, a.UTF16Column}, Position{b.Line, b.UTF16Column}}, "", parts[len(parts)-1])
 	} else {
-		doc = automaticQueryDocument(doc, parts)
-		facets := queryAt(doc, parts)
-		values := []any{}
-		seen := map[string]bool{}
-		for _, f := range facets {
-			if f.schema.Enum != nil {
-				values = append(values, f.schema.Enum.Values...)
-			}
-			if f.schema.Const != nil {
-				values = append(values, *f.schema.Const)
-			}
+		doc, err := automaticQueryDocument(ctx, doc, parts)
+		if err != nil {
+			return nil
 		}
+		values, err := schemaquery.Values(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+		if err != nil {
+			return nil
+		}
+
 		for _, value := range values {
 			b, e := json.Marshal(value)
-			if e != nil || seen[string(b)] || !queryAccepts(doc.CompiledSchema, parts, doc.Value, value, 0) {
+			if e != nil {
 				continue
 			}
-			seen[string(b)] = true
 			result = append(result, Completion{Label: fmt.Sprint(value), Kind: 20, Detail: "Argo CD " + doc.Target, TextEdit: TextEdit{Range: editRange, NewText: separator + string(b) + suffix}})
 		}
 	}

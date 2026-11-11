@@ -30,9 +30,41 @@
 
 **来源：真实 stdio 审计复现。** 扫描开始时就消耗重扫标记，随后被 buffer 编辑取消，会吞掉磁盘更新；scope 刷新后仍用旧输入制作查询证明，会允许已经变化的引用回答交付。后台 batch 又可能在结果提交后被无关通知替代，使已计算诊断未到客户端。
 
-当前有效票据与事件 fence 区分请求、接受和提交；未完成需求不能因取消消失。查询证明来自实际产生回答的 snapshot 和依赖集合，串行交付者再核对。仍有效的领域结果重新排队发布，避免重读已接受字节；跨 root 解析失败仅撤销失败 root 的权威。
+当前有效票据与事件 fence 区分请求、接受和提交；未完成需求不能因取消消失。查询证明来自实际产生回答的 snapshot 和依赖集合，串行交付者再核对。仍有效的领域结果重新排队发布，避免重读已接受字节；跨 root 解析失败仅撤销失败 root 的权威。同路径 root remove/add 曾只登记后台重建，最终 roots 列表未变让 debounce 期间的旧证明仍有效；现在接纳 root 事件时立即推进配置 fence，等待后台之前就撤销旧证明。[project_rename_proof_test.go](../internal/lsp/project_rename_proof_test.go)同时检查新成员在提交前、提交后和 root 重建前后的证明，不依赖 sleep。
 
 保护：[lsp_regressions_e2e.py](../tests/lsp_regressions_e2e.py)、[query_delivery_e2e.py](../tests/query_delivery_e2e.py)、[publication_delivery_e2e.py](../tests/publication_delivery_e2e.py)。测试通过实际文件打开或协议屏障安排事件顺序，断言 stale 拒绝、健康 root 可用和恢复进度；超时或进程异常不能冒充成功检出。
+
+## 有界前台必须把取消后的 worker 也算在内
+
+**来源：前台实现审查与可编译消融。** 仅从请求 ID 表删除已取消请求，不能证明后台执行已经结束；若此时归还准入额度，取消突发仍能创建无界 worker。删除实际退出时的额度归还又会使后续请求永久收到 Busy。
+
+当前四个轻读额度与一个重操作额度独立，prepare/rename、引用和工作区符号使用重操作额度。worker 自己退出时归还预约，取消只撤销协议交付资格；请求 ID 再利用还须匹配原 context。真实 stdio 测试发出 128 个 hover，再取消一批请求并验证恢复，不使用调度延迟注入。把读额度扩大到 128、或删除退出归还，分别使指定准入上界和恢复断言失败。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)、[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)。这些反例证明保护的必要性，不是所有机器上的时延承诺。
+
+## 重命名既要覆盖旧引用，也不能捕获新名字的旧用法
+
+**来源：独立 stdio 负例。** source ref 的新名字只检查已声明名称时，已有未解析 `$captured/...` 会在重命名后意外获得绑定。前后错误数减少并不能发现这种含义变化。另一个真实反例是同一 YAML 流中的既有 sibling 领域错误：修改前只检查选中文档、修改后检查整个流，会将未变化的错误误判为新增，错误拒绝合法私有重命名。
+
+当前私有重命名要求唯一声明，完整覆盖 Helm `valueFiles` 与 `fileParameters[].path`，新名字不能与任何既有声明或引用冲突。修改前后对称分析整个 YAML 流；只有选中 Application 的私有绑定被改写。别名、共享或无法精确映射的转义来源拒绝修改。AppProject 跨文件重命名另要求完整 closed scope、唯一 namespace 绑定与每个受影响文件的打开版本，并保留整个 scope generation 防止新文件或未解析引用在交付前改变证明。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)覆盖 CRLF、多文档、不在 BMP 内的字符、未变 sibling 错误和意外捕获；[project_rename_e2e.py](../tests/project_rename_e2e.py)覆盖跨文件及 AppSet 模板边界。[navigation_editing_ablation.py](../tests/navigation_editing_ablation.py)和 [ablate_project_rename.py](../tests/ablate_project_rename.py)删除引用采集或唯一声明检查，要求编译成功后命中指定失败断言。
+
+## 有界索引之后的映射与合并也必须有界
+
+**来源：工作区符号实现审查。** 索引已经限制了返回数，消费者却对每个匹配再次扫描该文件所有文档，密集多文档输入仍会产生平方级查找。达到结果上限时直接从 root/scope 循环返回，也会跳过最终排序，让截断结果随枚举顺序改变。
+
+当前通过 Index 分配的 `document:N` 直接定位摘要文档；所有分区统一进入容量 20,000 的最大堆，再做一次稳定排序，返回证明只保留最终文件。AppProject 两种 lookup key 在查询前缀处去重。修复候选同样先按 namespace 前缀过滤再限额，`Truncated` 传播为不完整，不能拿被截断集合证明唯一性或引用全集。
+
+保护：[navigation_editing_guards_e2e.py](../tests/navigation_editing_guards_e2e.py)检查两根逆序输入、多文档精确位置、Project 去重、全局排序和 buffer 更新后的名称撤回；公共 Index 合同保护过滤在截断之前发生。小型功能用例不代替密集资源的内存和工作量测试。
+
+## Schema 验证和编辑候选曾使用两套不同路径解释
+
+**来源：默认自动版本模式的真实 stdio 复现。** Schema 已给出 `SCHEMA_CONSTRAINT`，枚举快速修复却为空：原候选遍历只沿原始 `properties/items`，没有经过自动版本目录的 `$defs` 和组合节点。精确版本有四个动作不代表默认版本也可用。
+
+当前补全和快速修复复用公共 `schemaquery.Values`，字段查询和未知字段检查读取同一份编译后图。产品仍负责版本分支选择与安全修改；公共层保留组合约束、取消和预算，遇到不支持的结构明确失败。抽取时还发现编译后的 Schema 没有保留 `x-kubernetes-preserve-unknown-fields` 注解；本仓仅按编译节点的已解析 Location 读取该注解，避免重新维护另一套 `$ref` 解释器。
+
+保护：[shared_schemaquery_e2e.py](../tests/shared_schemaquery_e2e.py)在默认 auto 与精确版本都验证四候选、resolve、只修改目标标量、诊断消失和旧版本拒绝；[shared_schema_test.go](../internal/analysis/shared_schema_test.go)保护 preserve-unknown-fields 与转义引用；[ablate_shared_schemaquery.py](../tests/ablate_shared_schemaquery.py)移除公共枚举查询后必须仍能编译，并让两个真实 LSP 场景的指定候选断言失败。
 
 ## 单文件 workspace 诊断曾被测试误当成 root Ready
 
@@ -64,6 +96,24 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 保护：[appset_budget_test.go](../internal/analysis/appset_budget_test.go)、[appset_derived_budget_test.go](../internal/analysis/appset_derived_budget_test.go)、[summary_test.go](../internal/analysis/summary_test.go)、[persistent_workspace_e2e.py](../tests/persistent_workspace_e2e.py)。
 
+## 文档与后台诊断必须使用相同的文件预算边界
+
+**来源：完整 LSP 通知序列与旧、新公共 pin 的 A/B。** document 快速路径曾把全部打开文件放在同一份投影预算中，而 persistent 路径按文件清零。两个各有 99,999 个节点的合法文件因此先出现预算错误，随后又被 workspace 的健康结果清除。该行为在旧实现上同样复现，是已有的双路径预算问题，不能归因于本次公共解码优化。
+
+当前 LSP 两条路径均按文件任务调用 `BeginFile`，同一文件的多个文档仍累计计费，CLI 的跨文件请求总预算保持独立。消费者记录 document 与 workspace 的全部通知，禁止有效版本出现瞬时预算错误，同时要求单文件双文档真实超限及替换、关闭后的恢复。相同 URI/version 的健康发布会去重，等待未修改文件再发布不能作为恢复完成条件；观察实际修改文件的新版本或关闭后的磁盘版本。
+
+有界诊断复制曾把空 slice 变成 `nil`；仅 workspace 分支做空数组处理，导致 document 通知输出 `diagnostics: null`。当前在共同发布入口统一输出空数组，完整通知消费者逐条检查数组类型，不能用客户端或测试中的空值容错掩盖该输出回归。
+
+保护：[projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)保留 CLI 文档/文件/scope、精确边界与超界检查，并在单 root、多 root 下覆盖完整通知序列；该消费者直接接入 native CI。[document_budget_test.go](../internal/lsp/document_budget_test.go)要求最新结果只保留一个文件的完整图、编辑 A 不重建未变的 B，且查询选择目标文件时仍检查全部打开文本配额。[ablate_document_budget.py](../tests/ablate_document_budget.py)只移除文档路径的按文件计费重置，要求编译成功后命中完整通知序列中的假预算断言。
+
+## 公共解码优化必须保留原始输入的证明
+
+**来源：公共提供方与 Workflow 的 128 MiB 输入边界复现。** 小资源后的大段 ASCII 注释反复进入严格 YAML 投影，消耗了原有五秒分析期限。把文档范围改成最后一个值节点的位置会破坏块标量、位置和严格语法校验；CST 与成熟解码器对 Unicode 换行和 TAB 的解释也存在已复现的差异，不能直接删除看似无效的尾文本。
+
+当前公共 `yamlview.Document.ContentSpan` 只省略由完整 CST 和字符检查证明安全的尾部 ASCII 注释，`yamlvalue.Project` 仍先核对完整原文并使用原有严格解码器。含任意 TAB 的文档保留完整范围，非 ASCII 注释和控制字符也保留给解码器处理。CD 通过既有 `analysis/projection.go` 调用得到该优化，继续使用原始 Snapshot 计算输入预算和位置，保留每次分析 100,000 个投影节点的合计上限；插件不增加另一套裁剪逻辑或投影缓存。
+
+保护：公共合同固定在 [toolkit-design-4.md](../contracts/toolkit-design-4.md)，提供方的注释、Unicode/TAB 和完整原文匹配消费者保护裁剪边界；CD 的 [alias_projection_cli_e2e.py](../tests/alias_projection_cli_e2e.py)、[projection_repair_e2e.py](../tests/projection_repair_e2e.py)、[alias_projection_lsp_e2e.py](../tests/alias_projection_lsp_e2e.py)、[alias_provenance_edges_e2e.py](../tests/alias_provenance_edges_e2e.py)及 [projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)分别验证有效值、严格拒绝、精确来源、CRLF/UTF-16 和总预算恢复。资源上限另由 [projection_retention_probe.py](../tests/projection_retention_probe.py)在真实 512 MiB cgroup 中验证，不能以本地语义通过替代。
+
 ## 版本覆盖曾漏掉独立 ApplicationSet 安装来源
 
 **来源：版本目录与兼容性复核。** 仅收集 Argo CD 主安装树中的 CRD，漏掉 2.3.x 固定引用的 standalone ApplicationSet addon，导致有效旧模板中的 `ksonnet` 字段被误报。[修复入口：PR #7](https://github.com/lazysnail1024/zed-argocd/pull/7)。
@@ -75,6 +125,12 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 ## 测试数量、CI 绿灯和发布身份曾被混为一谈
 
 **来源：测试执行审查、运行失败与隔离实验。** 新增 runner 曾只写进开发文档而未被实际 native CI 调用；深层 AppSet 矩阵因相同 schema/规则重复执行超过 480 秒。Windows 打包验证也曾因重复 build 耗尽 420 秒命令预算，随后去掉重复构建；对应修复见 [PR #7](https://github.com/lazysnail1024/zed-argocd/pull/7)。
+
+投影修复消费者也曾闲置，两个多文档用例在 scope 不完整时仍预期 `CD_PROJECT_UNRESOLVED` Information，而 main 的既有实现已暂缓该类诊断。旧、新公共 pin 的同字节消费者 A/B 结果一致，确认是旧测试合同漂移，非本次生产回归。当前 [projection_repair_e2e.py](../tests/projection_repair_e2e.py)保留 YAML 投影失败的精确范围、计数与不完整状态，明确禁止提前发布 Project 诊断，并在完整 scope 分别验证 open 的 Information、closed 的 Error 和补齐声明后的清除；该消费者直接接入 native CI。
+
+Windows 的进程边界消费者曾用普通读句柄并发观察报告，阻止驱动原子替换文件，导致任务树尚未启动就收到 `WinError 5`。当前观察端允许删除共享，并以持有旧读句柄时替换成功、旧内容仍完整、新路径可见新内容的控制验证共享语义；原 Job Object、任务树清理、部分报告和两秒期限保持不变。
+
+Windows 构建曾为随机临时目录添加额外 `CGO_CPPFLAGS`，使相同 C 输入在每次构建时失去缓存复用，多个合法构建累计耗尽归档消费者的 420 秒预算。当前先把现有临时快照规范为真实长路径，再使用 Go 的 `-trimpath` 映射；原两次独立构建的字节复现、忽略输入隔离、来源与许可验证仍是必须通过的门禁。未声明依赖的负例另曾被 CRLF 源码字节不符提前拒绝；当前夹具固定 LF 字节，并同时要求实际 Go 构建失败和指定缺失文件诊断，不能把其他失败当成目标保护已生效。
 
 当前必需步骤直接进入 [native_ci.py](../tests/native_ci.py)，缺步骤、编译失败、超时、缺报告和 runner 异常都失败。深入 AppSet 场景按确切 Schema hash 与完整 localRules 分组，独立全版本兼容矩阵继续覆盖每个 tag；不能用分组代替版本目录覆盖。性能验证看真实 `diskReads`、`parsedFiles` 和 fallback，不把 `fullScan:false` 或单次耗时当充分证据。
 

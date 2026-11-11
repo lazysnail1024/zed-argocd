@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/edit"
+	"github.com/lazysnail1024/k8s-crd-toolkit/schemaquery"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
+	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
 	"sort"
 	"strings"
 )
@@ -64,7 +66,7 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 			out = append(out, Fix{code, title, plan})
 		}
 	}
-	for _, fix := range fieldCandidates(doc) {
+	for _, fix := range fieldCandidates(ctx, doc) {
 		r := fix.Plan.Replacements[0].Span
 		if ctx.Err() != nil || r.Start > span.End || r.End < span.Start {
 			continue
@@ -105,36 +107,54 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 			}
 		}
 	}
-	schema := doc.SchemaData
-	if schema != nil {
-		var walk func(any, map[string]any, []string)
-		walk = func(value any, schema map[string]any, path []string) {
-			if enums := objectSlice(schema["enum"]); len(enums) > 0 {
-				current, _ := json.Marshal(value)
-				valid := false
-				for _, candidate := range enums {
-					b, _ := json.Marshal(candidate)
-					if string(b) == string(current) {
-						valid = true
-					}
-				}
-				if !valid {
-					for _, candidate := range enums {
-						add("FIX_ENUM_VALUE", fmt.Sprintf("Use %v", candidate), path, candidate)
-					}
-				}
+	// Enumerated repairs use exactly the same compiled-query path as value
+	// completion, including the automatic catalog's refs and alternatives.
+	var walk func(any, []string) error
+	walk = func(value any, path []string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		node := doc.location(path)
+		if node.Span().Start > span.End || node.Span().End < span.Start {
+			return nil
+		}
+		if doc.exact(path) && node.Kind() == yamlview.Scalar {
+			selectedDoc, err := automaticQueryDocument(ctx, doc, path)
+			if err != nil {
+				return err
 			}
-			for key, x := range object(value) {
-				if field, ok := object(schema["properties"])[key]; ok {
-					walk(x, object(field), appendPath(path, key))
-				}
+			candidates, err := schemaquery.Values(ctx, selectedDoc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+			if err != nil {
+				return err
 			}
-			for i, x := range objectSlice(value) {
-				walk(x, object(schema["items"]), appendPath(path, fmt.Sprint(i)))
+			current, _ := json.Marshal(value)
+			valid := false
+			for _, candidate := range candidates {
+				raw, _ := json.Marshal(candidate)
+				valid = valid || string(raw) == string(current)
+			}
+			if !valid {
+				for _, candidate := range candidates {
+					add("FIX_ENUM_VALUE", fmt.Sprintf("Use %v", candidate), path, candidate)
+				}
 			}
 		}
-		walk(doc.Value, schema, nil)
+		for key, x := range object(value) {
+			if err := walk(x, appendPath(path, key)); err != nil {
+				return err
+			}
+		}
+		for i, x := range objectSlice(value) {
+			if err := walk(x, appendPath(path, fmt.Sprint(i))); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
+	if err := walk(doc.Value, nil); err != nil {
+		return nil
+	}
+
 	return out
 }
 func safeScopePlan(ctx context.Context, doc Document, scope []Document, options DomainOptions, plan edit.Plan, targetCode string) bool {
@@ -166,15 +186,19 @@ func safeScopePlan(ctx context.Context, doc Document, scope []Document, options 
 	if e != nil || after.Incomplete {
 		return false
 	}
-	updated := []Document{}
+	unchanged := []Document{}
 	for _, d := range scope {
 		if d.Snapshot.URI() != doc.Snapshot.URI() {
-			updated = append(updated, d)
+			unchanged = append(unchanged, d)
 		}
 	}
-	updated = append(updated, after.Documents...)
+	// Both comparisons include the whole selected YAML stream. A caller may
+	// have supplied only the selected document; unchanged sibling errors must
+	// not become new errors merely because Analyze returns every document.
+	previous := append(append([]Document(nil), unchanged...), before.Documents...)
+	updated := append(unchanged, after.Documents...)
 	domainsStarted++
-	beforeDiagnostics := append(before.Diagnostics, Domain(scope, options)...)
+	beforeDiagnostics := append(before.Diagnostics, Domain(previous, options)...)
 	domainsStarted++
 	afterDiagnostics := append(after.Diagnostics, Domain(updated, options)...)
 	errors := map[string]int{}

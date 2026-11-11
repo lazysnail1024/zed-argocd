@@ -11,7 +11,7 @@ for name in ['without-recovery','with-obsolete-traversal','without-leaf-validati
   if name=='without-recovery':
    p=tree/'internal/analysis/schema_queries.go';s=p.read_text();needle='offset, err := s.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})';assert needle in s;s=s.replace(needle,'if true { return nil }\n\t'+needle,1);p.write_text(s)
   elif name=='without-leaf-validation':
-   p=tree/'internal/analysis/schema_queries.go';s=p.read_text();needle='return s.Validate(candidate) == nil';assert needle in s;p.write_text(s.replace(needle,'return true',1))
+   p=tree/'vendor/github.com/lazysnail1024/k8s-crd-toolkit/schemaquery/query.go';s=p.read_text();needle='valid := s.Validate(value) == nil';assert needle in s;p.write_text(s.replace(needle,'valid := true',1))
    catalog=json.loads((tree/'compat/catalog.lock.json').read_text())
    for v in catalog['versions']:
     for asset in v['schemas']:
