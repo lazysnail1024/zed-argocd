@@ -400,9 +400,12 @@ def scope_case(case, transition):
     response, barrier, before = barrier_pair(client, 200, 201)
     case.row['barrierBeforeResponse'] = before
     case.row['queryResponse'] = response
-    case.check('dependency-edit-processed-before-query-delivery', before
-               and barrier.get('error', {}).get('code') == -32601, barrier)
     dependent = transition in ('merge', 'reassign')
+    # Independent-scope reads may correctly finish before the processing barrier.
+    # For dependent edits, require the barrier to win so the in-flight proof is tested.
+    # In every mode the next check still validates the exact fresh result or refusal.
+    case.check('barrier-and-dependent-edit-order', (before or not dependent)
+               and barrier.get('error', {}).get('code') == -32601, barrier)
     expected_after = set() if transition == 'reassign' else applications
     case.check('fresh-scope-proof-rejects-only-actual-dependencies',
                response.get('error', {}).get('code') == -32801 if dependent
