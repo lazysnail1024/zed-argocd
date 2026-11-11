@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "zed-argocd"
-version = "0.0.1-alpha.3"
+version = "0.0.1-alpha.4"
 dependencies = [
  "serde",
  "serde_json",
