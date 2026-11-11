@@ -90,7 +90,11 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 	if !doc.Complete() {
 		return Result{}, projectionFailure("incomplete YAML document")
 	}
-	raw, err := documentText(snapshot, doc.Span())
+	span, err := doc.ContentSpan(snapshot)
+	if err != nil {
+		return Result{}, err
+	}
+	raw, err := documentText(snapshot, span)
 	if err != nil {
 		return Result{}, err
 	}

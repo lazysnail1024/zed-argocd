@@ -1,13 +1,13 @@
 {
   "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-  "version": "v0.0.0-20261110160307-7b0f547348cd",
+  "version": "v0.0.0-20261111044740-2be4e04dc495",
   "origin": "go-module-commit",
   "published": false,
-  "sourceSHA256": "8377f5955f26e12e7f9ad6324981e18b20f097e2890de8bdd2ac18e88c2a67ed",
-  "contractSHA256": "5c1287b822a803d8a9e53cf6b0cf36833e4a0e68ad0e4c99ae3d484a6d136ba9",
-  "zipSHA256": "8df7b45a13940be38c8095cfffd4e9e94cdd06f42152da92287a49592254d600",
+  "sourceSHA256": "90cb27fdc27e518185aee2c7fd5172bb2322caf47dca6b3a0d5b30d8ad4ae12e",
+  "contractSHA256": "621d2825aea12f56f817b666620a87b897616fe0213b4413db1b6c87192a3a53",
+  "zipSHA256": "a098bcbcf997fcebf172cb758edb2e3997a51b9601cf4e4193710ff2e944f975",
   "files": {
-    "CONTRACT.md": "5c1287b822a803d8a9e53cf6b0cf36833e4a0e68ad0e4c99ae3d484a6d136ba9",
+    "CONTRACT.md": "621d2825aea12f56f817b666620a87b897616fe0213b4413db1b6c87192a3a53",
     "LICENSE": "265ef4492c50a2720eb5897c1f8a196f6170396115c90517ec40cd89c1549a26",
     "edit/plan.go": "92636f55c083e0ab62a1f76a75e279e204dee41793ca0706fd506cc021c40564",
     "go.mod": "25b15cd147c60bff1558782a5d7463b6060532dde40f851b06138426775cd77c",
@@ -26,7 +26,7 @@
     "yamlvalue/fields.go": "4d91d6f66d8012c465d583c40aed6b38f0551cc23ddbd34172dd5dd0e6b8a3a3",
     "yamlvalue/limits.go": "a88d5f82453423bab9d4dc9d9872723dc41662eb5caf35786f23b8e1de4220fb",
     "yamlvalue/origin.go": "d2a688323c068d5f9f2f7ca8d58451ea3a290e53186ef81b3a4f41e75a8da146",
-    "yamlvalue/project.go": "c81c685cccbe95169e21c6526fe9c5e4b902543518dbef66a996a101becd877d",
+    "yamlvalue/project.go": "e03c06a2074a986121fe7786e00bed6d1510d1bffe7be24637c0a68f62e6f63a",
     "yamlview/internal/parser/grammar/LICENSE": "2d181298822a124f6d106118dcc69c8d4d26ac668559be29682c452e712b0947",
     "yamlview/internal/parser/grammar/PATCH.diff": "7e81ed4371812a4623ed96ce83f3cbdf9c78147438fe6a5dfb6d2869db22c2a9",
     "yamlview/internal/parser/grammar/README.md": "6d773f730e5178f3ef71b02dd5ee95dfbd66cb9be11daf4b416bdb2ccecd4710",
@@ -39,8 +39,8 @@
     "yamlview/internal/parser/grammar/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
     "yamlview/internal/parser/grammar/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
     "yamlview/internal/parser/parser.go": "7408f0a822df4438d8cc827c53ff54c452552d984f7da67ba8dd09451f2c661c",
-    "yamlview/view.go": "21ade1691bc6c5062da69391785a1e4935a8194464c5b7f7de7e20f406b25711"
+    "yamlview/view.go": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   },
-  "commit": "7b0f547348cd7f28e40ebd88c26f42939e0bdd4b",
+  "commit": "2be4e04dc4955991bd937ace3abf28673d289898",
   "sourceSHA256Scope": "listed runtime and contract files"
 }

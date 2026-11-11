@@ -41,13 +41,13 @@
 
 ## 公共依赖及状态归属
 
-公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`；确切 Go pseudo-version 以 [go.mod](../go.mod)为准，完整源码提交由 [toolkit.lock.json](../contracts/toolkit.lock.json)固定。它通过已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)参与构建，不要求发布 tag、相邻 checkout 或本地 `replace`。
+公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261111044740-2be4e04dc495`，完整提交为 `2be4e04dc4955991bd937ace3abf28673d289898`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 来源及校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)与 [toolkit-snapshot.json](../contracts/toolkit-snapshot.json)固定 design-4 合同及运行时文件摘要。构建使用已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)，无需发布 tag、相邻 checkout 或本地 `replace`。
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |
 | `source` | workspace/LSP 接收文本，analysis 使用不可变 `Snapshot`、revision、byte span 和 UTF-16 坐标转换；文件归属与客户端 URI 解释仍由本仓决定。 |
-| `yamlview` | `analysis/schema.go` 和投影/查询读取容错 YAML 视图；公共层不判断 Argo CD kind、AppProject key 或 target 版本。 |
-| `yamlvalue` | `analysis/projection.go` 复用有界有效值、alias/merge、来源与可选身份字段提取；本仓提供 `apiVersion`/`kind` 字段名，并解释哪些身份归本插件。公共层不含 CRD 注册表或 Argo 资源列表。 |
+| `yamlview` | `analysis/schema.go` 和投影/查询读取容错 YAML 视图；`Document.ContentSpan` 依据完整 CST 保守识别可省略的尾注释，原始 Span、Raw 与 UTF-16 位置保持不变。公共层不判断 Argo CD kind、AppProject key 或 target 版本。 |
+| `yamlvalue` | `analysis/projection.go` 复用有界有效值、alias/merge、来源与可选身份字段提取。`Project` 先核对完整原文，再通过 `ContentSpan` 减少严格解码器重复扫描尾注释的工作；含 TAB 的文档保留完整范围，非 ASCII 注释和无法证明的内容保留在解码输入中。本仓提供 `apiVersion`/`kind` 字段名并解释身份，累计整个请求的投影节点和原始输入字节预算。 |
 | `schemaquery` | `schema_queries.go`、`queries.go`、`fields.go` 和 `fixes.go` 共用编译后的 Schema 图，处理静态引用、组合、字段/数组路径及有限 enum/const 候选。未知结构、取消或预算不足返回明确错误；版本目录、未知字段诊断、来源与修复安全仍由本仓决定。 |
 | `edit` | `analysis/fixes.go` 将精确位置组织为 snapshot 绑定的修改计划；是否允许该领域修改、是否可向客户端交付由本仓验证。 |
 | `workspace.Documents` | `server.go` 的 Open/Change/Close 和 `incremental.go` 的 BeginRead/PublishRead；统一接受 revision、打开文本及读票据。`fitsBuffer` 读取 `OpenBytes`，不另存一份累计文本计数。 |

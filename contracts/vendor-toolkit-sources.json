@@ -65,7 +65,7 @@
   },
   {
     "path": "yamlvalue/project.go",
-    "sha256": "c81c685cccbe95169e21c6526fe9c5e4b902543518dbef66a996a101becd877d"
+    "sha256": "e03c06a2074a986121fe7786e00bed6d1510d1bffe7be24637c0a68f62e6f63a"
   },
   {
     "path": "yamlview/internal/parser/grammar/LICENSE",
@@ -117,6 +117,6 @@
   },
   {
     "path": "yamlview/view.go",
-    "sha256": "21ade1691bc6c5062da69391785a1e4935a8194464c5b7f7de7e20f406b25711"
+    "sha256": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   }
 ]

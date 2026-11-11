@@ -96,6 +96,14 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 保护：[appset_budget_test.go](../internal/analysis/appset_budget_test.go)、[appset_derived_budget_test.go](../internal/analysis/appset_derived_budget_test.go)、[summary_test.go](../internal/analysis/summary_test.go)、[persistent_workspace_e2e.py](../tests/persistent_workspace_e2e.py)。
 
+## 公共解码优化必须保留原始输入的证明
+
+**来源：公共提供方与 Workflow 的 128 MiB 输入边界复现。** 小资源后的大段 ASCII 注释反复进入严格 YAML 投影，消耗了原有五秒分析期限。把文档范围改成最后一个值节点的位置会破坏块标量、位置和严格语法校验；CST 与成熟解码器对 Unicode 换行和 TAB 的解释也存在已复现的差异，不能直接删除看似无效的尾文本。
+
+当前公共 `yamlview.Document.ContentSpan` 只省略由完整 CST 和字符检查证明安全的尾部 ASCII 注释，`yamlvalue.Project` 仍先核对完整原文并使用原有严格解码器。含任意 TAB 的文档保留完整范围，非 ASCII 注释和控制字符也保留给解码器处理。CD 通过既有 `analysis/projection.go` 调用得到该优化，继续使用原始 Snapshot 计算输入预算和位置，保留每次分析 100,000 个投影节点的合计上限；插件不增加另一套裁剪逻辑或投影缓存。
+
+保护：公共合同固定在 [toolkit-design-4.md](../contracts/toolkit-design-4.md)，提供方的注释、Unicode/TAB 和完整原文匹配消费者保护裁剪边界；CD 的 [alias_projection_cli_e2e.py](../tests/alias_projection_cli_e2e.py)、[projection_repair_e2e.py](../tests/projection_repair_e2e.py)、[alias_projection_lsp_e2e.py](../tests/alias_projection_lsp_e2e.py)、[alias_provenance_edges_e2e.py](../tests/alias_provenance_edges_e2e.py)及 [projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)分别验证有效值、严格拒绝、精确来源、CRLF/UTF-16 和总预算恢复。资源上限另由 [projection_retention_probe.py](../tests/projection_retention_probe.py)在真实 512 MiB cgroup 中验证，不能以本地语义通过替代。
+
 ## 版本覆盖曾漏掉独立 ApplicationSet 安装来源
 
 **来源：版本目录与兼容性复核。** 仅收集 Argo CD 主安装树中的 CRD，漏掉 2.3.x 固定引用的 standalone ApplicationSet addon，导致有效旧模板中的 `ksonnet` 字段被误报。[修复入口：PR #7](https://github.com/lazysnail1024/zed-argocd/pull/7)。
