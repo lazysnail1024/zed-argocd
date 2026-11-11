@@ -90,10 +90,13 @@ def main():
                     if variant == 'without-query-version-filter':
                         source = tree / 'internal/analysis/schema_queries.go'
                         text = source.read_text()
-                        selection = 'if queryShape(branch, doc.Value, active, 0) {'
+                        # Keep shared shape selection and validation intact, but
+                        # prevent the plugin from narrowing queries to the
+                        # compatible release branches it selected.
+                        selection = '\tselected.AnyOf = possible\n'
                         if text.count(selection) != 1:
                             raise RuntimeError('query selection mutation no longer matches')
-                        source.write_text(text.replace(selection, 'if true {'))
+                        source.write_text(text.replace(selection, '\tselected.AnyOf = doc.CompiledSchema.AnyOf\n'))
                     current = json.loads(json.dumps(catalog))
                     for entry in current['autoSchemas']:
                         if variant == 'without-query-version-filter':
