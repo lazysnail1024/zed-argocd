@@ -190,6 +190,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 	// use the new bytes so this state does not retain older result data.
 	publish := func(params map[string]any) {
 		uri := params["uri"].(string)
+		if diagnostics, ok := params["diagnostics"].([]analysis.Diagnostic); ok && diagnostics == nil {
+			params["diagnostics"] = []analysis.Diagnostic{}
+		}
 		if _, ok := params["x-argocd-analysis-scope"]; !ok {
 			params["x-argocd-analysis-scope"] = "workspace"
 		}
@@ -440,9 +443,6 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				fmt.Fprintln(errOut, "argocd-analysis", string(trace))
 			}
 			for _, publication := range sortedPublications(recoverDocumentPublications(result, documents, roots, buffers)) {
-				if publication.diagnostics == nil {
-					publication.diagnostics = []analysis.Diagnostic{}
-				}
 				if b, ok := buffers[publication.uri]; ok {
 					version := b.version
 					publication.version = &version

@@ -68,8 +68,9 @@ try:
   finally:
    if c:
     c.close();publications=[event for event in c.messages if event['message'].get('method')=='textDocument/publishDiagnostics' and event['message'].get('params',{}).get('uri') in [first.as_uri(),second.as_uri()]]
-    false_budget=[event for event in publications if any(d['code']=='INPUT_BUDGET_EXCEEDED' for d in event['message']['params']['diagnostics']) and not (event['message']['params']['uri']==first.as_uri() and event['message']['params'].get('version') in [2,4])]
+    arrays=all(isinstance(event['message']['params'].get('diagnostics'),list) for event in publications)
+    false_budget=[event for event in publications if isinstance(event['message']['params'].get('diagnostics'),list) and any(d['code']=='INPUT_BUDGET_EXCEEDED' for d in event['message']['params']['diagnostics']) and not (event['message']['params']['uri']==first.as_uri() and event['message']['params'].get('version') in [2,4])]
     (folder/'publications.json').write_text(json.dumps(publications,indent=2)+'\n')
-    record(str(multi)+'-publication-lifecycle',{'exit':c.proc.returncode==0,'noFalseBudgetInAnyPhase':false_budget==[]},{'publications':publications,'unexpectedBudget':false_budget})
+    record(str(multi)+'-publication-lifecycle',{'exit':c.proc.returncode==0,'diagnosticsAreArrays':arrays,'noFalseBudgetInAnyPhase':false_budget==[]},{'publications':publications,'unexpectedBudget':false_budget})
 except Exception as e:record("runner",{"terminal":False},repr(e))
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();report={'binarySHA256':sha(wire.BINARY),'runnerSHA256':sha(pathlib.Path(__file__)),'rows':rows,'passed':len(rows)==15 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'passed':report['passed'],'failed':[r['id'] for r in rows if not r['passed']]}));sys.exit(0 if report['passed'] else 1)
