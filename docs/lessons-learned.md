@@ -128,6 +128,10 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 投影修复消费者也曾闲置，两个多文档用例在 scope 不完整时仍预期 `CD_PROJECT_UNRESOLVED` Information，而 main 的既有实现已暂缓该类诊断。旧、新公共 pin 的同字节消费者 A/B 结果一致，确认是旧测试合同漂移，非本次生产回归。当前 [projection_repair_e2e.py](../tests/projection_repair_e2e.py)保留 YAML 投影失败的精确范围、计数与不完整状态，明确禁止提前发布 Project 诊断，并在完整 scope 分别验证 open 的 Information、closed 的 Error 和补齐声明后的清除；该消费者直接接入 native CI。
 
+Windows 的进程边界消费者曾用普通读句柄并发观察报告，阻止驱动原子替换文件，导致任务树尚未启动就收到 `WinError 5`。当前观察端允许删除共享，并以持有旧读句柄时替换成功、旧内容仍完整、新路径可见新内容的控制验证共享语义；原 Job Object、任务树清理、部分报告和两秒期限保持不变。
+
+Windows 构建曾为随机临时目录添加额外 `CGO_CPPFLAGS`，使相同 C 输入在每次构建时失去缓存复用，多个合法构建累计耗尽归档消费者的 420 秒预算。当前先把现有临时快照规范为真实长路径，再使用 Go 的 `-trimpath` 映射；原两次独立构建的字节复现、忽略输入隔离、来源与许可验证仍是必须通过的门禁。未声明依赖的负例另曾被 CRLF 源码字节不符提前拒绝；当前夹具固定 LF 字节，并同时要求实际 Go 构建失败和指定缺失文件诊断，不能把其他失败当成目标保护已生效。
+
 当前必需步骤直接进入 [native_ci.py](../tests/native_ci.py)，缺步骤、编译失败、超时、缺报告和 runner 异常都失败。深入 AppSet 场景按确切 Schema hash 与完整 localRules 分组，独立全版本兼容矩阵继续覆盖每个 tag；不能用分组代替版本目录覆盖。性能验证看真实 `diskReads`、`parsedFiles` 和 fallback，不把 `fullScan:false` 或单次耗时当充分证据。
 
 源码删除也有保留反例：Rust 身份校验改成单次 typed JSON 解析，会放宽未知深层字段的输入限制，因此保留原校验；native pin 与 Cargo 版本重新耦合、删除 WASM 身份检查或依赖许可证都被对应消费者拒绝。保护为 [ablate_identity.py](../editors/zed/tests/ablate_identity.py)、[ablate_distribution.py](../editors/zed/tests/ablate_distribution.py)、[native_package_e2e.py](../tests/native_package_e2e.py)和 [native_ci_process_e2e.py](../tests/native_ci_process_e2e.py)。
