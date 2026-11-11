@@ -308,7 +308,7 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 			previous := documents
 			go func() {
 				defer stop()
-				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous)
+				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous, "")
 				select {
 				case results <- local:
 				case <-done:
@@ -1016,14 +1016,15 @@ func recoverDocumentPublications(result, documents completed, roots []string, bu
 }
 
 func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string) completed {
-	return analyze(ctx, epoch, roots, buffers, override, completed{}, false)
+	return analyze(ctx, epoch, roots, buffers, override, completed{}, false, "")
 }
 
-func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed) completed {
+func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentURI string) completed {
 	selected := map[string]bool{}
+	selectedFile, _ := workspace.PathFromURI(documentURI)
 	for uri := range buffers {
 		file, err := workspace.PathFromURI(uri)
-		if err == nil {
+		if err == nil && (documentURI == "" || file == selectedFile) {
 			if root := workspace.Owner(roots, file); root != "" {
 				selected[root] = true
 			}
@@ -1035,10 +1036,10 @@ func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers
 			activeRoots = append(activeRoots, root)
 		}
 	}
-	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true)
+	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true, documentURI)
 }
 
-func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool) (result completed) {
+func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool, documentURI string) (result completed) {
 	started := time.Now()
 	defer func() { result.stats.ElapsedMilliseconds = time.Since(started).Milliseconds() }()
 	result = completed{epoch: epoch, failures: map[string]error{}, documentOnly: documentOnly}
@@ -1059,24 +1060,32 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 	}
 	seen := map[string]bool{}
 	analyzer := retainedAnalyzer(previous, nil)
+	var cachedDocument source.URI
 	remaining := workspace.MaxRetainedText
 	openFiles := map[string]source.Snapshot{}
+	selectedFile, _ := workspace.PathFromURI(documentURI)
+	selectedConfig := filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
 	for uri, b := range buffers {
-		if b.unavailable != "" {
-			file, _ := workspace.PathFromURI(uri)
-			root := workspace.Owner(roots, file)
-			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
-			v := b.version
-			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
-			continue
-		}
+		// A selected-file query still reserves every accepted open byte before
+		// narrowing acquisition to its source and authoritative configuration.
 		remaining -= len(b.snapshot.Text())
 		if remaining < 0 {
 			result.err = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: "open buffer text exceeds 128 MiB"}
 			result.failureURI = uri
 			return result
 		}
-		if file, e := workspace.PathFromURI(uri); e == nil {
+		file, pathErr := workspace.PathFromURI(uri)
+		if documentURI != "" && file != selectedFile && file != selectedConfig {
+			continue
+		}
+		if b.unavailable != "" {
+			root := workspace.Owner(roots, file)
+			result.failures[root] = &workspace.Error{Code: "INPUT_BUDGET_EXCEEDED", Message: b.unavailable}
+			v := b.version
+			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
+			continue
+		}
+		if pathErr == nil {
 			openFiles[file] = b.snapshot
 		}
 	}
@@ -1177,7 +1186,7 @@ rootLoop:
 				return result
 			}
 			reused := false
-			if reusableRoot {
+			if reusableRoot && !documentOnly {
 				for _, old := range previous.scopes {
 					if old.root == input.Root && old.scope == scope && old.projectionStart == projectionStart && sameScopeFiles(old.files, currentFiles) && analyzer.ReuseProjections(old.documents) {
 						// This is the single latest-result cache. Fresh acquisition
@@ -1236,6 +1245,11 @@ rootLoop:
 					result.failureURI = uri
 					return result
 				}
+				// Match the persistent index's per-file expansion boundary while
+				// preserving aggregate admission for all documents in that file.
+				if documentOnly {
+					analyzer.BeginFile()
+				}
 				var checked analysis.Result
 				var e error
 				reusedFile := false
@@ -1244,6 +1258,13 @@ rootLoop:
 						if old, ok := priorScope.checked[f.Snapshot.URI()]; ok && analyzer.ReuseProjections(old.Documents) {
 							checked = old
 							reusedFile = true
+						} else if documentOnly && documentURI == "" && previous.documentOnly {
+							if publication, ok := oldPublications[uri]; ok {
+								// Diagnostics require the same file/revision/target
+								// and root configuration, not a retained value graph.
+								checked = analysis.Result{Diagnostics: publication.diagnostics, Incomplete: true}
+								reusedFile = true
+							}
 						}
 					}
 				}
@@ -1252,7 +1273,6 @@ rootLoop:
 					checked, e = analyzer.Analyze(ctx, f.Snapshot, f.Target.Version)
 					result.stats.ParsedFiles++
 				}
-				checks[f.Snapshot.URI()] = checked
 				if e != nil {
 					if ctx.Err() != nil {
 						result.err = ctx.Err()
@@ -1270,6 +1290,24 @@ rootLoop:
 					analyzer = retainedAnalyzer(previous, result.scopes)
 					continue rootLoop
 				}
+				diagnostics := checked.Diagnostics
+				if documentOnly {
+					var limited bool
+					diagnostics, limited = boundedDiagnostics(checked.Diagnostics)
+					incomplete = incomplete || limited
+					// Keep at most one file's full values in the existing latest
+					// result; all other files retain only their checked publication.
+					if cachedDocument == "" && len(checked.Documents) > 0 {
+						cachedDocument = f.Snapshot.URI()
+					}
+					if cachedDocument != f.Snapshot.URI() {
+						checked.Documents = nil
+					} else {
+						checks[f.Snapshot.URI()] = checked
+					}
+				} else {
+					checks[f.Snapshot.URI()] = checked
+				}
 				incomplete = incomplete || checked.Incomplete
 				docs = append(docs, checked.Documents...)
 				var version *int
@@ -1277,7 +1315,7 @@ rootLoop:
 					v := b.version
 					version = &v
 				}
-				result.publications = append(result.publications, publication{"", uri, version, checked.Diagnostics})
+				result.publications = append(result.publications, publication{"", uri, version, diagnostics})
 			}
 			options := analysis.DomainOptions{LocalPaths: input.LocalPaths, ControlPlaneNamespace: input.Config.ControlPlaneNamespace, ReferencePolicy: input.Config.ReferencePolicy, Complete: input.Complete && !incomplete && !strings.HasPrefix(scope, "isolated:")}
 			result.scopes = append(result.scopes, scopeResult{checked: checks, projectionStart: projectionStart, root: input.Root, scope: scope, files: currentFiles, documents: docs, options: options})
@@ -1306,6 +1344,9 @@ rootLoop:
 	// Open skipped documents still receive an explicit empty replacement.
 	for uri, b := range buffers {
 		path, err := workspace.PathFromURI(uri)
+		if documentURI != "" && path != selectedFile && path != selectedConfig {
+			continue
+		}
 		if err != nil || workspace.Owner(roots, path) == "" {
 			continue
 		}

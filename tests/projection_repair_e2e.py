@@ -52,7 +52,7 @@ for identity in ['plain','alias']:
  text='metadata: {name: ghost, annotations: {api: &api argoproj.io/v1alpha1, kind: &kind AppProject}}\napiVersion: *api\nkind: *kind\nspec: {sourceRepos: *missing}\n'
  if identity=='plain':text=text.replace('apiVersion: *api','apiVersion: argoproj.io/v1alpha1').replace('kind: *kind','kind: AppProject')
  apptext=plain.replace('project: team','project: ghost');stream=text+'---\n'+apptext
- case(identity+'-unparsed-project-affects-scope',stream,[diag(stream,'YAML_PROJECTION_INCOMPLETE',text),diag(stream,'CD_PROJECT_UNRESOLVED','ghost',3,index=1)],resources=1,complete=False)
+ case(identity+'-unparsed-project-affects-scope',stream,[diag(stream,'YAML_PROJECTION_INCOMPLETE',text)],resources=1,complete=False)
 # Ownership recovery must not change anchor ordering or invent identity.
 identity='metadata: {name: audit, annotations: {api: &api argoproj.io/v1alpha1, kind: &kind Application}}\napiVersion: *api\nkind: *kind\n'
 indented=''.join('  '+line for line in (identity+'spec: {project: *missing}\n').splitlines(keepends=True))
@@ -120,11 +120,27 @@ for c in cases:
   actual=[{k:x[k] for k in ['code','source','severity','range']}|{'derived':'derived YAML value' in x['message']} for x in d['diagnostics']]
   sort=lambda a:sorted(a,key=lambda x:json.dumps(x,sort_keys=True))
   checks={'exit':p.returncode==(2 if not c['complete'] else 1 if any(x['severity']==1 for x in c['diagnostics']) else 0),'complete':d['analysisComplete']==c['complete'],'envelope':d['product']=='argo-cd' and d['reportSchemaVersion']==1 and d['inputSource']=='filesystem' and d['validationScope']=='local-editing-contract','configuration':d['configurationErrors']==[],'targets':len(d['targets'])==1 and d['targets'][0]['version']=='3.5.6' and d['targets'][0]['complete']==c['complete'],'diagnostics':sort(actual)==sort(c['diagnostics']),'allDiagnosticURIs':all(x['uri']==app.as_uri() for x in d['diagnostics']),'files':d['filesAnalyzed']==c['files'],'resources':d['resourcesAnalyzed']==c['resources']}
+  if c['id'] in ['plain-unparsed-project-affects-scope','alias-unparsed-project-affects-scope']:
+   checks['noScopeDependentProjectDiagnostics']=not any(x['code'].startswith('CD_PROJECT_') for x in d['diagnostics'])
   record(c['id'],checks,{'command':cmd,'exit':p.returncode,'report':d})
  except Exception as e:
   (folder/'stdout').write_bytes((e.stdout or b'') if isinstance(e,subprocess.TimeoutExpired) else b'')
   (folder/'stderr').write_bytes((e.stderr or b'') if isinstance(e,subprocess.TimeoutExpired) else repr(e).encode())
   record(c['id'],{'completed':False},{'command':cmd,'status':'timeout' if isinstance(e,subprocess.TimeoutExpired) else 'failed','error':repr(e)})
+# Complete scopes still report missing Projects according to policy and clear
+# the same diagnostic when the declaration is added to that workspace.
+for policy,severity in [('open',3),('closed',1)]:
+ folder=out/('complete-scope-'+policy);root=folder/'workspace';root.mkdir(parents=True);app=root/'input.yaml';text=plain.replace('project: team','project: ghost');app.write_text(text);(root/'.argocd-ls.yaml').write_text(config.replace('referencePolicy: closed','referencePolicy: '+policy));(root/'project.yaml').write_text(wire.PROJECT)
+ for state in ['missing','resolved']:
+  if state=='resolved':(root/'ghost.yaml').write_text(wire.PROJECT.replace('name: team','name: ghost'))
+  cmd=[str(binary),'check','--root',str(root),'--format','json']
+  try:
+   p=subprocess.run(cmd,capture_output=True,timeout=10);(folder/(state+'.stdout')).write_bytes(p.stdout);(folder/(state+'.stderr')).write_bytes(p.stderr);d=json.loads(p.stdout)
+   actual=[{k:x[k] for k in ['code','source','severity','range']}|{'derived':'derived YAML value' in x['message']} for x in d['diagnostics']];expected=[diag(text,'CD_PROJECT_UNRESOLVED','ghost',severity)] if state=='missing' else []
+   checks={'exit':p.returncode==(1 if state=='missing' and policy=='closed' else 0),'complete':d['analysisComplete'] is True,'configuration':d['configurationErrors']==[],'targets':len(d['targets'])==1 and d['targets'][0]['version']=='3.5.6' and d['targets'][0]['complete'] is True,'diagnostics':actual==expected,'allDiagnosticURIs':all(x['uri']==app.as_uri() for x in d['diagnostics']),'files':d['filesAnalyzed']==(3 if state=='missing' else 4),'resources':d['resourcesAnalyzed']==(2 if state=='missing' else 3)}
+   record('complete-scope-'+policy+'-'+state,checks,{'command':cmd,'exit':p.returncode,'report':d})
+  except Exception as e:
+   (folder/(state+'.stdout')).write_bytes((e.stdout or b'') if isinstance(e,subprocess.TimeoutExpired) else b'');(folder/(state+'.stderr')).write_bytes((e.stderr or b'') if isinstance(e,subprocess.TimeoutExpired) else repr(e).encode());record('complete-scope-'+policy+'-'+state,{'completed':False},{'command':cmd,'error':repr(e)})
 # Graph expansion cannot turn an ambiguous ref into a unique reference binding.
 lsp=out/'lsp';root=lsp/'workspace';root.mkdir(parents=True);(root/'.argocd-ls.yaml').write_text(config);project=root/'project.yaml';project.write_text(wire.PROJECT);app=root/'app.yaml'
 base=head+'metadata: {name: audit}\nspec:\n  project: team\n  sources:\n  - {repoURL: https://example.org/a, ref: values}\n  - {repoURL: https://example.org/b, ref: values}\n  - {repoURL: https://example.org/chart, helm: {valueFiles: ["$values/file.yaml"]}}\n  destination: {server: here}\n'
@@ -156,4 +172,4 @@ try:
 except Exception as e:record('lsp-runner',{'completed':False},repr(e))
 finally:
  if client:client.close();record('shutdown',{'exit0':client.proc.returncode==0},client.proc.returncode)
-report={'binarySHA256':sha(binary),'runnerSHA256':sha(pathlib.Path(__file__)),'wireSHA256':sha(pathlib.Path(wire.__file__)),'casesSHA256':sha(out/'expected-cli.json'),'rows':rows,'passed':len(rows)==len(cases)+6 and all(x['passed'] for x in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'rows':len(rows),'failed':[(r['id'],[k for k,v in r['checks'].items() if not v]) for r in rows if not r['passed']]}));sys.exit(0 if report['passed'] else 1)
+report={'binarySHA256':sha(binary),'runnerSHA256':sha(pathlib.Path(__file__)),'wireSHA256':sha(pathlib.Path(wire.__file__)),'casesSHA256':sha(out/'expected-cli.json'),'rows':rows,'passed':len(rows)==len(cases)+10 and all(x['passed'] for x in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'rows':len(rows),'failed':[(r['id'],[k for k,v in r['checks'].items() if not v]) for r in rows if not r['passed']]}));sys.exit(0 if report['passed'] else 1)

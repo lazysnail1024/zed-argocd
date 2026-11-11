@@ -17,6 +17,8 @@ def audit_consumers(platform):
   ('mixed-parent-index','mixed_parent_index_e2e.py',[],90),
   ('persistent-workspace','persistent_workspace_e2e.py',['--count','1000','--padding','4096'],150),
   ('alias-projection-lsp','alias_projection_lsp_e2e.py',[],150),
+  ('projection-repair','projection_repair_e2e.py',[],180),
+  ('projection-aggregate','projection_aggregate_e2e.py',[],180),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
   ('navigation-editing','navigation_editing_e2e.py',[],120),
@@ -41,6 +43,7 @@ def audit_consumers(platform):
    ('incremental-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental'],180),
    ('repository-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental','--repository'],180),
    ('audit-regression-mutations','audit_regression_mutations.py',['--worker'],480),
+   ('document-budget-ablation','ablate_document_budget.py',[],240),
    ('parent-workspace-faults','parent_workspace_faults.py',['--worker'],300),
   ])
  return cases

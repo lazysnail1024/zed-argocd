@@ -96,6 +96,14 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 保护：[appset_budget_test.go](../internal/analysis/appset_budget_test.go)、[appset_derived_budget_test.go](../internal/analysis/appset_derived_budget_test.go)、[summary_test.go](../internal/analysis/summary_test.go)、[persistent_workspace_e2e.py](../tests/persistent_workspace_e2e.py)。
 
+## 文档与后台诊断必须使用相同的文件预算边界
+
+**来源：完整 LSP 通知序列与旧、新公共 pin 的 A/B。** document 快速路径曾把全部打开文件放在同一份投影预算中，而 persistent 路径按文件清零。两个各有 99,999 个节点的合法文件因此先出现预算错误，随后又被 workspace 的健康结果清除。该行为在旧实现上同样复现，是已有的双路径预算问题，不能归因于本次公共解码优化。
+
+当前 LSP 两条路径均按文件任务调用 `BeginFile`，同一文件的多个文档仍累计计费，CLI 的跨文件请求总预算保持独立。消费者记录 document 与 workspace 的全部通知，禁止有效版本出现瞬时预算错误，同时要求单文件双文档真实超限及替换、关闭后的恢复。相同 URI/version 的健康发布会去重，等待未修改文件再发布不能作为恢复完成条件；观察实际修改文件的新版本或关闭后的磁盘版本。
+
+保护：[projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)保留 CLI 文档/文件/scope、精确边界与超界检查，并在单 root、多 root 下覆盖完整通知序列；该消费者直接接入 native CI。[document_budget_test.go](../internal/lsp/document_budget_test.go)要求最新结果只保留一个文件的完整图、编辑 A 不重建未变的 B，且查询选择目标文件时仍检查全部打开文本配额。[ablate_document_budget.py](../tests/ablate_document_budget.py)只移除文档路径的按文件计费重置，要求编译成功后命中完整通知序列中的假预算断言。
+
 ## 公共解码优化必须保留原始输入的证明
 
 **来源：公共提供方与 Workflow 的 128 MiB 输入边界复现。** 小资源后的大段 ASCII 注释反复进入严格 YAML 投影，消耗了原有五秒分析期限。把文档范围改成最后一个值节点的位置会破坏块标量、位置和严格语法校验；CST 与成熟解码器对 Unicode 换行和 TAB 的解释也存在已复现的差异，不能直接删除看似无效的尾文本。
@@ -115,6 +123,8 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 ## 测试数量、CI 绿灯和发布身份曾被混为一谈
 
 **来源：测试执行审查、运行失败与隔离实验。** 新增 runner 曾只写进开发文档而未被实际 native CI 调用；深层 AppSet 矩阵因相同 schema/规则重复执行超过 480 秒。Windows 打包验证也曾因重复 build 耗尽 420 秒命令预算，随后去掉重复构建；对应修复见 [PR #7](https://github.com/lazysnail1024/zed-argocd/pull/7)。
+
+投影修复消费者也曾闲置，两个多文档用例在 scope 不完整时仍预期 `CD_PROJECT_UNRESOLVED` Information，而 main 的既有实现已暂缓该类诊断。旧、新公共 pin 的同字节消费者 A/B 结果一致，确认是旧测试合同漂移，非本次生产回归。当前 [projection_repair_e2e.py](../tests/projection_repair_e2e.py)保留 YAML 投影失败的精确范围、计数与不完整状态，明确禁止提前发布 Project 诊断，并在完整 scope 分别验证 open 的 Information、closed 的 Error 和补齐声明后的清除；该消费者直接接入 native CI。
 
 当前必需步骤直接进入 [native_ci.py](../tests/native_ci.py)，缺步骤、编译失败、超时、缺报告和 runner 异常都失败。深入 AppSet 场景按确切 Schema hash 与完整 localRules 分组，独立全版本兼容矩阵继续覆盖每个 tag；不能用分组代替版本目录覆盖。性能验证看真实 `diskReads`、`parsedFiles` 和 fallback，不把 `fullScan:false` 或单次耗时当充分证据。
 

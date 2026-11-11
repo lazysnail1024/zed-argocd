@@ -81,11 +81,6 @@ func (proof *readProof) localize(uri string) {
 // and positions come from detached immutable summaries. Query reads never
 // advance the background reconciliation baseline or publish diagnostics.
 func (s *workspaceIndex) query(ctx context.Context, m message, latest, local completed, buffers map[string]buffer, roots []string, override string, epoch uint64) completed {
-	localInput := func() completed {
-		result := analyzeDocuments(ctx, epoch, roots, buffers, override, local)
-		result.editGeneration = latest.editGeneration
-		return result
-	}
 	var params struct {
 		TextDocument struct {
 			URI string `json:"uri"`
@@ -98,6 +93,11 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	uri := params.TextDocument.URI
 	if m.Method == "codeAction/resolve" {
 		uri = params.Data.URI
+	}
+	localInput := func() completed {
+		result := analyzeDocuments(ctx, epoch, roots, buffers, override, local, uri)
+		result.editGeneration = latest.editGeneration
+		return result
 	}
 	path, err := workspace.PathFromURI(uri)
 	if err != nil {

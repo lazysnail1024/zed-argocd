@@ -47,7 +47,7 @@
 | --- | --- |
 | `source` | workspace/LSP 接收文本，analysis 使用不可变 `Snapshot`、revision、byte span 和 UTF-16 坐标转换；文件归属与客户端 URI 解释仍由本仓决定。 |
 | `yamlview` | `analysis/schema.go` 和投影/查询读取容错 YAML 视图；`Document.ContentSpan` 依据完整 CST 保守识别可省略的尾注释，原始 Span、Raw 与 UTF-16 位置保持不变。公共层不判断 Argo CD kind、AppProject key 或 target 版本。 |
-| `yamlvalue` | `analysis/projection.go` 复用有界有效值、alias/merge、来源与可选身份字段提取。`Project` 先核对完整原文，再通过 `ContentSpan` 减少严格解码器重复扫描尾注释的工作；含 TAB 的文档保留完整范围，非 ASCII 注释和无法证明的内容保留在解码输入中。本仓提供 `apiVersion`/`kind` 字段名并解释身份，累计整个请求的投影节点和原始输入字节预算。 |
+| `yamlvalue` | `analysis/projection.go` 复用有界有效值、alias/merge、来源与可选身份字段提取。`Project` 先核对完整原文，再通过 `ContentSpan` 减少严格解码器重复扫描尾注释的工作；含 TAB 的文档保留完整范围，非 ASCII 注释和无法证明的内容保留在解码输入中。本仓提供并解释身份字段；CLI 按整个请求累计投影预算，LSP 按文件任务累计，打开 buffer 的总字节配额独立检查。 |
 | `schemaquery` | `schema_queries.go`、`queries.go`、`fields.go` 和 `fixes.go` 共用编译后的 Schema 图，处理静态引用、组合、字段/数组路径及有限 enum/const 候选。未知结构、取消或预算不足返回明确错误；版本目录、未知字段诊断、来源与修复安全仍由本仓决定。 |
 | `edit` | `analysis/fixes.go` 将精确位置组织为 snapshot 绑定的修改计划；是否允许该领域修改、是否可向客户端交付由本仓验证。 |
 | `workspace.Documents` | `server.go` 的 Open/Change/Close 和 `incremental.go` 的 BeginRead/PublishRead；统一接受 revision、打开文本及读票据。`fitsBuffer` 读取 `OpenBytes`，不另存一份累计文本计数。 |
@@ -75,6 +75,8 @@
 
 打开或编辑文件先触发独立文档分析。它只读取有界 root 配置和必要的 Chart 元数据，不枚举或读取未打开的 YAML，因此当前文档的 Schema 诊断、字段补全、悬停、符号和局部纠错无需等待全工作区完成。新 buffer 版本替换旧文档任务，不重置后台发现游标。
 
+文档路径与后台路径都按单文件计费，同一 YAML 流中的多个文档共用该文件的投影预算。现有最新文档结果最多保留一个文件的完整值图与检查结果；其他文件保留 snapshot 和有界发布诊断，同字节、revision、target 与 root 配置未变时复用诊断。前台查询需要未保留的值图时只重建目标文件及所属 root 的打开配置，仍先检查所有打开文本的 128 MiB 总配额。
+
 后台会话以持久文件记录推进发现：scanner 每批最多 256 项工作，advance 最多处理 32 个文件任务。当前文档所在目录被优先探索，工作队列使用公共层 `Current:Related:Background = 8:4:1` 的加权轮转；已知依赖变化把关联消费者提升到 Related。排队满时保留有界待处理身份，不通过丢事件宣告完成。
 
 每个后台文件任务独立获得五秒协作式预算，整个工作区不共享一个五秒截止时间。大工作区可以持续后台推进，同时发布当前文件结果；操作系统阻塞读取本身不受硬实时取消保证。证据入口是 [mixed_parent_index_e2e.py](../tests/mixed_parent_index_e2e.py)和 [persistent_workspace_e2e.py](../tests/persistent_workspace_e2e.py)。
@@ -97,7 +99,7 @@ scanner 不递归符号链接目录。显式文件别名以规范路径参与归
 | 关联失效 | Index 的反向依赖定位已知消费者；非 YAML 事件涉及 repository path 或 Chart 归属时只重查对应事实和消费者。领域判断与路径采样复用同一份有效 ApplicationSet 投影。 |
 | 只读查询 | 只采集当前请求文档，其他文件从脱离文本的摘要/Index 读取；查询不会推进后台 reconciliation 基线或发布诊断。回答携带实际使用的配置、buffer/revision、候选 key、引用 use set 与相关磁盘状态证明，交付前再次验证。 |
 | 修改 | 局部字段/枚举纠正与私有 source ref 重命名要求同一接受 revision 和配置，在前后整个 YAML 流及领域检查通过后提供。Project 替换和资源重命名依赖完整 scope；配置 pin 还要求整个相关 root 完成，并重新执行有界的完整修改前后验证。普通编辑热路径不调用该全量验证。 |
-| 诊断交付 | 已向客户端交付同 revision/配置的健康 workspace 结果后，较晚 Schema-only 结果不得清空更丰富的诊断。后台失败可恢复当前 buffer 的有效文档诊断；过期 batch 中仍有效的领域结果会重新排队交付，不重读已接受字节。 |
+| 诊断交付 | scope 不完整时暂缓依赖整个 scope 的 Project 诊断，保留当前文件的 YAML/Schema 诊断。已向客户端交付同 revision/配置的健康 workspace 结果后，较晚 Schema-only 结果不得清空更丰富的诊断。后台失败可恢复当前 buffer 的有效文档诊断；过期 batch 中仍有效的领域结果会重新排队交付，不重读已接受字节。 |
 
 关键实现位于 [incremental.go](../internal/lsp/incremental.go)、[incremental_query.go](../internal/lsp/incremental_query.go)、[server.go](../internal/lsp/server.go)与 [pins.go](../internal/lsp/pins.go)。只读结果失效可以拒绝为 `ContentModified` 或以新输入重算；修改候选不能在版本变化后静默沿用。
 
@@ -125,7 +127,7 @@ AppProject 资源重命名要求 `referencePolicy: closed`、明确 `controlPlan
 | 通知入口不同文件事件 | 512；溢出合并为 reconciliation 请求 |
 | 前台请求 | 4 个轻读 + 1 个重操作 worker；每个请求五秒协作式期限 |
 | Project 修复候选 / 工作区符号结果 | 按配置 namespace 过滤后的候选 1,000 / 全局符号 20,000；截断不能充当完整修改证明 |
-| 投影与 ApplicationSet 展开 | 每份分析预算 100,000 逻辑节点、64 MiB 展开字符串；在构造大量有效变体前计费 |
+| 投影与 ApplicationSet 展开 | CLI 整次请求、LSP 每个文件任务分别有 100,000 逻辑节点及 64 MiB 展开字符串预算；同一文件内所有 YAML 文档继续累计，在构造大量有效变体前计费 |
 | 文件摘要、元数据和诊断 | 96 MiB 逻辑计费 |
 | 公共 Index Facts | 96 MiB 逻辑计费、500,000 symbols、1,000,000 references/dependencies |
 | scanner 目录 | 每个声明 root 100,000 |

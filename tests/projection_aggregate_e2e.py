@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Independent aggregate graph admission and current-result recovery through CLI/LSP."""
+"""CLI aggregate admission and per-file LSP admission across every publication phase."""
 import hashlib,json,pathlib,subprocess,sys
 import audit_repair_e2e as wire
 wire.BINARY=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(sys.argv[2]).resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
 cases=json.loads(pathlib.Path(__file__).with_name('alias-projection-cases.json').read_text())['cases'];large=next(c['text'] for c in cases if c['id']=='expanded-boundary--1')
-# Each graph is exactly 99,999 projected nodes. Two cannot share a 100,000 allowance.
+# Each graph is exactly 99,999 nodes. CLI requests share one allowance;
+# LSP file jobs each have an allowance, still shared by that file's documents.
 plain='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: plain}\nspec:\n  project: team\n  source: {repoURL: https://example.org/repo}\n  destination: {server: here}\n'
 config='targetVersion: 3.5.6\ncontrolPlaneNamespace: argocd\nreferencePolicy: open\n'
 def record(name,checks,observed):rows.append({'id':name,'checks':checks,'observed':observed,'passed':all(checks.values())})
@@ -42,16 +43,33 @@ try:
   if multi:setup(b)
   first=a/'a.yaml';second=b/'b.yaml';first.write_text(plain);second.write_text(large);c=None
   try:
-   c=wire.LSP(folder,[b,a] if multi else [a]);c.open(first,large,1);c.open(second,large,1)
-   def diagnostics(path,version):return c.diag(path,version)
-   initial=diagnostics(second,1);record(str(multi)+'-cold-refusal',{'oneBudget':[d['code'] for d in initial]==['INPUT_BUDGET_EXCEEDED']},initial)
-   # Change first graph to plain; unchanged second must be re-admitted, not reuse refusal.
-   c.change(first,plain,2);diagnostics(first,2);ds=diagnostics(second,1);record(str(multi)+'-replacement-recovery',{'noErrors':ds==[]},ds)
-   # Reused second graph must count again when earlier scope is restored.
-   c.change(first,large,3);diagnostics(first,3);ds=diagnostics(second,1);record(str(multi)+'-reuse-refusal',{'oneBudget':[d['code'] for d in ds]==['INPUT_BUDGET_EXCEEDED']},ds)
-   c.send('textDocument/didClose',{'textDocument':{'uri':first.as_uri()}});ds=diagnostics(second,1);record(str(multi)+'-close-recovery',{'noErrors':ds==[]},ds)
+   c=wire.LSP(folder,[b,a] if multi else [a])
+   def diagnostics(path,version,since):
+    def matches(message):
+     params=message.get('params',{});return message.get('method')=='textDocument/publishDiagnostics' and params.get('uri')==path.as_uri() and params.get('version')==version and params.get('x-argocd-analysis-scope','workspace')=='workspace'
+    # Another wait may already have consumed this notification from the queue.
+    # Monotonic versions and the event mark keep earlier results out of the proof.
+    for event in c.messages[since:]:
+     if matches(event['message']):return event['message']['params']['diagnostics']
+    return c.wait(matches)['params']['diagnostics']
+   mark=len(c.messages);c.open(first,large,1);c.open(second,large,1);initial=[diagnostics(first,1,mark),diagnostics(second,1,mark)]
+   record(str(multi)+'-independent-files',{'bothWorkspaceClean':initial==[[],[]]},initial)
+   oversized=large+'---\n'+large
+   mark=len(c.messages);c.change(first,oversized,2);ds=diagnostics(first,2,mark)
+   record(str(multi)+'-single-file-refusal',{'oneBudget':[d['code'] for d in ds]==['INPUT_BUDGET_EXCEEDED']},ds)
+   mark=len(c.messages);c.change(first,large,3);ds=diagnostics(first,3,mark)
+   record(str(multi)+'-replacement-recovery',{'noErrors':ds==[]},ds)
+   mark=len(c.messages);c.change(first,oversized,4);before_close=diagnostics(first,4,mark)
+   # Closing restores first's plain disk bytes. Observe that changed URI rather
+   # than waiting for a duplicate publication of the unchanged second/v1.
+   mark=len(c.messages);c.send('textDocument/didClose',{'textDocument':{'uri':first.as_uri()}});after_close=diagnostics(first,None,mark)
+   record(str(multi)+'-close-recovery',{'refusedBeforeClose':[d['code'] for d in before_close]==['INPUT_BUDGET_EXCEEDED'],'diskRecovered':after_close==[]},{'before':before_close,'after':after_close})
   except Exception as e:record(str(multi)+'-runner',{'terminal':False},repr(e))
   finally:
-   if c:c.close();record(str(multi)+'-shutdown',{'exit':c.proc.returncode==0},c.proc.returncode)
+   if c:
+    c.close();publications=[event for event in c.messages if event['message'].get('method')=='textDocument/publishDiagnostics' and event['message'].get('params',{}).get('uri') in [first.as_uri(),second.as_uri()]]
+    false_budget=[event for event in publications if any(d['code']=='INPUT_BUDGET_EXCEEDED' for d in event['message']['params']['diagnostics']) and not (event['message']['params']['uri']==first.as_uri() and event['message']['params'].get('version') in [2,4])]
+    (folder/'publications.json').write_text(json.dumps(publications,indent=2)+'\n')
+    record(str(multi)+'-publication-lifecycle',{'exit':c.proc.returncode==0,'noFalseBudgetInAnyPhase':false_budget==[]},{'publications':publications,'unexpectedBudget':false_budget})
 except Exception as e:record("runner",{"terminal":False},repr(e))
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();report={'binarySHA256':sha(wire.BINARY),'runnerSHA256':sha(pathlib.Path(__file__)),'rows':rows,'passed':len(rows)==15 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'passed':report['passed'],'failed':[r['id'] for r in rows if not r['passed']]}));sys.exit(0 if report['passed'] else 1)
