@@ -102,6 +102,8 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 当前 LSP 两条路径均按文件任务调用 `BeginFile`，同一文件的多个文档仍累计计费，CLI 的跨文件请求总预算保持独立。消费者记录 document 与 workspace 的全部通知，禁止有效版本出现瞬时预算错误，同时要求单文件双文档真实超限及替换、关闭后的恢复。相同 URI/version 的健康发布会去重，等待未修改文件再发布不能作为恢复完成条件；观察实际修改文件的新版本或关闭后的磁盘版本。
 
+有界诊断复制曾把空 slice 变成 `nil`；仅 workspace 分支做空数组处理，导致 document 通知输出 `diagnostics: null`。当前在共同发布入口统一输出空数组，完整通知消费者逐条检查数组类型，不能用客户端或测试中的空值容错掩盖该输出回归。
+
 保护：[projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)保留 CLI 文档/文件/scope、精确边界与超界检查，并在单 root、多 root 下覆盖完整通知序列；该消费者直接接入 native CI。[document_budget_test.go](../internal/lsp/document_budget_test.go)要求最新结果只保留一个文件的完整图、编辑 A 不重建未变的 B，且查询选择目标文件时仍检查全部打开文本配额。[ablate_document_budget.py](../tests/ablate_document_budget.py)只移除文档路径的按文件计费重置，要求编译成功后命中完整通知序列中的假预算断言。
 
 ## 公共解码优化必须保留原始输入的证明
