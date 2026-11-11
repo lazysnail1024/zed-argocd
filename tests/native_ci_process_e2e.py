@@ -62,11 +62,13 @@ try:
  before={'generation':1};after={'generation':2}
  reportPath.write_text(json.dumps(before),encoding='utf-8');pending.write_text(json.dumps(after),encoding='utf-8')
  try:
+  import native_ci as ci
   with open_active_report(reportPath) as opened:
-   pending.replace(reportPath);original=json.load(opened)
+   replaceRetries=ci.replace_report(pending,reportPath)
+   original=json.load(opened)
   current=json.loads(reportPath.read_text(encoding='utf-8'))
   checks={'replaceWhileObserved':True,'openedSnapshotUnchanged':original==before,'newSnapshotVisible':current==after}
-  rows.append({'id':'report-replacement','checks':checks,'passed':all(checks.values())})
+  rows.append({'id':'report-replacement','checks':checks,'replaceRetries':replaceRetries,'passed':all(checks.values())})
  except Exception as e:rows.append({'id':'report-replacement','passed':False,'error':repr(e)})
  for mode in ['wait','exit']:
   d=out/mode;d.mkdir();command=[sys.executable,__file__,'--driver',str(d),a.platform,mode];start=time.monotonic();p=None

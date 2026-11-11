@@ -131,8 +131,21 @@ def run(name,command,extra=None,timeout=180):
  print(json.dumps({'step':name,'state':'completed','exit':status,'passed':rows[-1]['passed'],'elapsedSeconds':rows[-1]['elapsedSeconds']}),flush=True)
  return rows[-1]['passed']
 
+def replace_report(pending, published):
+ # Windows indexing or AV may briefly deny replacement even when the
+ # observing handle explicitly permits delete sharing. Keep the report atomic.
+ deadline=time.monotonic()+2
+ retries=0
+ while True:
+  try:
+   pending.replace(published)
+   return retries
+  except PermissionError:
+   if os.name!='nt' or time.monotonic()>=deadline:raise
+   retries+=1
+   time.sleep(.05)
 def save():
- report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');pending.replace(out/'report.json')
+ report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');replace_report(pending,out/'report.json')
 def main():
  global expected,completed
  configure()
