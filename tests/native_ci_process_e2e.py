@@ -3,9 +3,9 @@
 import argparse,hashlib,json,os,pathlib,subprocess,sys,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
-def open_active_report(path):
- # The observer must allow the writer to atomically replace its report. A
- # normal Windows open omits delete sharing and can make that replace fail.
+def open_active_report(path, allow_replace=True):
+ # Production observers allow delete sharing. A test observer can intentionally
+ # deny it to exercise the writer's bounded retry under Windows contention.
  if os.name!='nt':return path.open(encoding='utf-8')
  import ctypes,msvcrt
  from ctypes import wintypes as w
@@ -13,7 +13,8 @@ def open_active_report(path):
  kernel.CreateFileW.argtypes=[w.LPCWSTR,w.DWORD,w.DWORD,w.LPVOID,w.DWORD,w.DWORD,w.HANDLE]
  kernel.CreateFileW.restype=w.HANDLE
  kernel.CloseHandle.argtypes=[w.HANDLE];kernel.CloseHandle.restype=w.BOOL
- handle=kernel.CreateFileW(str(path),0x80000000,0x1|0x2|0x4,None,3,0x80,None) # READ; SHARE_READ|WRITE|DELETE; OPEN_EXISTING
+ share=0x1|0x2|(0x4 if allow_replace else 0) # READ|WRITE and optional DELETE sharing
+ handle=kernel.CreateFileW(str(path),0x80000000,share,None,3,0x80,None) # GENERIC_READ; OPEN_EXISTING
  if handle==w.HANDLE(-1).value:raise ctypes.WinError(ctypes.get_last_error())
  try:fd=msvcrt.open_osfhandle(handle,os.O_RDONLY|os.O_NOINHERIT)
  except BaseException:
@@ -56,18 +57,32 @@ if len(sys.argv)>1 and sys.argv[1]=='--gate-driver':
  sys.exit(0 if ci.accepted() else 1)
 ap=argparse.ArgumentParser();ap.add_argument('output',type=pathlib.Path);ap.add_argument('--platform',required=True);a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[]
 try:
- # Hold the observer open across replacement so this Windows sharing contract
- # is deterministic instead of depending on a short polling race.
+ # Windows cannot replace a report held by a reader that denies delete sharing.
+ # Prove bounded retry until the reader releases it. On POSIX, prove the
+ # already-open observer retains the old snapshot through atomic replacement.
  d=out/'report-replacement';d.mkdir();reportPath=d/'report.json';pending=d/'report.pending.json'
  before={'generation':1};after={'generation':2}
  reportPath.write_text(json.dumps(before),encoding='utf-8');pending.write_text(json.dumps(after),encoding='utf-8')
  try:
   import native_ci as ci
-  with open_active_report(reportPath) as opened:
-   replaceRetries=ci.replace_report(pending,reportPath)
-   original=json.load(opened)
+  if os.name=='nt':
+   import threading
+   opened=open_active_report(reportPath,allow_replace=False)
+   try:
+    original=json.load(opened)
+    release=threading.Timer(.2,opened.close)
+    release.start()
+    try:replaceRetries=ci.replace_report(pending,reportPath)
+    finally:release.join(timeout=1)
+   finally:opened.close()
+   contentionHandled=replaceRetries>0
+  else:
+   with open_active_report(reportPath) as opened:
+    replaceRetries=ci.replace_report(pending,reportPath)
+    original=json.load(opened)
+   contentionHandled=True
   current=json.loads(reportPath.read_text(encoding='utf-8'))
-  checks={'replaceWhileObserved':True,'openedSnapshotUnchanged':original==before,'newSnapshotVisible':current==after}
+  checks={'readerContentionHandled':contentionHandled,'openedSnapshotUnchanged':original==before,'newSnapshotVisible':current==after}
   rows.append({'id':'report-replacement','checks':checks,'replaceRetries':replaceRetries,'passed':all(checks.values())})
  except Exception as e:rows.append({'id':'report-replacement','passed':False,'error':repr(e)})
  for mode in ['wait','exit']:
