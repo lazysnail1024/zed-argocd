@@ -145,3 +145,9 @@ Windows 构建曾为随机临时目录添加额外 `CGO_CPPFLAGS`，使相同 C 
 源码删除也有保留反例：Rust 身份校验改成单次 typed JSON 解析，会放宽未知深层字段的输入限制，因此保留原校验；native pin 与 Cargo 版本重新耦合、删除 WASM 身份检查或依赖许可证都被对应消费者拒绝。保护为 [ablate_identity.py](../editors/zed/tests/ablate_identity.py)、[ablate_distribution.py](../editors/zed/tests/ablate_distribution.py)、[native_package_e2e.py](../tests/native_package_e2e.py)和 [native_ci_process_e2e.py](../tests/native_ci_process_e2e.py)。
 
 当前安装入口仍指向已发布的固定版本，源码合并不会自动更新它。发布证明要对应具体 commit、产物摘要和实际平台；原生 CLI/stdio、Rust 安装器、WASM 打包和真实 Zed GUI 各有验收边界。缺少 GUI 执行记录时不标记通过。
+
+## 编译缓存曾混入验收证据，上传成为关键路径
+
+**来源：[Native CI 43165595998](https://github.com/lazysnail1024/zed-argocd/actions/runs/43165595998)。** 顶层 GOCACHE 已排除，但五个编译环境反例各自新建的嵌套缓存仍被整个上传；Linux amd64 evidence 包含 322,762 个文件，上传耗时 458 秒。Windows 的五次冷编译环境控制与来源验证又串行排在功能消费者之前。减少一个平台的上传时间不等于整体同等提速：另一平台可能立即成为关键路径。
+
+当前保留全部非缓存重放证据，先归档成少量文件再上传；编译环境与来源安全检查分成独立原生 lane，不删除 case、不用热缓存掩盖编译环境输入，也不放宽时间/RSS 断言。十五份分片报告必须和五份发布记录在同一 workflow run/attempt、同一来源与工具链下通过汇总；只汇总顶层 `passed` 或自报的步骤清单不足以阻止漏跑。保护入口是 [ci_gate.py](../tools/ci_gate.py)、[ci_shards_e2e.py](../tests/ci_shards_e2e.py) 和 [ci_evidence_e2e.py](../tests/ci_evidence_e2e.py)。速度比较分别记录端到端关键路径、总 runner 时间与 evidence 字节/文件数，不能用一次冷热条件不同的运行声称稳定提速比例。

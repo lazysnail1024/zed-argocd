@@ -24,8 +24,8 @@ try:
  cases=[('normal',{}),('flags',{'CGO_CFLAGS':'-include '+str(header)}),('search',{'CPATH':str(search),'C_INCLUDE_PATH':str(search),'CPLUS_INCLUDE_PATH':str(search),'OBJC_INCLUDE_PATH':str(search)}),('link',{'CGO_LDFLAGS':'-Wl,--native-delivery-untrusted-input','LIBRARY_PATH':str(poison)}),('persisted-go',{'GOENV':str(persisted)})]
  expected=None
  for name,extra in cases:
-  cache=out/(name+'-cache');cache.mkdir();marker=out/(name+'-marker');current=dict(env,**extra,GOCACHE=str(cache),CD_ENV_MARKER=str(marker));build=out/(name+'-build');cmd=[sys.executable,str(fixture/'tools/native.py'),'build','--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit,'--output',str(build)];status,stdout=run(name+'-build',cmd,current,fixture)
-  checks={'buildExit0':status==0};observed={'environmentInputs':extra,'markerBeforeNative':marker.exists()}
+  cache=out/(name+'-cache');cache.mkdir();empty_cache=not any(cache.iterdir());marker=out/(name+'-marker');current=dict(env,**extra,GOCACHE=str(cache),CD_ENV_MARKER=str(marker));build=out/(name+'-build');cmd=[sys.executable,str(fixture/'tools/native.py'),'build','--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit,'--output',str(build)];status,stdout=run(name+'-build',cmd,current,fixture)
+  checks={'buildExit0':status==0,'initialBuildCacheEmpty':empty_cache};observed={'environmentInputs':extra,'initialBuildCacheEmpty':empty_cache,'cachePath':str(cache),'markerBeforeNative':marker.exists()}
   if status==0:
    manifest=json.loads((build/'manifest.json').read_text());binary=build/manifest['binary'];nativeStatus,nativeOut=run(name+'-native',[str(binary),'version','--json'],current,fixture)
    if expected is None:expected=manifest
