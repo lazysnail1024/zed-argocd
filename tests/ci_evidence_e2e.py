@@ -197,7 +197,9 @@ def main():
             "bothRootsRetained": len(manifest["roots"]) == 2,
         }
         if applicability["symlinks"] is True:
-            checks["linkMetadataRetained"] = records[prefix + "external-link"]["type"] == "symlink" and records[prefix + "external-link"]["link"] == str(sentinel)
+            # Windows may store the target using an extended-length prefix.
+            # Preserve the actual link metadata, not the creation spelling.
+            checks["linkMetadataRetained"] = records[prefix + "external-link"]["type"] == "symlink" and records[prefix + "external-link"]["link"] == os.readlink(first / "external-link")
         if applicability["fifo"]:
             checks["fifoMetadataOnly"] = records[prefix + "unopened-pipe"]["type"] == "fifo" and records[prefix + "unopened-pipe"]["size"] == 0
         if applicability["socket"] is True:
