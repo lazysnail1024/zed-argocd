@@ -26,11 +26,13 @@ jobs:
         SOURCE_COMMIT: ${{ github.sha }}
       run: python tools/release.py version --source-commit "$SOURCE_COMMIT" --requested-version "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
   native:
+    name: Native ${{ matrix.host.platform }} / ${{ matrix.suite }}
     needs: prepare
     strategy:
       fail-fast: false
       matrix:
-        include:
+        suite: [consumers, provenance, compiler-environment]
+        host:
         - runner: ubuntu-24.04
           platform: linux/amd64
           artifact: linux-amd64
@@ -61,10 +63,10 @@ jobs:
           bundle: windows-amd64
           cc: gcc
           compiler: 15.2.0
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.platform == 'windows/amd64' && 45 || 30 }}
+    runs-on: ${{ matrix.host.runner }}
+    timeout-minutes: ${{ matrix.host.platform == 'windows/amd64' && 45 || 30 }}
     env:
-      CC: ${{ matrix.cc }}
+      CC: ${{ matrix.host.cc }}
       CGO_ENABLED: '1'
       GOWORK: 'off'
       GOTOOLCHAIN: local
@@ -82,16 +84,16 @@ jobs:
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
-    - name: Build, package and execute actual native consumers
-      run: python tests/native_ci.py --platform "${{ matrix.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
+    - name: Execute the complete native lane with fresh build caches
+      run: python tests/native_ci.py --suite "${{ matrix.suite }}" --platform "${{ matrix.host.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.host.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
     - name: Check every schema constraint and automatic query field
-      if: matrix.platform == 'linux/amd64'
+      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       shell: bash
       run: |
         set -o pipefail
         go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis 2>&1 | tee artifacts/native-ci/go-tests.log
     - name: Check concurrent index and overlay delivery
-      if: matrix.platform == 'linux/amd64'
+      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       shell: bash
       run: |
         go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
@@ -99,41 +101,62 @@ jobs:
         python tests/mixed_parent_index_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-mixed-parent --ordinary-files 1000
         python tests/publication_delivery_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-publication-delivery
     - name: Test release staging and complete-platform aggregation
-      run: python tests/release_e2e.py --platform "${{ matrix.platform }}" --output artifacts/native-ci/release-e2e
+      if: matrix.suite == 'consumers'
+      run: python tests/release_e2e.py --platform "${{ matrix.host.platform }}" --output artifacts/native-ci/release-e2e
     - name: Prove native release works without any editor checkout
-      if: matrix.platform == 'linux/amd64'
-      run: python tests/native_isolation.py --output artifacts/native-isolation
+      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
+      run: python tests/native_isolation.py --output artifacts/native-ci/native-isolation
     - name: Verify compatibility mechanisms by isolated removal
-      if: matrix.platform == 'linux/amd64'
+      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       run: python tests/ablate_multi_version.py artifacts/native-ci/build/argocd-ls artifacts/native-ci/multi-version-ablation
     - name: Stage verified release assets
+      if: matrix.suite == 'consumers'
       run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}"
     - name: Retain per-platform release assets
+      if: matrix.suite == 'consumers'
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-release-${{ matrix.bundle }}
+        name: argocd-release-${{ matrix.host.bundle }}
         path: artifacts/native-ci/release-assets/
         if-no-files-found: error
         retention-days: 30
+    - name: Retain the independently checked lane report
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-acceptance-${{ matrix.host.bundle }}-${{ matrix.suite }}
+        path: artifacts/native-ci/report.json
+        if-no-files-found: error
+        retention-days: 30
+    - name: Archive complete replay evidence without disposable compiler caches
+      if: always()
+      run: python tools/ci_evidence.py pack --root artifacts/native-ci --output artifacts/native-evidence
+    - name: Verify archived bytes and metadata without extracting fixtures
+      if: always()
+      run: python tools/ci_evidence.py verify --manifest artifacts/native-evidence/manifest.json
     - name: Retain successful and failed native evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-native-${{ matrix.artifact }}
-        path: |
-          artifacts/native-ci/
-          !artifacts/native-ci/go-cache/
-          !artifacts/native-ci/module-cache/
+        name: argocd-native-${{ matrix.host.artifact }}-${{ matrix.suite }}
+        path: artifacts/native-evidence/
+        compression-level: 0
         if-no-files-found: error
         retention-days: 30
   candidate:
     name: Verify complete native distribution
+    if: always()
     needs:
     - prepare
     - native
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+    - name: Require every native lane and candidate preparation
+      env:
+        PREPARE_RESULT: ${{ needs.prepare.result }}
+        NATIVE_RESULT: ${{ needs.native.result }}
+      run: test "$PREPARE_RESULT" = success && test "$NATIVE_RESULT" = success
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
@@ -146,6 +169,13 @@ jobs:
       with:
         pattern: argocd-release-*
         path: artifacts/candidate-inputs/native
+    - name: Download every lane report from this exact workflow run
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        pattern: argocd-acceptance-*
+        path: artifacts/candidate-inputs/acceptance
+    - name: Require all fifteen native lanes and the exact tested release bytes
+      run: python tools/ci_gate.py --inputs artifacts/candidate-inputs/acceptance --assets artifacts/candidate-inputs/native --source-commit "${{ github.sha }}" --version "${{ needs.prepare.outputs.version }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}" --jobs-result "${{ needs.native.result }}" --output artifacts/candidate-acceptance.json
     - name: Verify all native platforms, original licenses, source identity and checksums
       run: python tools/release.py collect --inputs artifacts/candidate-inputs/native --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/native-distribution
     - name: Retain the complete verified native distribution

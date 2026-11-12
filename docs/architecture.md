@@ -159,6 +159,16 @@ root 顺序、catalog 和单文件摘要仅在短锁内借用；公共索引遍�
 
 Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML 文件，混合 ConfigMap/Application/Workflow，并约束内核峰值 RSS 不超过 512 MiB。它验证指定工作负载的发现和释放，不能推导任意数量的密集 Argo CD 摘要均可装入内存。执行配置在 [tests/native_ci.py](../tests/native_ci.py)。
 
+## CI 分片与重放证据
+
+[native.yml](../.github/workflows/native.yml) 在五个原生平台各运行三个独立 lane：`consumers` 保留真实 CLI/stdio、语义、资源、race、消融和发行 staging 验收；`provenance` 运行真实来源与打包安全反例；`compiler-environment` 运行 normal、flags、search、link、persisted-go 五个编译环境控制。安全 lane 使用已有安全消费者产生的真实 build，不再额外构建一个未被使用的主程序。所有 lane 从空构建缓存开始，五个 compiler case 仍各用独立空 GOCACHE；本地省略 `--suite` 时默认 `all`，完整串行验收仍可使用。
+
+[ci_gate.py](../tools/ci_gate.py) 只接收本次 workflow run 的十五份报告，并从当前源码重新计算每个平台的必需步骤。它同时要求 Actions 的所有 lane 成功，核对真实 source commit/tree、完整源码 inventory、Go 原生 host/target、编译器与工具摘要、每一步退出及清理状态、五份发布记录对应的实际消费者 binary 摘要。部分重跑可以保留本 run 先前成功 attempt 的报告，但不能使用其他 run、未来 attempt 或不同来源/工具链；汇总结果记录各 lane 的实际 attempt。synthetic 编译控制的 commit 与正式来源不同，但源文件 inventory 必须一致。报告检查用于拒绝缺失、错配和错误摘要；信任根仍是确切 checkout、同一次 workflow 的 job 结果和受控的发布权限，不把任意 JSON 当作密码学证明。现有 `release.py collect` 继续验证五平台完整发布包、原始许可证与校验和。
+
+[ci_evidence.py](../tools/ci_evidence.py) 仅打包本仓 `artifacts` 下明确选择的子目录。它保留成功与失败输出、合成源码与 `.git` 历史、成员权限及链接/特殊节点元数据，只排除顶层 Go/module 缓存与五个编译环境 case 的可重建缓存。流式 tar/gzip 归档采用压缩级别 1，上传已有压缩归档时关闭第二次压缩；路径、类型、权限、文件内容和归档 SHA-256 均由 manifest 与流式读回校验，不依赖上传动作的摘要 warning。实现参考 [GitHub 官方 upload-artifact 的压缩与权限说明](https://github.com/actions/upload-artifact#permission-loss)。
+
+归档不跟随 symlink，也不打开 FIFO、socket 或设备节点；验证命令不解压。部分安全反例含绝对链接，因此下载证据后不能不加检查地使用可信模式整包解压；应先运行 `verify`、检查 manifest，再按对应测试命令重新生成夹具。归档与汇总器的正反例分别由 [ci_evidence_e2e.py](../tests/ci_evidence_e2e.py) 和 [ci_shards_e2e.py](../tests/ci_shards_e2e.py) 在原生消费者 lane 执行；合成 gate 报告只验证拒绝逻辑，不冒充真实平台验收。
+
 ## 原生进程、编辑器与发行隔离
 
 原生构建只依赖 Go/C、vendor、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。

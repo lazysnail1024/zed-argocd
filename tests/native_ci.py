@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Native CI entry: retain each real-process outcome, including failures."""
-import argparse,hashlib,json,os,pathlib,subprocess,sys,signal,time
+import argparse,hashlib,json,os,pathlib,re,subprocess,sys,signal,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-BASE_STEPS=('build','package','ci-process-boundary','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
+SUITES=('consumers','provenance','compiler-environment')
+PLATFORM_COMPILERS={'linux/amd64':'13.3.0','linux/arm64':'13.3.0','darwin/amd64':'Apple clang version 17.0.0','darwin/arm64':'Apple clang version 17.0.0','windows/amd64':'15.2.0'}
+SECURITY_STEPS={'provenance':'provenance-and-archive','compiler-environment':'compiler-environment'}
+COMPILER_CASES=('normal','flags','search','link','persisted-go')
+BASE_STEPS=('build','package','ci-process-boundary','ci-evidence','ci-shard-gate','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
 SOURCE_ABLATIONS=(('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240))
 
 def audit_consumers(platform):
@@ -50,13 +54,30 @@ def audit_consumers(platform):
   ])
  return cases
 
+def required_steps(platform,suite):
+ if suite in SECURITY_STEPS:return [SECURITY_STEPS[suite]]
+ steps=[name for name in BASE_STEPS if suite=='all' or name not in SECURITY_STEPS.values()]
+ return steps+[case[0] for case in audit_consumers(platform)]+([case[0] for case in SOURCE_ABLATIONS] if platform=='linux/amd64' else [])
+
+def inventory_digest(sources):
+ return hashlib.sha256(json.dumps(sources,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+def build_evidence(path):
+ manifest=json.loads(path.read_text());ge=manifest['goEnvironment']
+ if manifest['platform']!=a.platform or ge['GOHOSTOS']+'/'+ge['GOHOSTARCH']!=a.platform or ge['GOOS']+'/'+ge['GOARCH']!=a.platform:raise RuntimeError('Build did not execute on the requested native platform')
+ if ge['GOVERSION']!='go'+next(line.split()[1] for line in (ROOT/'go.mod').read_text().splitlines() if line.startswith('go ')):raise RuntimeError('Actual Go differs from the pinned version')
+ if a.compiler_version and a.compiler_version not in manifest['compiler']:raise RuntimeError('Actual compiler differs from pinned CI version')
+ binary=path.parent/('argocd-ls.exe' if a.platform.startswith('windows/') else 'argocd-ls')
+ if hashlib.sha256(binary.read_bytes()).hexdigest()!=manifest['binarySHA256']:raise RuntimeError('Evidence binary differs from its native build manifest')
+ return {'platform':manifest['platform'],'identity':manifest['identity'],'binarySHA256':manifest['binarySHA256'],'sourceInputsSHA256':inventory_digest(manifest['sourceInputs']),'goEnvironment':{key:ge[key] for key in ('GOVERSION','GOHOSTOS','GOHOSTARCH','GOOS','GOARCH')},'compiler':manifest['compiler'],'toolSHA256':manifest['toolSHA256']}
+
 def accepted():
- return completed and [r['id'] for r in rows]==expected_steps and all(r['passed'] for r in rows)
+ return completed and [r['id'] for r in rows]==expected_steps and all(r.get('passed') is True and type(r.get('exit')) is int and r['exit']==0 and r.get('cleanupError') is None for r in rows)
 
 def configure(argv=None):
- global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
- expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]+([case[0] for case in SOURCE_ABLATIONS] if a.platform=='linux/amd64' else [])
+ global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps,builds,security_cases
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--suite',choices=('all',)+SUITES,default='all');ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;builds=[];security_cases=[];cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ expected_steps=required_steps(a.platform,a.suite)
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.
  if os.name!='nt':
@@ -131,6 +152,9 @@ def run(name,command,extra=None,timeout=180):
    if os.name=='nt':p._handle.Close()
   (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'elapsedSeconds':time.monotonic()-started,'cleanupError':cleanupError,'passed':status==0 and cleanupError is None});active=None;save()
  print(json.dumps({'step':name,'state':'completed','exit':status,'passed':rows[-1]['passed'],'elapsedSeconds':rows[-1]['elapsedSeconds']}),flush=True)
+ if not rows[-1]['passed']:
+  # Keep failures inspectable even if the evidence transport itself failed.
+  print(json.dumps({'step':name,'failureOutput':{'stdout':stdout[-4000:].decode(errors='replace'),'stderr':stderr[-4000:].decode(errors='replace')}}),flush=True)
  return rows[-1]['passed']
 
 def replace_report(pending, published):
@@ -147,7 +171,17 @@ def replace_report(pending, published):
    retries+=1
    time.sleep(.05)
 def save():
- report={'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');replace_report(pending,out/'report.json')
+ report={'schemaVersion':1,'suite':a.suite,'releaseVersion':a.release_version,'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'buildEvidence':builds,'securityCases':security_cases,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');replace_report(pending,out/'report.json')
+
+def security_suite(suite):
+ global security_cases
+ if suite=='provenance':
+  if run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420):builds.append(build_evidence(out/'packaging/development-build/manifest.json'))
+ else:
+  if run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900):
+   builds.extend(build_evidence(out/'environment'/(name+'-build')/'manifest.json') for name in COMPILER_CASES)
+   security_cases=json.loads((out/'environment/report.json').read_text())['rows']
+
 def main():
  global expected,completed
  configure()
@@ -157,17 +191,27 @@ def main():
   if status.returncode!=0:raise RuntimeError('Cannot independently observe Git status')
   (out/'git-head.stdout').write_bytes(head.stdout);(out/'git-head.stderr').write_bytes(head.stderr);(out/'git-status.stdout').write_bytes(status.stdout);(out/'git-status.stderr').write_bytes(status.stderr)
   mode='release' if a.release_version else 'development'
-  expected={'sourceCommit':commit,'dirty':commit is None or bool(status.stdout),'buildMode':mode}
+  tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],cwd=ROOT,text=True).strip() if commit else None
+  expected={'sourceCommit':commit,'sourceTree':tree,'dirty':commit is None or bool(status.stdout),'buildMode':mode}
+  if a.source_commit and (not re.fullmatch('[0-9a-f]{40}',a.source_commit) or a.source_commit!=commit):raise RuntimeError('Requested source commit must equal exact HEAD')
+  if a.release_version and (not a.source_commit or expected['dirty']):raise RuntimeError('Native acceptance requires exact clean release source')
+  if a.suite in SECURITY_STEPS:
+   # Both security consumers already build real native binaries. A redundant
+   # main build here would add ten cold builds to the five-platform matrix.
+   security_suite(a.suite);completed=True
+   return 0 if accepted() else 1
   args=[sys.executable,str(ROOT/'tools/native.py'),'build','--output',str(out/'build'),'--platform',a.platform]
   if a.release_version:args+=['--mode','release','--version',a.release_version]
   if a.source_commit:args+=['--source-commit',a.source_commit]
   if not run('build',args):raise RuntimeError('native build failed')
   manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
-  if a.compiler_version and a.compiler_version not in manifest['compiler']:raise RuntimeError('Actual compiler differs from pinned CI version')
+  builds.append(build_evidence(out/'build/manifest.json'))
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
   run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
-  run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420)
-  run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900)
+  run('ci-evidence',[sys.executable,str(ROOT/'tests/ci_evidence_e2e.py'),'--output',str(out/'ci-evidence')],timeout=90)
+  run('ci-shard-gate',[sys.executable,str(ROOT/'tests/ci_shards_e2e.py'),'--output',str(out/'ci-shard-gate')],timeout=90)
+  if a.suite=='all':
+   security_suite('provenance');security_suite('compiler-environment')
   run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
   run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
   run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode',mode])
