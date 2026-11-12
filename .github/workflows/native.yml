@@ -105,7 +105,7 @@ jobs:
       run: python tests/release_e2e.py --platform "${{ matrix.host.platform }}" --output artifacts/native-ci/release-e2e
     - name: Prove native release works without any editor checkout
       if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      run: python tests/native_isolation.py --output artifacts/native-isolation
+      run: python tests/native_isolation.py --output artifacts/native-ci/native-isolation
     - name: Verify compatibility mechanisms by isolated removal
       if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       run: python tests/ablate_multi_version.py artifacts/native-ci/build/argocd-ls artifacts/native-ci/multi-version-ablation

@@ -152,6 +152,9 @@ def run(name,command,extra=None,timeout=180):
    if os.name=='nt':p._handle.Close()
   (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr);rows.append({'id':name,'command':command,'exit':status,'elapsedSeconds':time.monotonic()-started,'cleanupError':cleanupError,'passed':status==0 and cleanupError is None});active=None;save()
  print(json.dumps({'step':name,'state':'completed','exit':status,'passed':rows[-1]['passed'],'elapsedSeconds':rows[-1]['elapsedSeconds']}),flush=True)
+ if not rows[-1]['passed']:
+  # Keep failures inspectable even if the evidence transport itself failed.
+  print(json.dumps({'step':name,'failureOutput':{'stdout':stdout[-4000:].decode(errors='replace'),'stderr':stderr[-4000:].decode(errors='replace')}}),flush=True)
  return rows[-1]['passed']
 
 def replace_report(pending, published):

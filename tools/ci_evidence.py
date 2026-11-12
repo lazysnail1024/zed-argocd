@@ -2,6 +2,7 @@
 """Pack replay evidence without build caches; verify it without extracting files."""
 
 import argparse
+from contextlib import contextmanager
 import gzip
 import hashlib
 import json
@@ -88,20 +89,41 @@ def kind(metadata):
     raise ValueError("Unsupported filesystem entry type")
 
 
-def signature(metadata):
+def signature(metadata, *, permissions=True):
     return (metadata.st_dev, metadata.st_ino, metadata.st_size,
-            metadata.st_mtime_ns, metadata.st_mode)
+            metadata.st_mtime_ns, metadata.st_mode if permissions else stat.S_IFMT(metadata.st_mode))
 
 
+def check_snapshot(path, expected, actual, phase, *, permissions=True):
+    before, after = signature(expected, permissions=permissions), signature(actual, permissions=permissions)
+    fields = ("device", "inode", "size", "mtime_ns", "mode" if permissions else "file type")
+    changed = [field for field, left, right in zip(fields, before, after) if left != right]
+    if changed:
+        raise ValueError("Evidence changed " + phase + ": " + str(path) + " (" + ", ".join(changed) + ")")
+
+
+@contextmanager
 def open_regular(path, metadata):
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     descriptor = os.open(path, flags)
-    stream = os.fdopen(descriptor, "rb")
-    actual = os.fstat(stream.fileno())
-    if not stat.S_ISREG(actual.st_mode) or signature(actual) != signature(metadata):
-        stream.close()
-        raise ValueError("Evidence changed before it was read: " + str(path))
-    return stream
+    try:
+        stream = os.fdopen(descriptor, "rb")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    with stream:
+        opened = os.fstat(stream.fileno())
+        if not stat.S_ISREG(opened.st_mode):
+            raise ValueError("Expected regular evidence file: " + str(path))
+        # CPython's Windows path stat adds execute bits for .exe/.bat/.cmd/.com;
+        # fd stat derives permissions from attributes without that suffix rule.
+        # Compare identity across APIs, then full mode within each API. Preserve
+        # the path mode in the archive; never normalize away actual mode changes.
+        check_snapshot(path, metadata, opened, "before it was read", permissions=os.name != "nt")
+        check_snapshot(path, metadata, path.lstat(), "before it was read")
+        yield stream
+        check_snapshot(path, opened, os.fstat(stream.fileno()), "while it was read")
+        check_snapshot(path, metadata, path.lstat(), "while it was read")
 
 
 def add_member(archive, path, metadata):
@@ -125,8 +147,6 @@ def add_member(archive, path, metadata):
         with open_regular(path, metadata) as stream:
             reader = HashReader(stream)
             archive.addfile(info, reader)
-            if signature(os.fstat(stream.fileno())) != signature(metadata):
-                raise ValueError("Evidence changed while it was read: " + name)
             record["sha256"] = reader.digest.hexdigest()
     else:
         archive.addfile(info)

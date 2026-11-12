@@ -87,8 +87,14 @@ def validate_compiler_cases(report):
 
 
 def validate_report(report, platform, suite, context):
-    require(report.get("schemaVersion") == 1 and report.get("suite") == suite and report.get("expectedNativePlatform") == platform, "Wrong lane identity")
-    require(report.get("releaseVersion") == context["version"] and report.get("workflowRun") == context["workflowRun"], "Wrong release version or workflow run")
+    require(type(report.get("schemaVersion")) is int and report["schemaVersion"] == 1 and report.get("suite") == suite and report.get("expectedNativePlatform") == platform, "Wrong lane identity")
+    run = report.get("workflowRun", {})
+    attempt = run.get("GITHUB_RUN_ATTEMPT", "")
+    # A failed-only rerun preserves successful jobs' original outputs. Accept
+    # those lanes only within this same run, source and toolchain boundary.
+    require(report.get("releaseVersion") == context["version"] and run.get("GITHUB_RUN_ID") == context["workflowRun"]["GITHUB_RUN_ID"], "Wrong release version or workflow run")
+    require(set(run) == {"GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"} and re.fullmatch("[1-9][0-9]*", attempt) and
+            int(attempt) <= int(context["workflowRun"]["GITHUB_RUN_ATTEMPT"]), "Invalid or future lane attempt")
     require(report.get("runnerSHA256") == context["runnerSHA256"], "Lane runner differs from the checked-out source")
     require(report.get("expectedProvenance") == {"sourceCommit": context["sourceCommit"], "sourceTree": context["sourceTree"], "dirty": False, "buildMode": "release"}, "Wrong lane source provenance")
     require(report.get("initialBuildCachesEmpty") is True, "Lane did not start with empty build caches")
@@ -132,8 +138,11 @@ def verify(args):
         require(record.get("sourceCommit") == context["sourceCommit"] and record.get("version") == context["version"], "Release record source differs from tested source")
         binary = reports[record["platform"]]["consumers"]["buildEvidence"][0]["binarySHA256"]
         require(record.get("package", {}).get("binarySHA256") == binary, "Release bytes differ from the accepted native binary")
+    attempts = {"argocd-acceptance-" + platform.replace("/", "-") + "-" + suite: reports[platform][suite]["workflowRun"]["GITHUB_RUN_ATTEMPT"]
+                for platform in PLATFORM_COMPILERS for suite in SUITES}
     return {"schemaVersion": 1, "passed": True, "sourceCommit": context["sourceCommit"], "sourceTree": context["sourceTree"],
-            "workflowRun": context["workflowRun"], "version": context["version"], "acceptedLanes": sorted(expected_names), "nativePlatforms": sorted(PLATFORM_COMPILERS)}
+            "workflowRun": context["workflowRun"], "version": context["version"], "acceptedLanes": sorted(expected_names),
+            "laneAttempts": attempts, "nativePlatforms": sorted(PLATFORM_COMPILERS)}
 
 
 def main():

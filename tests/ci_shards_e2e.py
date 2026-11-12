@@ -81,7 +81,7 @@ def invoke(fixture, name, reports, assets, head, expected):
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps(record), encoding="utf-8")
     command = [sys.executable, str(fixture / "tools/ci_gate.py"), "--inputs", str(folder / "reports"), "--assets", str(folder / "assets"),
-               "--source-commit", head, "--version", (ROOT / "VERSION").read_text().strip(), "--run-id", "123", "--run-attempt", "1",
+               "--source-commit", head, "--version", (ROOT / "VERSION").read_text().strip(), "--run-id", "123", "--run-attempt", "2" if name == "previous-successful-attempt" else "1",
                "--jobs-result", "failure" if name == "failed-job" else "success", "--output", str(folder / "accepted.json")]
     result = subprocess.run(command, cwd=fixture, capture_output=True, timeout=15)
     (folder / "stdout").write_bytes(result.stdout)
@@ -105,7 +105,7 @@ def main():
     try:
         fixture, head, tree, source_hash = fixture_source(output)
         original, original_assets = fixtures(head, tree, source_hash)
-        cases = ("complete", "failed-job", "missing-lane", "duplicate-lane", "wrong-platform", "wrong-suite", "wrong-source", "wrong-tree",
+        cases = ("complete", "previous-successful-attempt", "boolean-schema", "failed-job", "missing-lane", "duplicate-lane", "wrong-platform", "wrong-suite", "wrong-source", "wrong-tree",
                  "wrong-version", "wrong-runner", "wrong-run", "wrong-attempt", "warm-cache", "wrong-host", "incomplete", "active-command",
                  "row-failure", "row-boolean-exit", "cleanup-error", "missing-step", "duplicate-step", "self-approved-step-omission",
                  "missing-build", "wrong-inventory", "cross-compiled", "different-compiler", "different-tool", "missing-compiler-case",
@@ -117,6 +117,7 @@ def main():
             reports, assets = copy.deepcopy(original), copy.deepcopy(original_assets)
             target, compiler = reports[key], reports[compiler_key]
             if name == "missing-lane": reports.pop(key)
+            elif name == "boolean-schema": target["schemaVersion"] = True
             elif name == "duplicate-lane": reports[key + "-duplicate"] = copy.deepcopy(target)
             elif name == "wrong-platform": target["expectedNativePlatform"] = "linux/arm64"
             elif name == "wrong-suite": target["suite"] = "all"
@@ -151,7 +152,7 @@ def main():
             elif name == "missing-release": assets.pop("windows/amd64")
             elif name == "wrong-release-source": assets["windows/amd64"]["sourceCommit"] = "0" * 40
             elif name == "wrong-release-binary": assets["windows/amd64"]["package"]["binarySHA256"] = "0" * 64
-            rows.append(invoke(fixture, name, reports, assets, head, name == "complete"))
+            rows.append(invoke(fixture, name, reports, assets, head, name in ("complete", "previous-successful-attempt")))
         checks = {platform: len(required_steps(platform, "all")) == len(set(required_steps(platform, "all"))) and
                   set(required_steps(platform, "all")) == {step for suite in SUITES for step in required_steps(platform, suite)}
                   for platform in PLATFORM_COMPILERS}
@@ -159,7 +160,7 @@ def main():
     except Exception as error:
         rows.append({"id": "runner", "passed": False, "error": repr(error)})
     report = {"scope": "synthetic validator controls only; not native execution evidence", "rows": rows,
-              "passed": len(rows) == 38 and all(row["passed"] for row in rows)}
+              "passed": len(rows) == 40 and all(row["passed"] for row in rows)}
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"passed": report["passed"], "rows": len(rows), "failed": [row["id"] for row in rows if not row["passed"]]}))
     return 0 if report["passed"] else 1

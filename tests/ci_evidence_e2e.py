@@ -20,6 +20,47 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools/ci_evidence.py"
 
 
+def mutation_driver(directory, phase, mutation):
+    # Use real filesystem changes around the reader boundary, not mocked stat
+    # objects. A rejected mutation is distinct from an inability to perform it.
+    sys.path.insert(0, str(ROOT / "tools"))
+    from ci_evidence import open_regular
+    directory.mkdir(parents=True)
+    path = directory / "source"
+    path.write_bytes(b"original bytes")
+    metadata = path.lstat()
+
+    def change():
+        if mutation == "size":
+            path.write_bytes(b"different-sized bytes")
+        elif mutation == "mtime":
+            os.utime(path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 2_000_000_000))
+        elif mutation == "mode":
+            path.chmod(stat.S_IMODE(metadata.st_mode) ^ stat.S_IWUSR)
+        elif mutation == "identity":
+            replacement = directory / "replacement"
+            replacement.write_bytes(path.read_bytes())
+            os.utime(replacement, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+            path.rename(directory / "original-held")
+            replacement.rename(path)
+        else:
+            path.rename(directory / "original-held")
+            path.mkdir()
+
+    if phase == "before":
+        change()
+    try:
+        with open_regular(path, metadata) as stream:
+            stream.read(1)
+            if phase == "during":
+                change()
+    except ValueError as error:
+        print(json.dumps({"rejected": True, "phase": phase, "mutation": mutation, "reason": str(error)}))
+        return 0
+    print(json.dumps({"rejected": False, "phase": phase, "mutation": mutation}))
+    return 1
+
+
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -54,10 +95,10 @@ def main():
     rows, sockets = [], []
     applicability = {"symlinks": True, "fifo": hasattr(os, "mkfifo"), "socket": os.name != "nt"}
 
-    def invoke(name, arguments, expected=0):
+    def invoke(name, arguments, expected=0, tool=TOOL):
         directory = out / "commands" / name
         directory.mkdir(parents=True)
-        command = [sys.executable, str(TOOL), *map(str, arguments)]
+        command = [sys.executable, str(tool), *map(str, arguments)]
         start = time.monotonic()
         process = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=30)
         (directory / "stdout").write_bytes(process.stdout)
@@ -69,6 +110,33 @@ def main():
         return process
 
     try:
+        # The first control uses real interpreter bytes with both suffixes.
+        # Keep this separate from the mutation archive variants so a large
+        # POSIX interpreter is not copied into every negative-control artifact.
+        executable_root, executable_packed = out / "native-executable-input", out / "native-executable-packed"
+        executable_root.mkdir()
+        executable = Path(sys.executable).resolve()
+        executable_hash, observed_modes = digest(executable), {}
+        for suffix in (".exe", ".bin"):
+            target = executable_root / ("python-copy" + suffix)
+            shutil.copy2(executable, target)
+            with target.open("rb") as stream:
+                observed_modes[target.name] = {"path": target.lstat().st_mode, "descriptor": os.fstat(stream.fileno()).st_mode}
+        invoke("pack-native-executable", ["pack", "--root", executable_root, "--output", executable_packed])
+        invoke("verify-native-executable", ["verify", "--manifest", executable_packed / "manifest.json"])
+        executable_manifest = json.loads((executable_packed / "manifest.json").read_text(encoding="utf-8"))
+        executable_records = [record for record in executable_manifest["members"] if record["type"] == "file"]
+        executable_checks = {"bothSuffixes": len(executable_records) == 2,
+                             "realInterpreterBytes": all(record["sha256"] == executable_hash for record in executable_records),
+                             "pathModesPreserved": all(record["mode"] == stat.S_IMODE(observed_modes[Path(record["name"]).name]["path"]) for record in executable_records)}
+        rows.append({"id": "native-executable-mode-semantics", "checks": executable_checks,
+                     "observedModes": observed_modes, "passed": all(executable_checks.values())})
+        for phase, mutation in (("before", "size"), ("before", "mtime"), ("before", "mode"), ("before", "identity"),
+                                ("during", "size"), ("during", "mtime"), ("during", "mode")):
+            name = "guard-" + phase + "-" + mutation
+            result = invoke(name, ["--mutation-driver", out / "mutation-inputs" / name, phase, mutation], tool=Path(__file__))
+            if json.loads(result.stdout).get("rejected") is not True:
+                raise AssertionError(name + " accepted a changed source")
         first, second = out / "inputs/one", out / "inputs/two"
         write(first / "report.json", '{"passed":false,"reason":"retained failure"}\n')
         write(first / "failed.stderr", "a complete replay needs this failure\n")
@@ -213,9 +281,14 @@ def main():
                   "applicability": applicability, "toolSHA256": digest(TOOL),
                   "rows": rows, "passed": bool(rows) and all(row["passed"] for row in rows)}
         (out / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({"passed": report["passed"], "cases": len(rows), "applicability": applicability}))
+        failed = [{"id": row["id"], "error": str(row.get("error", ""))[:600],
+                   "failedChecks": [name for name, passed in row.get("checks", {}).items() if not passed]}
+                  for row in rows if not row["passed"]]
+        print(json.dumps({"passed": report["passed"], "cases": len(rows), "applicability": applicability, "failed": failed[:10]}))
     return 0 if report["passed"] else 1
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--mutation-driver":
+        raise SystemExit(mutation_driver(Path(sys.argv[2]), sys.argv[3], sys.argv[4]))
     raise SystemExit(main())
