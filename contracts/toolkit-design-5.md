@@ -1,6 +1,6 @@
 # Toolkit public API contract
 
-Contract ID: `toolkit-design-4`. Consumers pin an implementation source commit; no release is required. The provider is k8s-crd-toolkit. The current API covers source coordinates, YAML structure and effective values, compiled-schema editor queries, checked text edits, incremental facts, and input/work/discovery bookkeeping. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
+Contract ID: `toolkit-design-5`. Consumers pin an implementation source commit; no release is required. The provider is k8s-crd-toolkit. The current API covers source coordinates, YAML structure and effective values, compiled-schema editor queries, checked text edits, incremental facts, cancellable work-bounded symbol queries, and input/work/discovery bookkeeping. Consumers depend only on this contract and their pinned implementation, without reading provider internals. Verification evidence identifies the exact implementation and platform tested; this contract does not assert that downstream editors have adopted it.
 
 This file is the sole editable source of the API definition. Consumers retain a byte-identical snapshot and its SHA-256. The contract ID describes the contract revision; Go module SemVer selects an implementation. Upgrades must explicitly update both the snapshot and implementation lock. Changing only a digest does not establish compatibility.
 
@@ -204,6 +204,12 @@ type File struct {
 type Definition struct { URI source.URI; Revision source.Revision; Symbol Symbol }
 type Use struct { URI source.URI; Revision source.Revision; Reference Reference }
 type SymbolResult struct { Items []Definition; State State; Truncated bool }
+type SymbolQueryResult struct {
+    Items []Definition
+    State State
+    Truncated, Complete bool
+    Work int
+}
 type Change struct {
     Generation uint64
     SemanticChanged bool
@@ -212,6 +218,8 @@ type Change struct {
 var ErrStaleTicket error
 var ErrNoPrevious error
 var ErrLimit error
+var ErrQueryBudget error
+var ErrQueryChanged error
 
 func New(limits Limits) (*Index, error)
 func (i *Index) Begin(uri source.URI, scope Scope, revision source.Revision) (Ticket, error)
@@ -224,6 +232,7 @@ func (i *Index) References(scope Scope, key Key) ([]Use, State)
 func (i *Index) Dependents(scope Scope, key Key) ([]source.URI, State)
 func (i *Index) Symbols(scope Scope, query string, limit int) (SymbolResult, error)
 func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit int) (SymbolResult, error)
+func (i *Index) SymbolsWithPrefixContext(ctx context.Context, scope Scope, prefix Key, query string, limit, maxWork int) (SymbolQueryResult, error)
 ```
 
 ### Identity and ownership
@@ -242,7 +251,7 @@ func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit i
 - Reuse consumes a current ticket and restores its same-scope retained commit without copying its facts. The consumer must first prove identical input bytes and interpretation settings; the index cannot establish that proof. A successful reuse updates the published revision and scope generation, changes no retained budgets, and affects only the URI itself. Missing retained facts or a different committed scope returns ErrNoPrevious and leaves the ticket usable for normal analysis and Commit. Stale, removed/recreated, cross-instance, and replayed tickets are rejected. Pending old locations remain hidden until successful Reuse or Commit.
 - Remove withdraws all facts and dependencies, releases their budgets, and revokes pending tickets. Unknown URIs are a no-op. Removing a disk file is not permission to Remove an authoritative open buffer; input ownership is decided before changing the index.
 - GetFile returns fresh facts, or pending metadata with no old facts. During a scope migration, the old scope remains pending until its old facts are replaced or removed; the destination is pending too. Intermediate abandoned destinations are released.
-- State.Generation changes when the relevant scope changes; unknown scopes use the current index generation. State.Pending counts **known files waiting for facts**, not undiscovered files or downstream diagnostics. Change.Generation is the index-wide sequence. `Pending == 0` never proves discovery completeness, nonexistence, unique binding, or a safe rename.
+- State.Generation changes when the relevant scope changes; legacy queries use the current index generation for unknown scopes. The context-aware symbol query instead returns Generation=0 for an unknown scope, so unrelated scope changes do not invalidate an empty scope traversal. State.Pending counts **known files waiting for facts**, not undiscovered files or downstream diagnostics. Change.Generation is the index-wide sequence. `Pending == 0` never proves discovery completeness, nonexistence, unique binding, or a safe rename.
 
 ### Dependencies and semantic changes
 
@@ -251,6 +260,15 @@ func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit i
 - SemanticDigest must reflect meaning relevant to consumers but absent from the public facts, for example a template signature, domain ownership, or policy. The index additionally compares symbol identity/key/name/kind, reference target, and dependency multisets. Array order and spans do not affect semantic equality; duplicate reference/dependency counts do. Reusing a digest cannot hide a changed key or relation.
 - A semantic or scope change returns the changed URI plus direct dependents of its old and new definition keys in Change.Affected. This includes previously unresolved uses and duplicate-candidate changes. A position-only change updates locations and revision but returns only the changed URI. Navigation caches must still use scope Generation/revision freshness rather than relying on Affected to detect moved locations. The caller schedules downstream recomputation and further propagation; the library does not run analysis.
 - Symbols performs a case-sensitive substring search over fresh names. SymbolsWithPrefix additionally requires the opaque key to start with prefix, before applying the result limit; an empty prefix is equivalent to Symbols. Callers encode kind/namespace partitions themselves. A positive limit bounds retained result items, sorted deterministically; Truncated reports additional known matches. Search still visits known symbols in the scope and is not a filesystem search or a completeness proof. No caller predicate executes under the index lock.
+
+### Cancellable symbol queries
+
+- SymbolsWithPrefixContext has the same case-sensitive name/prefix filtering and URI/span/symbol-ID result order as SymbolsWithPrefix. It requires a nonnil context and positive limit and maxWork. Existing Symbols and SymbolsWithPrefix retain their atomic legacy behavior; interactive callers should use the context-aware API.
+- Work charges one visit for each scope member file, including pending and zero-symbol files, plus one visit for each fresh symbol inspected, including nonmatching prefixes and names. It never exceeds maxWork. limit bounds retained result items independently of Work. Callers querying multiple scopes or prefixes must subtract returned Work from their overall request budget. Work measures scanning operations, not bytes, heap comparisons, milliseconds, or discovery completeness.
+- Complete=true means all known index members of the returned scope generation were inspected successfully. Truncated=true independently means matching results exceeded limit; a complete traversal can have truncated results. Neither Complete nor Pending==0 proves that filesystem discovery or domain analysis is complete, that a binding is unique, or that an edit is safe.
+- Cancellation returns the standard context error chain; work exhaustion returns ErrQueryBudget; mutation of the queried scope during traversal returns ErrQueryChanged. Every error has Complete=false and Items=nil, even if some matches were already found. Work still reports the work spent before failure. A caller must not replace previously valid diagnostics or prove absence/uniqueness using an unfinished query. No automatic restart silently consumes another full budget.
+- A query holds the index read lock for bounded batches of at most 128 file/symbol visits, including a cursor within a large single file. Matching, result heap maintenance, and final ordering happen outside the lock. Waiting to acquire the lock is cancellable; cancellation is checked between batches and result processing steps. The implementation retains at most one bounded batch and limit results, plus a cursor into existing scope membership; it does not first copy every URI or keep a second symbol store. Native string operations and scheduler delays are not hard real-time guarantees.
+- The internal cursor is fenced by the queried scope's generation, including remove/recreate and pending migration of old/new scopes. Mutation generations never wrap or repeat; exhaustion rejects further mutation. A mutation confined to another scope does not invalidate the query. Queries recheck the selected generation before returning; consumers still revalidate before delayed publication or combining multiple calls. Domain predicates never execute under the index lock, and no LSP worker, retry policy, namespace interpretation, or source text is introduced.
 
 ### Capacity
 

@@ -41,7 +41,7 @@
 
 ## 公共依赖及状态归属
 
-公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261111044740-2be4e04dc495`，完整提交为 `2be4e04dc4955991bd937ace3abf28673d289898`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 来源及校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)与 [toolkit-snapshot.json](../contracts/toolkit-snapshot.json)固定 design-4 合同及运行时文件摘要。构建使用已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)，无需发布 tag、相邻 checkout 或本地 `replace`。
+公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261112033740-db4adba0093e`，完整提交为 `db4adba0093ee2a709356aa1c2517e6d62644745`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 来源及校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)与 [toolkit-snapshot.json](../contracts/toolkit-snapshot.json)固定 design-5 合同及运行时文件摘要。构建使用已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)，无需发布 tag、相邻 checkout 或本地 `replace`。
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |
@@ -57,7 +57,7 @@
 
 `Index.Reuse` 的调用点在 `incremental.go`：本仓先确认字节 hash、target/配置解释和客户端 URI 均未变化，再给新的有效票据复用已保留事实。公共 Index 不推断“内容未变”，也不替本仓判断解释是否相同。内容/位置变化走重新分析和 Commit；只有语义相同并不意味着旧位置仍然正确。
 
-[toolkit-design-4.md](../contracts/toolkit-design-4.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录；锁文件、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
+[toolkit-design-5.md](../contracts/toolkit-design-5.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录；锁文件、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
 
 公共层提供有界的数据结构和有效性规则；worker、timer、watcher 注册、配置、Argo 领域语义、LSP 消息和发布策略由本仓持有。Argo CD 与 `zed-argo-workflows` 各自编译引用公共源码，两者没有直接模块依赖；各个原生进程分别实例化 Documents、Index 和 WorkQueue，不共享运行时索引或缓存，也不因此自动提供跨插件跳转。
 
@@ -111,7 +111,11 @@ scanner 不递归符号链接目录。显式文件别名以规范路径参与归
 
 AppProject 资源重命名要求 `referencePolicy: closed`、明确 `controlPlaneNamespace`、完整目标 scope 和唯一同 namespace 声明。受支持的 Application 与 ApplicationSet 有效模板 project 引用一起修改；动态或无法独立映射回源标量的绑定无法证明引用全集。每个受影响文件必须已打开且接受当前版本，先应用全部计划再做整体语义验证。scope 摘要用于确定闭包，修改文件重新取得完整 snapshot；这不允许跨 scope、跨 namespace 或修改未知/关闭版本的文件。
 
-工作区符号直接读取 Index 和脱离文本的摘要，不重新读关闭文件。索引 `document:N` 身份直接定位对应摘要文档；AppProject 的 any-namespace lookup key 只产生一个显示项。每个分区先按前缀和名字过滤，所有 root/scope 通过容量 20,000 的最大堆合并，再按 URI、源码位置和名字稳定排序。只对实际返回的文件保留位置证明；结果可能受发现状态或容量限制，trace 的 `complete` 表明这一边界，符号列表本身不证明完整引用集合。
+工作区符号直接读取 Index 和脱离文本的摘要，不重新读关闭文件。索引 `document:N` 身份直接定位对应摘要文档；AppProject 的 any-namespace lookup key 只产生一个显示项。前台通过公共 `SymbolsWithPrefixContext` 查询，扫描每个文件和每个符号均计入工作量，零命中同样计费。一次 workspace symbol 请求跨全部 root/scope 和两个前缀共用 1,200,000 次访问额度，覆盖现有 100,000 文件/500,000 符号上限；取消、预算耗尽或扫描分区变化不会把部分候选当成成功结果。
+
+root 顺序、catalog 和单文件摘要仅在短锁内借用；公共索引遍历、符号位置映射和 heap 合并不持有 workspace 所有者锁。等待锁本身可取消。所有分区仍通过容量 20,000 的最大堆合并，再按 URI、源码位置和名字稳定排序。同一 URI 的不同 revision 不能混入一次结果；交付前继续复核返回位置的文件 revision 和 root 配置身份。访问计数仅属于当次查询，不进入交付证明；trace 的 `complete` 表明发现或结果容量边界，符号列表本身不证明完整引用集合。
+
+补全与修复的可选 AppProject 全集查询也在所有者锁外执行，单次上限 600,000 次访问。后台提交使这次候选扫描未完成时，丢弃该扫描的候选并返回明确 incomplete 的当前文档/已知关联结果；Schema 字段补全不等待全工作区稳定。跨资源安全修改仍必须有完整候选与输入证明，不能从这一降级结果取得完整性。
 
 ## 内存与工作量边界
 
@@ -159,7 +163,7 @@ Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML
 
 原生构建只依赖 Go/C、vendor、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。
 
-适配器协议版本与公共源码合同 `toolkit-design-4` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
+适配器协议版本与公共源码合同 `toolkit-design-5` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
 
 原生版本来自根 `VERSION`，适配器版本来自自身 manifest/Cargo，native pin 来自 `native-server-version`，三者分别有用途。`native.yml` / `release.yml` 验证原生平台产物；`zed.yml` / `zed-release.yml` 验证 WASM、适配器包和确切 native pin；发布输入分别是 [native-release-notes.md](native-release-notes.md)与 [editors/zed/release-notes.md](../editors/zed/release-notes.md)。
 

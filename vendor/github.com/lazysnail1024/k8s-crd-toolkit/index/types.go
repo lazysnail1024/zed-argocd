@@ -56,9 +56,11 @@ type Limits struct {
 }
 
 var (
-	ErrStaleTicket = errors.New("index: stale ticket")
-	ErrLimit       = errors.New("index: capacity exceeded")
-	ErrNoPrevious  = errors.New("index: no retained facts for this scope")
+	ErrStaleTicket  = errors.New("index: stale ticket")
+	ErrLimit        = errors.New("index: capacity exceeded")
+	ErrNoPrevious   = errors.New("index: no retained facts for this scope")
+	ErrQueryBudget  = errors.New("index: symbol query work budget exhausted")
+	ErrQueryChanged = errors.New("index: symbol query scope changed")
 )
 
 // Ticket is an opaque, single-use permission to replace one file's facts.
@@ -102,6 +104,18 @@ type SymbolResult struct {
 	Items     []Definition
 	State     State
 	Truncated bool
+}
+
+// SymbolQueryResult separates known-index traversal from result truncation and
+// workspace discovery. An unsuccessful query has Complete=false and no Items.
+// Work counts every visited file and symbol, including pending files and misses.
+// A missing scope has State.Generation=0 in this context-aware API only.
+type SymbolQueryResult struct {
+	Items     []Definition
+	State     State
+	Truncated bool
+	Complete  bool
+	Work      int
 }
 
 // Change lists the changed URI and its direct dependent URIs, sorted and unique.

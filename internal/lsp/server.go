@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/lazysnail1024/k8s-crd-toolkit/index"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
@@ -895,6 +896,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 							answer, symbolProof, complete, err = workspaceState.workspaceSymbols(ctx, params.Query)
 							if err != nil {
 								code, why = -32803, err.Error()
+								if errors.Is(err, index.ErrQueryChanged) {
+									code = -32801
+								}
 							}
 							if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 								fmt.Fprintf(&trace, "argocd-workspace-symbols complete=%t\n", complete)

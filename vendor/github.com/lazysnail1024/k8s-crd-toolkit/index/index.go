@@ -28,9 +28,19 @@ type entry struct {
 	data     *stored
 }
 type scopeState struct {
-	generation uint64
-	files      map[source.URI]bool // Membership and whether this URI is pending.
-	pending    int                 // Number of true values; State remains O(1).
+	generation  uint64
+	files       map[source.URI]*scopeMember
+	first, last *scopeMember
+	pending     int // Number of true values; State remains O(1).
+}
+
+// Links borrow the existing file entry, not another URI or symbol snapshot. A
+// query retains one position between short locks; scope mutation invalidates
+// that position before the borrowed entry can be dereferenced again.
+type scopeMember struct {
+	file           *entry
+	pending        bool
+	previous, next *scopeMember
 }
 
 // Index supports concurrent calls. Construct it with New and do not copy it.
@@ -209,17 +219,28 @@ func (i *Index) advance() error {
 func (i *Index) attach(scope Scope, uri source.URI, pending bool) {
 	s := i.scopes[scope]
 	if s == nil {
-		s = &scopeState{files: map[source.URI]bool{}}
+		s = &scopeState{files: map[source.URI]*scopeMember{}}
 		i.scopes[scope] = s
 	}
-	if s.files[uri] != pending {
+	member := s.files[uri]
+	if member == nil {
+		member = &scopeMember{file: i.files[uri], previous: s.last}
+		if s.last != nil {
+			s.last.next = member
+		} else {
+			s.first = member
+		}
+		s.last = member
+		s.files[uri] = member
+	}
+	if member.pending != pending {
 		if pending {
 			s.pending++
 		} else {
 			s.pending--
 		}
 	}
-	s.files[uri] = pending
+	member.pending = pending
 	s.generation = i.generation
 }
 
@@ -228,9 +249,24 @@ func (i *Index) detach(scope Scope, uri source.URI) {
 	if s == nil {
 		return
 	}
-	if s.files[uri] {
+	member := s.files[uri]
+	if member == nil {
+		return
+	}
+	if member.pending {
 		s.pending--
 	}
+	if member.previous != nil {
+		member.previous.next = member.next
+	} else {
+		s.first = member.next
+	}
+	if member.next != nil {
+		member.next.previous = member.previous
+	} else {
+		s.last = member.previous
+	}
+	member.previous, member.next = nil, nil
 	delete(s.files, uri)
 	s.generation = i.generation
 	if len(s.files) == 0 {
