@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Task-owned bounded observation of CLI acquisition and long-lived LSP text."""
+"""Bounded CLI/LSP input rejection with an exact semantic result."""
 import argparse,hashlib,json,os,pathlib,queue,signal,subprocess,sys,threading,time
 ap=argparse.ArgumentParser();ap.add_argument('binary',type=pathlib.Path);ap.add_argument('output',type=pathlib.Path);ap.add_argument('--mode',choices=['cli','buffers'],required=True);a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);root=out/'workspace';root.mkdir();(root/'.argocd-ls.yaml').write_text('schemaVersion: 1\ntargetVersion: "3.5.6"\n');size=5*1024*1024
 base='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: item}\nspec:\n  project: default\n  source: {repoURL: https://example.test/repo, path: app}\n  destination: {server: local}\n';text=base+'#'+'x'*(size-len(base)-2)+'\n';assert len(text.encode())==size
-report={'mode':a.mode,'binarySHA256':hashlib.sha256(a.binary.read_bytes()).hexdigest(),'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'command':sys.argv,'snapshotBytes':size,'inputSHA256':hashlib.sha256(text.encode()).hexdigest(),'watchdogBytes':384*1024*1024,'peakRSS':0,'watchdog':False,'acceptedBudgetTermination':False};proc=None;done=threading.Event();messages=queue.Queue();sent=0
+report={'mode':a.mode,'binarySHA256':hashlib.sha256(a.binary.read_bytes()).hexdigest(),'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'command':sys.argv,'snapshotBytes':size,'inputSHA256':hashlib.sha256(text.encode()).hexdigest(),'watchdogBytes':384*1024*1024,'peakRSS':0,'watchdog':False,'acceptedBudgetTermination':False,'passed':False};proc=None;done=threading.Event();messages=queue.Queue();sent=0;diagnostics={}
 try:
  membership=pathlib.Path('/proc/self/cgroup').read_text();cg=pathlib.Path('/sys/fs/cgroup')/membership.strip().split('::',1)[1].lstrip('/');limit=(cg/'memory.max').read_text().strip();report['cgroup']={'membership':membership,'memory.max':limit};assert limit!='max' and int(limit)<=512*1024*1024,'probe requires an actual <=512MiB task-owned memory cgroup'
  if a.mode=='cli':
@@ -28,7 +28,9 @@ try:
      if not line:return
      if line==b'\r\n':break
      k,v=line.decode().strip().split(':',1);headers[k.lower()]=v.strip()
-    body=proc.stdout.read(int(headers['content-length']));stdout.write(body);message=json.loads(body);messages.put(message)
+    body=proc.stdout.read(int(headers['content-length']));stdout.write(body);message=json.loads(body)
+    if message.get('method')=='textDocument/publishDiagnostics':diagnostics[message['params']['uri']]=message['params']
+    messages.put(message)
   except Exception as e:report['readerError']=repr(e)
  reader=threading.Thread(target=read,daemon=True);reader.start()
  def send(method,params=None,ident=None):
@@ -43,7 +45,7 @@ try:
    if m.get('id')==ident:return m
   raise TimeoutError('request terminal response missing')
  if a.mode=='buffers':
-  send('initialize',{'rootUri':root.as_uri(),'capabilities':{}},1);wait(1);send('initialized',{})
+  send('initialize',{'rootUri':root.as_uri(),'capabilities':{'textDocument':{'publishDiagnostics':{'versionSupport':True}}}},1);reply=wait(1);assert 'result' in reply and 'error' not in reply,'initialize failed';send('initialized',{})
   for n in range(100):
    send('textDocument/didOpen',{'textDocument':{'uri':(root/f'{n:03}.yaml').as_uri(),'languageId':'yaml','version':1,'text':text}})
    # An owner-loop reply drains preceding notifications without waiting for an
@@ -51,6 +53,11 @@ try:
    send('workspace/symbol',{'query':''},100+n);wait(100+n);sent+=1
    if proc.poll() is not None:break
   report['sentBuffers']=sent
+  refused=(root/'099.yaml').as_uri();deadline=time.monotonic()+6
+  while not any(d.get('code')=='INPUT_BUDGET_EXCEEDED' for d in diagnostics.get(refused,{}).get('diagnostics',[])):
+   if time.monotonic()>=deadline:raise TimeoutError('the final buffer has no retained-input budget refusal')
+   messages.get(timeout=max(.01,deadline-time.monotonic()))
+  report['refusedBuffer']=diagnostics[refused]
   send('shutdown',{},2);report['shutdown']=wait(2);send('exit')
  proc.wait(timeout=7);report['elapsedSeconds']=time.monotonic()-start
 except Exception as e:report['error']=repr(e)
@@ -63,7 +70,12 @@ finally:
   for f in [stdin,stdout,stderr]:f.close()
  if a.mode=='cli' and (out/'stdout').exists():
   try:
-   d=json.loads((out/'stdout').read_bytes());report['cliReport']=d;report['acceptedBudgetTermination']=not report['watchdog'] and report.get('exitCode') in [2,3] and d.get('analysisComplete') is False and any('budget' in str(x).lower() for x in d.get('configurationErrors',[]))
-  except Exception:pass
- report['scope']='observational baseline; watchdog termination is a product boundedness failure, not successful budget handling';(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
-print(json.dumps({k:report.get(k) for k in ['mode','peakRSS','watchdog','exitCode','error','acceptedBudgetTermination']}));sys.exit(1 if report['watchdog'] or report.get('harnessTermination') or report.get('error') else 0)
+   d=json.loads((out/'stdout').read_bytes());report['cliReport']=d;report['acceptedBudgetTermination']=report.get('exitCode')==2 and d.get('analysisComplete') is False and [x.get('code') for x in d.get('configurationErrors',[])]==['INPUT_BUDGET_EXCEEDED'] and d.get('filesAnalyzed')==0 and d.get('resourcesAnalyzed')==0
+  except Exception as error:report['reportError']=repr(error)
+ checks={'noHarnessFailure':not any(report.get(key) for key in ['watchdog','harnessTermination','error','readerError','reportError']),'measuredRSS':0<report['peakRSS']<=report['watchdogBytes']}
+ if a.mode=='cli':checks['exactBudgetRejection']=report['acceptedBudgetTermination']
+ else:
+  checks.update(allBuffersProcessed=sent==100,normalShutdown=report.get('exitCode')==0 and report.get('shutdown',{}).get('result','missing') is None and 'error' not in report.get('shutdown',{}),exactBudgetRejection=report.get('refusedBuffer',{}).get('version')==1 and any(d.get('code')=='INPUT_BUDGET_EXCEEDED' for d in report.get('refusedBuffer',{}).get('diagnostics',[])))
+ report.update(checks=checks,passed=all(checks.values()),scope='100 input paths/buffers under a 512MiB cgroup; normal budget refusal and shutdown are required')
+ (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps({k:report.get(k) for k in ['mode','passed','checks','peakRSS','watchdog','exitCode','error','acceptedBudgetTermination']}));sys.exit(0 if report['passed'] else 1)

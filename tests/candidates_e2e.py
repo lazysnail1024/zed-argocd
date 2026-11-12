@@ -14,7 +14,7 @@ def run(name,fn):
  except Exception as ex:
   for client in e.CLIENTS:
    if not client.closed:client.close()
-  e.record(name,{'contract':name},{'exception':repr(ex)},False,root)
+  e.record(name,{'contract':name},{'exception':repr(ex),'exceptionType':type(ex).__name__},False,root)
 def projects(out,root):
  e.write(root,'a.yaml',project('team','argocd'));e.write(root,'b.yaml',project('team-blue','argocd'));e.write(root,'other.yaml',project('team-out','other'));text=e.APP.replace('project: team','project: te');file=e.write(root,'app.yaml',text);c=e.LSP(out,[root]);c.open(file,text);c.diag(file,1);items=query(c,file,text,'project: te');assert [x['label'] for x in items]==['team','team-blue'];assert all('argocd' in x['detail'] and '.yaml' in x['detail'] for x in items)
  c.change(file,text.replace('project: te','project: default'),2);c.diag(file,2);assert query(c,file,text.replace('project: te','project: default'),'project: default')==[]

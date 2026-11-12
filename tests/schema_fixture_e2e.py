@@ -16,6 +16,8 @@ def main():
   binary=out/'argocd-ls';cmd=['go','build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(binary),'./cmd/argocd-ls'];r=subprocess.run(cmd,cwd=tree,capture_output=True,timeout=120);(out/'build.stdout').write_bytes(r.stdout);(out/'build.stderr').write_bytes(r.stderr);rows.append({'id':'build','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0})
   if r.returncode==0:
    cmd=[sys.executable,str(root/'tests/schema_queries_e2e.py'),str(binary),str(out/'lsp'),'--cases',str(root/'tests'/args.cases)];r=subprocess.run(cmd,capture_output=True,timeout=240);(out/'lsp.stdout').write_bytes(r.stdout);(out/'lsp.stderr').write_bytes(r.stderr);rows.append({'id':'synthetic-lsp','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0,'binarySHA256':sha(binary)})
+   if args.fixture in ('schema-query-repair-fixture.json','schema-query-boundary-fixture.json'):
+    cmd=[sys.executable,str(root/'tests/schema_query_values_e2e.py'),str(binary),str(out/'values')]+(['--adjacent'] if args.fixture=='schema-query-boundary-fixture.json' else []);r=subprocess.run(cmd,capture_output=True,timeout=120);(out/'values.stdout').write_bytes(r.stdout);(out/'values.stderr').write_bytes(r.stderr);rows.append({'id':'synthetic-value-truth-table','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0})
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
  finally:
   report={'scope':'synthetic consumer fixture; NOT upstream semantic acceptance','fixtureSHA256':sha(root/'tests'/args.fixture),'sourceFiles':{str(p.relative_to(tree)):sha(p) for p in tree.rglob('*') if p.is_file()},'rows':rows,'passed':bool(rows) and all(x['passed'] for x in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')

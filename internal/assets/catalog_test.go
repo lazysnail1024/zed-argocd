@@ -2,72 +2,101 @@ package assets
 
 import (
 	"encoding/json"
-	schema "github.com/santhosh-tekuri/jsonschema/v6"
+	"fmt"
+	"path"
+	"reflect"
+	"slices"
 	"testing"
+
+	schema "github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// Every collected schema node must still enforce its declared type, required
-// fields and enum. This catches accidental permissive conversion independently
-// of the small end-to-end examples, including patches with changed CRDs.
+// Expectations come from the immutable input bytes, independently of SchemaData
+// and CompileSchema. Walking only the compiled tree would silently skip any
+// constraint or property that either production step accidentally discarded.
+func inspectDeclaredSchema(t *testing.T, declared map[string]any, node *schema.Schema, location string) int {
+	t.Helper()
+	if node == nil {
+		t.Fatalf("declared schema node missing at %s", location)
+	}
+	if kind, ok := declared["type"].(string); ok {
+		if node.Types == nil || !slices.Equal(node.Types.ToStrings(), []string{kind}) {
+			t.Fatalf("declared type constraint discarded at %s: want %s", location, kind)
+		}
+		for _, probe := range []struct {
+			value any
+			kinds []string
+		}{
+			{nil, []string{"null"}}, {true, []string{"boolean"}}, {"text", []string{"string"}},
+			{float64(3), []string{"integer", "number"}}, {float64(3.5), []string{"number"}},
+			{[]any{}, []string{"array"}}, {map[string]any{}, []string{"object"}},
+		} {
+			if !slices.Contains(probe.kinds, kind) && node.Validate(probe.value) == nil {
+				t.Fatalf("declared type constraint not enforced at %s", location)
+			}
+		}
+	} else if _, exists := declared["type"]; exists {
+		t.Fatalf("unhandled declared type shape at %s", location)
+	}
+	if required, ok := declared["required"].([]any); ok {
+		want := make([]string, len(required))
+		for i, name := range required {
+			want[i] = name.(string)
+		}
+		got := slices.Clone(node.Required)
+		slices.Sort(want)
+		slices.Sort(got)
+		if !slices.Equal(want, got) || len(want) > 0 && node.Validate(map[string]any{}) == nil {
+			t.Fatalf("declared required constraint discarded at %s", location)
+		}
+	}
+	if values, ok := declared["enum"].([]any); ok {
+		if node.Enum == nil || !reflect.DeepEqual(values, node.Enum.Values) || node.Validate("__not_a_declared_enum_value__") == nil {
+			t.Fatalf("declared enum constraint discarded at %s", location)
+		}
+	}
+	count := 1
+	if properties, ok := declared["properties"].(map[string]any); ok {
+		for name, child := range properties {
+			count += inspectDeclaredSchema(t, child.(map[string]any), node.Properties[name], location+"/properties/"+name)
+		}
+	}
+	if items, ok := declared["items"].(map[string]any); ok {
+		count += inspectDeclaredSchema(t, items, node.Items2020, location+"/items")
+	}
+	if additional, ok := declared["additionalProperties"].(map[string]any); ok {
+		child, _ := node.AdditionalProperties.(*schema.Schema)
+		count += inspectDeclaredSchema(t, additional, child, location+"/additionalProperties")
+	}
+	for _, group := range []struct {
+		name  string
+		nodes []*schema.Schema
+	}{{"anyOf", node.AnyOf}, {"allOf", node.AllOf}, {"oneOf", node.OneOf}} {
+		if children, ok := declared[group.name].([]any); ok {
+			if len(children) != len(group.nodes) {
+				t.Fatalf("declared %s branches discarded at %s", group.name, location)
+			}
+			for i, child := range children {
+				count += inspectDeclaredSchema(t, child.(map[string]any), group.nodes[i], fmt.Sprintf("%s/%s/%d", location, group.name, i))
+			}
+		}
+	}
+	// Exact source schemas are inline today; do not silently omit a new reference
+	// representation if the catalog format changes. Auto's shared definitions are
+	// exercised by the independent whole-version and CLI/LSP consumers.
+	if _, exists := declared["$ref"]; exists {
+		t.Fatalf("exact source schema acquired an uninspected reference at %s", location)
+	}
+	return count
+}
+
 func TestEveryReleaseSchemaConstraints(t *testing.T) {
 	catalog, err := catalogData()
 	if err != nil {
 		t.Fatal(err)
 	}
 	compiled := map[string]*schema.Schema{}
-	visited := map[*schema.Schema]bool{}
 	count := 0
-	var inspect func(*schema.Schema)
-	inspect = func(node *schema.Schema) {
-		if node == nil || visited[node] {
-			return
-		}
-		visited[node] = true
-		count++
-		if node.Types != nil {
-			for _, invalid := range []any{nil, true, "text", float64(3), []any{}, map[string]any{}} {
-				hasType := false
-				for _, typ := range node.Types.ToStrings() {
-					switch invalid.(type) {
-					case nil:
-						hasType = hasType || typ == "null"
-					case bool:
-						hasType = hasType || typ == "boolean"
-					case string:
-						hasType = hasType || typ == "string"
-					case float64:
-						hasType = hasType || typ == "integer" || typ == "number"
-					case []any:
-						hasType = hasType || typ == "array"
-					case map[string]any:
-						hasType = hasType || typ == "object"
-					}
-				}
-				if !hasType && node.Validate(invalid) == nil {
-					t.Fatalf("type constraint discarded at %s", node.Location)
-				}
-			}
-		}
-		if len(node.Required) > 0 && node.Validate(map[string]any{}) == nil {
-			t.Fatalf("required constraint discarded at %s", node.Location)
-		}
-		if node.Enum != nil && node.Validate("__not_a_declared_enum_value__") == nil {
-			t.Fatalf("enum constraint discarded at %s", node.Location)
-		}
-		inspect(node.Ref)
-		inspect(node.Items2020)
-		if child, ok := node.AdditionalProperties.(*schema.Schema); ok {
-			inspect(child)
-		}
-		for _, child := range node.Properties {
-			inspect(child)
-		}
-		for _, group := range [][]*schema.Schema{node.AllOf, node.AnyOf, node.OneOf} {
-			for _, child := range group {
-				inspect(child)
-			}
-		}
-	}
 	auto := map[string]*schema.Schema{}
 	for _, entry := range catalog.AutoSchemas {
 		data, err := SchemaData("auto", entry.APIVersion, entry.Kind)
@@ -83,6 +112,14 @@ func TestEveryReleaseSchemaConstraints(t *testing.T) {
 		for _, entry := range release.Schemas {
 			current := compiled[entry.Hash]
 			if current == nil {
+				raw, err := schemas.ReadFile("schemas/" + path.Base(entry.Path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var declared map[string]any
+				if err := json.Unmarshal(raw, &declared); err != nil {
+					t.Fatal(err)
+				}
 				data, err := SchemaData(release.Version, entry.APIVersion, entry.Kind)
 				if err != nil {
 					t.Fatalf("%s %s: %v", release.Version, entry.Kind, err)
@@ -92,7 +129,7 @@ func TestEveryReleaseSchemaConstraints(t *testing.T) {
 					t.Fatalf("%s %s: %v", release.Version, entry.Kind, err)
 				}
 				compiled[entry.Hash] = current
-				inspect(current)
+				count += inspectDeclaredSchema(t, declared, current, release.Version+"/"+entry.Kind)
 			}
 			document := sample(entry.Kind)
 			if err := current.Validate(document); err != nil {
@@ -102,6 +139,9 @@ func TestEveryReleaseSchemaConstraints(t *testing.T) {
 				t.Fatalf("auto rejects %s %s sample: %v", release.Version, entry.Kind, err)
 			}
 		}
+	}
+	if len(catalog.Versions) == 0 || len(compiled) == 0 || count == 0 {
+		t.Fatal("empty release schema coverage")
 	}
 	t.Logf("validated %d releases, %d distinct source schemas, %d constrained nodes", len(catalog.Versions), len(compiled), count)
 }

@@ -66,14 +66,29 @@ def main():
             anchor = 'include_str!("../native-server-version").trim()'
             assert original_distribution.count(anchor) == 1
             distribution.write_text(original_distribution.replace(anchor, 'env!("CARGO_PKG_VERSION")', 1))
-            result, row = run("restore-cargo-server-version-coupling", [*cargo_command, "test", "--locked", "--offline", testcase], 101)
-            row["runtimeAssertionFailed"] = "test result: FAILED" in result.stdout
-            row["passed"] = row["passed"] and row["runtimeAssertionFailed"]
-            assert row["passed"], "A compilation failure is not a detected behavior regression"
+            result, row = run("restore-cargo-server-version-coupling", [*cargo_command, "test", "--locked", "--offline",
+                              "--test", "distribution", testcase, "--", "--exact", "--nocapture", "--color", "never"], 101)
+            row["expectedTest"] = testcase
+            row["exactTestExecuted"] = ("running 1 test" in result.stdout.splitlines()
+                                        and f"test {testcase} ... FAILED" in result.stdout.splitlines())
+            row["runtimeAssertionFailed"] = "test result: FAILED. 0 passed; 1 failed; 0 ignored;" in result.stdout
+            diagnostic = result.stdout + result.stderr
+            row["expectedPinMismatch"] = ("assertion `left == right` failed" in diagnostic
+                                           and 'left: "9.9.9-alpha.1"' in diagnostic
+                                           and f'right: "{report["nativePin"]}"' in diagnostic)
+            row["passed"] = all(row[key] is True for key in (
+                "passed", "exactTestExecuted", "runtimeAssertionFailed", "expectedPinMismatch"))
+            assert row["passed"], "Only the named native-pin assertion is a detected behavior regression"
             distribution.write_text(original_distribution)
+            run("restored-distribution-tests", [*cargo_command, "test", "--locked", "--offline", "--test", "distribution"])
 
             package = tree / "package.py"
             original_package = package.read_text()
+            baseline = out / "standalone-package-baseline"
+            run("standalone-package-baseline", [sys.executable, str(tree / "tests/package_e2e.py"),
+                "--wasm", str(wasm), "--output", str(baseline)])
+            baseline_report = json.loads((baseline / "report.json").read_text())
+            assert baseline_report["passed"] is True and baseline_report["cases"], "Missing unmodified package baseline"
             mutations = [
                 ("remove-wasm-release-identity-guard", 'if release != [manifest["id"], manifest["version"], native]:', "if False:", "stale-native-pin"),
                 ("remove-original-dependency-notices", "    files.update(dependency_notices())", "    # Test mutation: omit original dependency notices.", "licenses/THIRD_PARTY.json"),

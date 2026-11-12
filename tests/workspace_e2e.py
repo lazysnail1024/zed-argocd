@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Real CLI workspace/scopes scenarios, independent expected targets and diagnostics."""
+import os
 import pathlib,json,subprocess,sys,hashlib,re
-root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=root/'artifacts/workspace';out.mkdir(parents=True,exist_ok=True)
+root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(root/'artifacts/workspace')));out.mkdir(parents=True,exist_ok=True)
 app='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: sample\nspec:\n  project: 42\n'
 config='schemaVersion: 1\ntargetVersion: "3.0.0"\nscopes:\n  - name: dev\n    include: ["dev/**/*.yaml"]\n    targetVersion: "3.5.6"\n  - name: prod\n    include: ["prod/**/*.yaml"]\n'
 cases=[('scope',config,['--scope','dev'],['3.5.6'],['dev/app.yaml'],None),('override',config,['--scope','dev','--target-version','3.0.0'],['3.0.0'],['dev/app.yaml'],None),('file-scope-mismatch',config,['--scope','prod','--file','dev/app.yaml'],[],[],'FILE_SCOPE_MISMATCH'),('unknown-field',config+'mystery: true\n',[],[],[],'CONFIG_INVALID'),('overlap',config.replace('prod/**/*.yaml','dev/**/*.yaml'),[],[],[],'SCOPE_OVERLAP'),('unknown-scope',config,['--scope','missing'],[],[],'SCOPE_UNKNOWN'),('excluded',config+'exclude: ["dev/**"]\n',['--scope','dev'],['3.5.6'],[],None),('invalid-glob',config.replace('dev/**/*.yaml','dev/['),[],[],[],'CONFIG_INVALID')]

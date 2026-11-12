@@ -91,7 +91,7 @@ jobs:
       shell: bash
       run: |
         set -o pipefail
-        go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis 2>&1 | tee artifacts/native-ci/go-tests.log
+        go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis ./internal/cli 2>&1 | tee artifacts/native-ci/go-tests.log
     - name: Check concurrent index and overlay delivery
       if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       shell: bash
@@ -143,12 +143,68 @@ jobs:
         compression-level: 0
         if-no-files-found: error
         retention-days: 30
+  orthogonal:
+    name: Linux orthogonal ${{ matrix.suite }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [contracts, boundaries, mutations]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CC: gcc-13
+      CGO_ENABLED: '1'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version-file: go.mod
+        check-latest: false
+        cache: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Require every first-party test to have an explicit execution boundary
+      run: python tests/test_inventory.py
+    - name: Build the exact source for the independent semantic axes
+      run: python tools/native.py build --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/orthogonal-ci/build
+    - name: Install the checksum-pinned real Helm consumer
+      if: matrix.suite == 'boundaries'
+      run: python tools/install_test_helm.py --output artifacts/orthogonal-ci/tools
+    - name: Execute complementary consumers with named evidence
+      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --output artifacts/orthogonal-ci/tests
+    - name: Archive complete success and failure evidence
+      if: always()
+      run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence
+    - name: Verify archived evidence
+      if: always()
+      run: python tools/ci_evidence.py verify --manifest artifacts/orthogonal-evidence/manifest.json
+    - name: Retain orthogonal acceptance evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-orthogonal-${{ matrix.suite }}
+        path: artifacts/orthogonal-evidence/
+        compression-level: 0
+        if-no-files-found: error
+        retention-days: 30
+  resources:
+    name: Constrained resource acceptance
+    uses: ./.github/workflows/resource.yml
   candidate:
     name: Verify complete native distribution
     if: always()
     needs:
     - prepare
     - native
+    - orthogonal
+    - resources
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -156,7 +212,9 @@ jobs:
       env:
         PREPARE_RESULT: ${{ needs.prepare.result }}
         NATIVE_RESULT: ${{ needs.native.result }}
-      run: test "$PREPARE_RESULT" = success && test "$NATIVE_RESULT" = success
+        ORTHOGONAL_RESULT: ${{ needs.orthogonal.result }}
+        RESOURCE_RESULT: ${{ needs.resources.result }}
+      run: test "$PREPARE_RESULT" = success && test "$NATIVE_RESULT" = success && test "$ORTHOGONAL_RESULT" = success && test "$RESOURCE_RESULT" = success
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false

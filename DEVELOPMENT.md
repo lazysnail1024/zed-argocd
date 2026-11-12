@@ -76,6 +76,10 @@ Rust toolchain on the user's machine. See [distribution](docs/distribution.md).
 
 ## Changes and tests
 
+See the [test coverage and execution matrix](tests/README.md) for every test family,
+mandatory Linux semantic/resource lanes, oracle controls and current limitations.
+The [machine-checked inventory](tests/inventory.json) rejects unclassified tests.
+
 From the repository root, use the existing consumers for the affected boundary:
 
 ```sh

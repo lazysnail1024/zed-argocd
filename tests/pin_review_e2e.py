@@ -116,7 +116,7 @@ for item in CASES:
                 value=cfg['targetVersion'] if target=='root' else next(x['targetVersion'] for x in cfg['scopes'] if x['name']==('root' if target=='root-named' else target))
                 assert value=='3.0.0','the selected persisted target must be the explicit current target'
                 passed=True
-    except Exception as exc:observed['exception']=repr(exc)
+    except Exception as exc:observed['exception']=repr(exc);observed['exceptionType']=type(exc).__name__
     finally:
         if c:c.close()
     row={'id':name,'expected':expected,'observed':observed,'passed':passed,'lspExit':c.proc.returncode if c else None,'inputSHA256':{str(p.relative_to(out)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file()},'artifactsSHA256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir() if p.is_file() and p.name!='result.json'}}

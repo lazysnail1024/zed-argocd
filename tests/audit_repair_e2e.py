@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent CLI/stdin-stdout scenarios for the fixed CD stage."""
+"""Independent CLI/stdin-stdout scope, edit and cancellation contracts."""
 import argparse, hashlib, json, os, pathlib, queue, subprocess, sys, threading, time
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -136,6 +136,7 @@ def record(name, expected, observed, passed, root, lsp=None, command=None, exit_
         lsp.close()
         command = [str(BINARY),'serve','--stdio']
         exit_code = lsp.proc.returncode
+        passed = passed and exit_code == 0
     row = {'id':name,'expected':expected,'observed':observed,'passed':passed,'command':command,'exit':exit_code,
            'inputSHA256':{str(p.relative_to(out)):hash_file(p) for p in root.rglob('*') if p.is_file()},
            'artifactSHA256':{p.name:hash_file(p) for p in out.iterdir() if p.is_file()}}
@@ -155,9 +156,11 @@ def cli_cases():
         (out/'stdout').write_bytes(p.stdout);(out/'stderr').write_bytes(p.stderr)
         data=json.loads(p.stdout)
         unresolved=[d for d in data['diagnostics'] if d['code']=='CD_PROJECT_UNRESOLVED']
-        expected=3 if damaged else 1
-        passed=p.returncode==(2 if damaged else 1) and data['analysisComplete']==(not damaged) and len(unresolved)==1 and unresolved[0]['severity']==expected
-        record(name,{'unresolvedSeverity':expected,'exit':2 if damaged else 1,'analysisComplete':not damaged},unresolved,passed,root,command=cmd,exit_code=p.returncode)
+        # Absence is only provable in a complete scope. A parse failure must
+        # withhold the missing-project conclusion, not downgrade a guess to Info.
+        expected=[] if damaged else [1]
+        passed=p.returncode==(2 if damaged else 1) and data['analysisComplete']==(not damaged) and [d['severity'] for d in unresolved]==expected
+        record(name,{'unresolvedSeverities':expected,'exit':2 if damaged else 1,'analysisComplete':not damaged},unresolved,passed,root,command=cmd,exit_code=p.returncode)
 
 def excluded_case():
     name='opened-excluded-project'
@@ -182,7 +185,7 @@ def disk_case():
     name='buffer-overrides-budgeted-disk';out,root=setup(name)
     app=write(root,'app.yaml','#'+('a'*(5*1024*1024)))
     c=LSP(out,[root]);c.open(app,APP)
-    msg=c.wait(lambda m:m.get('method')=='textDocument/publishDiagnostics')
+    msg=c.diag(app,1)
     response=c.request('textDocument/documentSymbol',{'textDocument':{'uri':app.as_uri()}})
     record(name,{'validOpenBuffer':'symbol app; no disk budget rejection'},{'firstDiagnostic':msg,'symbols':response},any(s.get('name')=='app' for s in response.get('result',[])),root,c)
 
@@ -218,10 +221,27 @@ def fix_case():
     action=next(a for a in response.get('result',[]) if a['data']['fixCode']=='FIX_FIELD_NAME')
     resolved=c.request('codeAction/resolve',action)
     edit=resolved.get('result',{}).get('edit',{}).get('documentChanges',[])
-    c.change(app,APP,2);after=c.diag(app,2)
+    assert len(edit)==1 and edit[0]['textDocument']=={'uri':app.as_uri(),'version':1}, 'fix must target the opened version'
+    edits=edit[0].get('edits',[])
+    assert edits, 'resolved fix must contain a text edit'
+    # Replay the returned bytes. Sending the expected APP directly would let a
+    # fix with an empty or incorrect replacement pass this consumer.
+    lines=text.splitlines(keepends=True)
+    def offset(position):
+        line,character=position['line'],position['character']
+        assert 0<=line<len(lines) and 0<=character<=len(lines[line].rstrip('\n')), 'edit range outside source'
+        return sum(map(len,lines[:line]))+character
+    changes=sorted([(offset(e['range']['start']),offset(e['range']['end']),e['newText']) for e in edits],reverse=True)
+    applied=text;previous=len(text)
+    for start,end,replacement in changes:
+        assert start<=end<=previous, 'fix edits overlap or reverse a range'
+        applied=applied[:start]+replacement+applied[end:]
+        previous=start
+    assert applied==APP, 'returned fix does not produce the expected Application'
+    c.change(app,applied,2);after=c.diag(app,2)
     stale=c.request('codeAction/resolve',action)
-    good=bool(edit) and edit[0]['textDocument']=={'uri':app.as_uri(),'version':1} and not any(d['code']=='SCHEMA_UNKNOWN_FIELD' for d in after) and stale.get('error',{}).get('code')==-32801
-    record(name,{'editVersion':1,'staleError':-32801,'targetDiagnosticDisappears':True},{'before':before,'resolved':resolved,'after':after,'stale':stale},good,root,c)
+    good=any(d['code']=='SCHEMA_UNKNOWN_FIELD' for d in before) and not any(d['code']=='SCHEMA_UNKNOWN_FIELD' or d.get('severity')==1 for d in after) and stale.get('error',{}).get('code')==-32801
+    record(name,{'editVersion':1,'staleError':-32801,'returnedEditProducesExpectedApplication':True,'targetDiagnosticDisappears':True},{'before':before,'resolved':resolved,'appliedText':applied,'after':after,'stale':stale},good,root,c)
 
 def budget_case(count):
     name=f'code-action-cancel-budget-{count}'
@@ -263,7 +283,9 @@ if __name__=='__main__':
                 for client in CLIENTS:
                     if not client.closed:
                         client.close()
-                        record(client.out.name, {'scenarioMustComplete':True}, {'exception':repr(exc)}, False, client.out/'workspace')
+                        record(client.out.name, {'scenarioMustComplete':True}, {'exception':repr(exc),'exceptionType':type(exc).__name__}, False, client.out/'workspace')
     else:budget_case(args.count)
-    (OUT/f'{args.mode}-report.json').write_text(json.dumps({'command':sys.argv,'binarySHA256':hash_file(BINARY),'testSHA256':hash_file(pathlib.Path(__file__)),'expectationsSHA256':hash_file(pathlib.Path(__file__)),'python':sys.version,'cases':ROWS},indent=2)+'\n')
-    sys.exit(0 if ROWS and all(r['passed'] for r in ROWS) else 1)
+    expected={'cli':['scope-isolation','scope-incomplete'],'lsp':['opened-excluded-project','opened-helm-source','buffer-overrides-budgeted-disk','nested-roots-parent-first','nested-roots-child-first','sequence-existing-key-completion','versioned-fix-and-stale-rejection'],'budget':[f'code-action-cancel-budget-{args.count}']}[args.mode]
+    passed=[row['id'] for row in ROWS]==expected and all(row['passed'] for row in ROWS)
+    (OUT/f'{args.mode}-report.json').write_text(json.dumps({'command':sys.argv,'binarySHA256':hash_file(BINARY),'testSHA256':hash_file(pathlib.Path(__file__)),'expectationsSHA256':hash_file(pathlib.Path(__file__)),'python':sys.version,'expectedCases':expected,'cases':ROWS,'passed':passed},indent=2)+'\n')
+    sys.exit(0 if passed else 1)

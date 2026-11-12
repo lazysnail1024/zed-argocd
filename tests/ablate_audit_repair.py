@@ -15,13 +15,25 @@ variants = [
     ('cancel', 'internal/lsp/server.go', 'if request, ok := requests[key]; ok {',
      'if request, ok := requests[key]; ok && false {', 'budget'),
     ('root-owner', 'internal/workspace/workspace.go', 'len(r) > len(owner)', 'owner == ""', 'lsp'),
-    ('buffer-first', 'internal/workspace/workspace.go', 'snap, opened := buffers[resolved]',
-     'snap, opened := buffers[resolved]; opened = false', 'lsp'),
+    # Query acquisition moved out of workspace.Load. Force a disk check before
+    # honoring the open overlay on the actual incremental consumer path.
+    ('buffer-first', 'internal/lsp/incremental_query.go', 'if !opened {\n\t\ttext, readErr := workspace.ReadFile(ctx, path)',
+     'if opened { if _, readErr := workspace.ReadFile(ctx, path); readErr != nil { result.err = readErr; return result } }; if !opened {\n\t\ttext, readErr := workspace.ReadFile(ctx, path)', 'lsp'),
     ('excluded-isolation', 'internal/workspace/stream.go', 'isolated: excluded && opened',
      'isolated: false', 'lsp'),
     ('array-fields', 'internal/analysis/queries.go', 'case []any:\n\t\t\ti, err := strconv.Atoi(p)',
      'case []any:\n            if len(v) >= 0 { return nil }; i, err := strconv.Atoi(p)', 'lsp'),
+    ('fix-bytes', 'internal/lsp/server.go', 'replacementEdit(doc.Snapshot, r.Span, r.NewText)',
+     'replacementEdit(doc.Snapshot, r.Span, r.NewText + "broken")', 'lsp'),
 ]
+failures = {
+    'cancel': {'code-action-cancel-budget-60'},
+    'root-owner': {'nested-roots-parent-first'},
+    'buffer-first': {'buffer-overrides-budgeted-disk'},
+    'excluded-isolation': {'opened-excluded-project'},
+    'array-fields': {'sequence-existing-key-completion'},
+    'fix-bytes': {'versioned-fix-and-stale-rejection'},
+}
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--variant', choices=[item[0] for item in variants])
 parser.add_argument('--output', type=pathlib.Path, default=root / 'artifacts/audit-repair-ablation')
@@ -74,7 +86,7 @@ try:
         result = oracle(binary, folder, mode)
         report['controls'][mode] = result
         cases = result['report']['cases']
-        if result['exit'] != 0 or not cases or not all(case['passed'] for case in cases):
+        if result['exit'] != 0 or result['report'].get('passed') is not True or not cases or not all(case['passed'] for case in cases):
             raise RuntimeError('Original oracle did not pass the unmodified binary: ' + mode)
     for name, file, old, new, mode in selected:
         folder = out / name
@@ -97,14 +109,12 @@ try:
             row['mutatedSourceSHA256'] = hashlib.sha256(target.read_bytes()).hexdigest()
             row['oracle'] = oracle(binary, folder, mode)
             cases = row['oracle']['report']['cases']
-            row['detected'] = (row['oracle']['exit'] == 1 and bool(cases)
-                               and any(not case['passed'] for case in cases)
-                               and not any(case['observed'].get('exception') for case in cases))
-            if name == 'excluded-isolation':
-                # The moved guard must lose exactly the excluded-project boundary;
-                # nested root ownership and the other original controls still pass.
-                row['detected'] = row['detected'] and all(
-                    case['passed'] == (case['id'] != 'opened-excluded-project') for case in cases)
+            row['expectedFailures'] = sorted(failures[name])
+            row['observedFailures'] = [case['id'] for case in cases if not case['passed']]
+            row['detected'] = (row['oracle']['exit'] == 1
+                               and [case['id'] for case in cases] == [case['id'] for case in report['controls'][mode]['report']['cases']]
+                               and set(row['observedFailures']) == failures[name]
+                               and not any(case['observed'].get('exception') and case['observed'].get('exceptionType') != 'AssertionError' for case in cases))
             print(name, row['detected'], flush=True)
     report['passed'] = len(report['cases']) == len(selected) and all(row['detected'] for row in report['cases'])
 except Exception as error:

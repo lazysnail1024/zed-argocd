@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Real CLI schema behavior oracle, written before analysis implementation."""
+"""Real CLI schema/projection contracts: complete errors differ from incomplete input."""
+import os
 import hashlib,json,pathlib,subprocess,sys,tempfile
-root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();target=sys.argv[2] if len(sys.argv)>2 else '3.0.0';out=root/('artifacts/cd-3' if len(sys.argv)<3 else 'artifacts/cd-3-targets/'+target);out.mkdir(parents=True,exist_ok=True)
+root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();target=sys.argv[2] if len(sys.argv)>2 else '3.0.0';out=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(root/('artifacts/cd-3' if len(sys.argv)<3 else 'artifacts/cd-3-targets/'+target))));out.mkdir(parents=True,exist_ok=True)
 fixtures=[('project-type','apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: example\nspec:\n  project: 42\n  source:\n    repoURL: https://example.com/repo\n  destination:\n    server: https://kubernetes.default.svc\n    namespace: default\n','SCHEMA_TYPE',5),('foreign-kind','apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  project: 42\n',None,None),('duplicate','apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  project: default\n  project: duplicate\n','YAML_PROJECTION_INCOMPLETE',None)]
 fixtures.append(('supported-alias','apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: example\nspec:\n  project: &p default\n  source:\n    repoURL: *p\n','SCHEMA_REQUIRED',None))
 fixtures.append(('nonstring-key','apiVersion: argoproj.io/v1alpha1\nkind: Application\nspec:\n  42: value\n','YAML_PROJECTION_INCOMPLETE',None))
@@ -14,7 +15,11 @@ for name,content,code,line in fixtures:
  cmd=[str(binary),'check','--root',str(folder),'--file',str(path),'--target-version',target,'--format','json'];p=subprocess.run(cmd,capture_output=True,timeout=15);(folder/'stdout').write_bytes(p.stdout);(folder/'stderr').write_bytes(p.stderr);errors=[]
  try:
   report=json.loads(p.stdout)
-  if p.returncode!=2 or report['analysisComplete']:errors.append('partial stage must remain incomplete with exit 2')
+  incomplete=code in ('YAML_PROJECTION_INCOMPLETE','INPUT_BUDGET_EXCEEDED')
+  expected_exit=2 if incomplete else (1 if code else 0)
+  if p.returncode!=expected_exit or report['analysisComplete'] is not (not incomplete):errors.append('completion/exit contract mismatch')
+  if report['configurationErrors']:errors.append('unexpected configuration error')
+  if report['resourcesAnalyzed']!=(0 if incomplete or code is None else 1):errors.append('wrong analyzed resource count')
   matches=[d for d in report['diagnostics'] if d['code']==code]
   if code and not matches:errors.append('missing independent expected diagnostic '+code)
   if line is not None and not any(d['range']['start']['line']==line for d in matches):errors.append('wrong diagnostic line')

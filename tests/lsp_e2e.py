@@ -25,11 +25,14 @@ def wait(predicate):
  raise TimeoutError('expected protocol response')
 # These lifecycle/domain checks require the completed workspace publication.
 def diag(version,document_uri=uri):return wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==document_uri and m['params'].get('version')==version and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace')['params']['diagnostics']
+expected_cases=['initialize', 'unsaved-overrides-disk', 'incremental-fix-clears-diagnostic', 'stale-notification-cannot-roll-back', 'unsaved-invalid-config-invalidates-old-results', 'unsaved-config-recovery', 'gvk-ownership-change-clears', 'project-definition', 'project-references', 'resource-symbol', 'target-schema-hover', 'schema-prefix-completion', 'versioned-field-fix', 'field-fix-applies-through-buffer', 'old-fix-rejected', 'buffer-undo-restores-diagnostic', 'fix-cannot-introduce-type-error', 'removed-root-clears-diagnostics', 'added-root-restores-buffer-analysis', 'explicit-project-candidate-fix', 'enum-fix-in-unsaved-new-file', 'fix-does-not-borrow-other-document-error', 'source-ref-definition', 'source-ref-references', 'shutdown-exit']
+active_case='initialize'
 try:
  send('initialize',{'rootUri':folder.as_uri(),'capabilities':{'workspace':{'workspaceEdit':{'documentChanges':True}},'textDocument':{'publishDiagnostics':{'versionSupport':True}}}},1);result=wait(lambda m:m.get('id')==1)['result'];caps=result['capabilities'];assert caps.get('renameProvider',{}).get('prepareProvider');assert caps['textDocumentSync']['change']==2;rows.append({'id':'initialize','passed':True})
  send('initialized',{})
  send('textDocument/didOpen',{'textDocument':{'uri':uri,'languageId':'yaml','version':1,'text':invalid}});d=diag(1);assert any(x['code']=='SCHEMA_TYPE' and x['range']['start']['line']==5 for x in d);rows.append({'id':'unsaved-overrides-disk','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':2},'contentChanges':[{'range':{'start':{'line':5,'character':11},'end':{'line':5,'character':13}},'text':'default'}]});d=diag(2);assert not any(x['code']=='SCHEMA_TYPE' for x in d);rows.append({'id':'incremental-fix-clears-diagnostic','passed':True})
+ active_case='stale-notification-cannot-roll-back'
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':3},'contentChanges':[{'text':invalid}]});assert any(x['code']=='SCHEMA_TYPE' for x in diag(3))
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':2},'contentChanges':[{'text':valid}]})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':4},'contentChanges':[{'range':{'start':{'line':5,'character':11},'end':{'line':5,'character':13}},'text':'43'}]});assert any(x['code']=='SCHEMA_TYPE' for x in diag(4));rows.append({'id':'stale-notification-cannot-roll-back','passed':True})
@@ -51,6 +54,7 @@ try:
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':8},'contentChanges':[{'range':edit['range'],'text':edit['newText']}]});assert not any(x['code']=='SCHEMA_UNKNOWN_FIELD' for x in diag(8));rows.append({'id':'field-fix-applies-through-buffer','passed':True})
  send('codeAction/resolve',action,17);assert wait(lambda m:m.get('id')==17)['error']['code']==-32801;rows.append({'id':'old-fix-rejected','passed':True})
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':9},'contentChanges':[{'text':valid.replace('project: default','proj: default')}]});assert any(x['code']=='SCHEMA_UNKNOWN_FIELD' for x in diag(9));rows.append({'id':'buffer-undo-restores-diagnostic','passed':True})
+ active_case='fix-cannot-introduce-type-error'
  send('textDocument/didChange',{'textDocument':{'uri':uri,'version':10},'contentChanges':[{'text':valid.replace('project: default','proj: 42')}]});diag(10)
  send('textDocument/codeAction',{'textDocument':{'uri':uri},'range':{'start':{'line':5,'character':2},'end':{'line':5,'character':6}},'context':{'diagnostics':[]}},18);unsafe=wait(lambda m:m.get('id')==18)['result'];assert not any(x['data']['fixCode']=='FIX_FIELD_NAME' for x in unsafe);rows.append({'id':'fix-cannot-introduce-type-error','passed':True})
  send('workspace/didChangeWorkspaceFolders',{'event':{'removed':[{'uri':folder.as_uri(),'name':'workspace'}],'added':[]}});wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==uri and m['params'].get('x-argocd-analysis-scope','workspace')=='workspace' and m['params']['diagnostics']==[]);rows.append({'id':'removed-root-clears-diagnostics','passed':True})
@@ -70,8 +74,8 @@ try:
  send('textDocument/definition',{'textDocument':{'uri':uri},'position':{'line':12,'character':16}},25);defs=wait(lambda m:m.get('id')==25)['result'];assert len(defs)==1 and defs[0]['range']['start']['line']==8;rows.append({'id':'source-ref-definition','passed':True})
  send('textDocument/references',{'textDocument':{'uri':uri},'position':{'line':8,'character':13},'context':{'includeDeclaration':False}},26);refs=wait(lambda m:m.get('id')==26)['result'];assert len(refs)==1 and refs[0]['range']['start']['line']==12;rows.append({'id':'source-ref-references','passed':True})
  send('shutdown',{},90);assert wait(lambda m:m.get('id')==90).get('result') is None;send('exit');p.wait(timeout=5);assert p.returncode==0;rows.append({'id':'shutdown-exit','passed':True})
-except Exception as e:rows.append({'id':'failure','passed':False,'error':repr(e)})
+except Exception as e:rows.append({'id':active_case,'passed':False,'error':repr(e),'errorType':type(e).__name__})
 finally:
  if p.poll() is None:p.kill();p.wait()
  thread.join(timeout=2);(out/'stdout').write_bytes(b''.join(raw));(out/'stdin').write_bytes(b''.join(sent));(out/'stderr').write_bytes(p.stderr.read());(out/'results.json').write_text(json.dumps({'exit':p.returncode,'cases':rows},indent=2)+'\n');(out/'manifest.json').write_text(json.dumps({'command':[str(binary),'serve','--stdio'],'binarySHA256':hashlib.sha256(binary.read_bytes()).hexdigest(),'testSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'inputSHA256':hashlib.sha256(b''.join(sent)).hexdigest(),'python':sys.version},indent=2)+'\n')
-print(json.dumps(rows));sys.exit(0 if len(rows)>=6 and all(r['passed'] for r in rows) else 1)
+print(json.dumps(rows));sys.exit(0 if [r['id'] for r in rows]==expected_cases and all(r['passed'] for r in rows) else 1)
