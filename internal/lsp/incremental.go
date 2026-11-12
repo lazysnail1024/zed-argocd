@@ -536,7 +536,7 @@ func hasProject(summary analysis.Summary) bool {
 	return false
 }
 
-func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, references, allProjects bool) ([]analysis.Document, bool) {
+func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, references bool, candidates *index.SymbolQueryResult) ([]analysis.Document, bool) {
 	docs := append([]analysis.Document(nil), file.summary.Documents...)
 	seen := map[source.URI]bool{file.uri: true}
 	add := func(uri source.URI) {
@@ -573,21 +573,17 @@ func (s *workspaceIndex) related(file *indexedFile, facts index.Facts, reference
 			}
 		}
 	}
-	if allProjects {
-		// Completion and explicit candidate fixes need candidate identities, not
-		// every source file or retained syntax tree in the scope.
-		namespace := ""
-		if root := s.roots[file.root]; root != nil && root.catalog != nil {
-			namespace = root.catalog.Input.Config.ControlPlaneNamespace
-		}
-		candidates, err := s.facts.SymbolsWithPrefix(scope, analysis.ProjectKey(namespace, ""), "", 1000)
-		if err != nil {
-			return docs, false
-		}
+	if candidates != nil {
+		complete := candidates.Complete && !candidates.Truncated
 		for _, candidate := range candidates.Items {
+			current := s.files[candidate.URI]
+			if current == nil || current.revision != candidate.Revision || current.root != file.root || current.target.Scope != file.target.Scope || current.err != nil || current.incomplete || current.invalidated {
+				complete = false
+				continue
+			}
 			add(candidate.URI)
 		}
-		return docs, !candidates.Truncated
+		return docs, complete
 	}
 	return docs, true
 }
@@ -604,7 +600,7 @@ func (s *workspaceIndex) domain(ctx context.Context, file *indexedFile) ([]analy
 	}
 	catalog := root.catalog
 	entry, _, _ := s.facts.GetFile(file.uri)
-	docs, _ := s.related(file, entry.Facts, false, false)
+	docs, _ := s.related(file, entry.Facts, false, nil)
 	complete := s.scopeComplete(root, file.target.Scope)
 	s.mu.RUnlock()
 	paths, err := catalog.LocalPaths(ctx, file.summary.Repositories)

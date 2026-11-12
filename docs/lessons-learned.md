@@ -1,5 +1,13 @@
 # 经验教训
 
+## 结果数量上限不等于查询工作量上限
+
+工作区符号曾在 workspace 所有者读锁内调用完整索引扫描。即使只返回少量结果，低命中或零命中查询仍会访问整个分区；一个文件里包含大量声明时，仅按文件分页也不足以约束锁持有时间。读取 worker 的 context 不能自动取消一个没有检查 context 的底层循环，也不能中断普通 `RWMutex.RLock` 等待。
+
+当前前台查询使用公共 `SymbolsWithPrefixContext`，分别限制返回数和文件/符号访问数。workspace 锁只用于借用不可变目录、摘要和读取证明，扫描及结果映射在锁外完成；锁等待也检查取消。作用域变化时拒绝部分遍历结果；AppProject 可选候选扫描失败只降低候选完整性，不取消本地 Schema 字段补全。结果交付仍复核来源 revision，不能用“查询结束时索引最新”替代实际返回位置的证明。
+
+保护入口是 `bounded_symbol_queries_e2e.py`、`navigation_editing_guards_e2e.py` 和 `internal/lsp/symbols_test.go`：真实 stdio 覆盖零/低命中、同文件大量声明、20,000 结果截断、取消同时 hover、didChange 和持续后台提交时的字段补全；必要的同步屏障单独验证扫描 checkpoint 不持有 workspace 所有者锁，以及等待该锁时可以取消。CI 的大样本只增加真实文件与声明数，不覆盖产品预算或调度时间。
+
 本文按问题整理已发生的用户故障、审计发现和测试反例。每项说明当前约束与可执行保护，不保留实验流水账；完整实现见[当前架构](architecture.md)。通过一个旧提交的测试不代表当前提交或实际安装包已通过相同验证。
 
 ## 当前文件响应曾被全工作区采集阻塞
@@ -112,7 +120,7 @@ pin 要求整个相关 root 完整；`x-argocd-analysis-scope=workspace` 只是�
 
 当前公共 `yamlview.Document.ContentSpan` 只省略由完整 CST 和字符检查证明安全的尾部 ASCII 注释，`yamlvalue.Project` 仍先核对完整原文并使用原有严格解码器。含任意 TAB 的文档保留完整范围，非 ASCII 注释和控制字符也保留给解码器处理。CD 通过既有 `analysis/projection.go` 调用得到该优化，继续使用原始 Snapshot 计算输入预算和位置，保留每次分析 100,000 个投影节点的合计上限；插件不增加另一套裁剪逻辑或投影缓存。
 
-保护：公共合同固定在 [toolkit-design-4.md](../contracts/toolkit-design-4.md)，提供方的注释、Unicode/TAB 和完整原文匹配消费者保护裁剪边界；CD 的 [alias_projection_cli_e2e.py](../tests/alias_projection_cli_e2e.py)、[projection_repair_e2e.py](../tests/projection_repair_e2e.py)、[alias_projection_lsp_e2e.py](../tests/alias_projection_lsp_e2e.py)、[alias_provenance_edges_e2e.py](../tests/alias_provenance_edges_e2e.py)及 [projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)分别验证有效值、严格拒绝、精确来源、CRLF/UTF-16 和总预算恢复。资源上限另由 [projection_retention_probe.py](../tests/projection_retention_probe.py)在真实 512 MiB cgroup 中验证，不能以本地语义通过替代。
+保护：公共合同固定在 [toolkit-design-5.md](../contracts/toolkit-design-5.md)，提供方的注释、Unicode/TAB 和完整原文匹配消费者保护裁剪边界；CD 的 [alias_projection_cli_e2e.py](../tests/alias_projection_cli_e2e.py)、[projection_repair_e2e.py](../tests/projection_repair_e2e.py)、[alias_projection_lsp_e2e.py](../tests/alias_projection_lsp_e2e.py)、[alias_provenance_edges_e2e.py](../tests/alias_provenance_edges_e2e.py)及 [projection_aggregate_e2e.py](../tests/projection_aggregate_e2e.py)分别验证有效值、严格拒绝、精确来源、CRLF/UTF-16 和总预算恢复。资源上限另由 [projection_retention_probe.py](../tests/projection_retention_probe.py)在真实 512 MiB cgroup 中验证，不能以本地语义通过替代。
 
 ## 版本覆盖曾漏掉独立 ApplicationSet 安装来源
 

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/index"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
@@ -25,6 +26,10 @@ type symbolReadProof struct {
 	events   map[string]uint64
 	files    map[source.URI]source.Revision
 }
+
+// The two disjoint key prefixes may each visit every retained file and symbol.
+// This preserves the existing index capacity while bounding zero-match queries.
+const workspaceSymbolWork = 2 * (indexFileLimit + 500000)
 
 type symbolEntry struct {
 	symbol   workspaceSymbol
@@ -63,80 +68,160 @@ func (h *symbolHeap) Pop() any {
 	return v
 }
 
-// Symbol lookup uses retained source ranges and never materializes closed text.
-// The proof covers returned positions, not an assertion of complete discovery.
-func (s *workspaceIndex) workspaceSymbols(ctx context.Context, query string) ([]workspaceSymbol, *symbolReadProof, bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	retained := symbolHeap{}
-	proof := &symbolReadProof{catalogs: map[string]*workspace.Catalog{}, events: map[string]uint64{}, files: map[source.URI]source.Revision{}}
-	complete := true
-	const limit = 20000
-	for _, rootPath := range s.rootOrder {
-		root := s.roots[rootPath]
-		if root == nil || root.catalog == nil || root.err != nil {
-			complete = false
-			continue
-		}
-		proof.catalogs[rootPath], proof.events[rootPath] = root.catalog, root.configEvent
-		for _, target := range root.catalog.Input.Targets {
-			complete = complete && s.scopeComplete(root, target.Scope)
-			// Project's any-namespace key has one entry per real declaration;
-			// its second exact-namespace key is excluded before limiting results.
-			for _, prefix := range []index.Key{"resource:", analysis.ProjectKey("", "")} {
-				if err := ctx.Err(); err != nil {
-					return nil, nil, false, err
-				}
-				matches, err := s.facts.SymbolsWithPrefix(indexScope(rootPath, target.Scope), prefix, query, limit)
-				if err != nil {
-					return nil, nil, false, err
-				}
-				complete = complete && !matches.Truncated
-				for _, match := range matches.Items {
-					if err := ctx.Err(); err != nil {
-						return nil, nil, false, err
-					}
-					file := s.files[match.URI]
-					if file == nil || file.invalidated || file.incomplete || file.err != nil || file.revision != match.Revision {
-						complete = false
-						continue
-					}
-					// Symbol IDs are allocated by Summarize, one per document. The
-					// disjoint prefixes above include each resource exactly once.
-					ordinal, ok := strings.CutPrefix(string(match.Symbol.ID), "document:")
-					ordinal, _, _ = strings.Cut(ordinal, ":")
-					n, err := strconv.Atoi(ordinal)
-					if !ok || err != nil || n < 0 || n >= len(file.summary.Documents) {
-						complete = false
-						continue
-					}
-					doc := file.summary.Documents[n]
-					items := analysis.Symbols([]analysis.Document{doc}, string(doc.Snapshot.URI()))
-					if len(items) != 1 || items[0].Name != match.Symbol.Name {
-						continue
-					}
-					item := items[0]
-					entry := symbolEntry{workspaceSymbol{item.Name, item.Kind, analysis.Location{URI: string(doc.Snapshot.URI()), Range: item.SelectionRange}, doc.Kind}, match.URI, match.Revision}
-					if len(retained) < limit {
-						heap.Push(&retained, entry)
-					} else {
-						complete = false
-						if symbolLess(entry.symbol, retained[0].symbol) {
-							retained[0] = entry
-							heap.Fix(&retained, 0)
-						}
-					}
-				}
+type symbolCollection struct {
+	retained symbolHeap
+	work     int
+	complete bool
+}
+
+// A queued owner write must not make a cancelled foreground query wait for its
+// entire lifetime. The normal uncontended path does not allocate a timer.
+func (s *workspaceIndex) queryReadLock(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.mu.TryRLock() {
+		return nil
+	}
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if s.mu.TryRLock() {
+				return nil
 			}
 		}
 	}
-	result := make([]workspaceSymbol, len(retained))
-	for i, entry := range retained {
+}
+
+// Borrow one immutable file record under a short lock. Mapping retained source
+// ranges and merging results never holds the workspace owner lock.
+func (s *workspaceIndex) symbolEntry(ctx context.Context, match index.Definition, root, scope string) (symbolEntry, bool, error) {
+	if err := s.queryReadLock(ctx); err != nil {
+		return symbolEntry{}, false, err
+	}
+	file := s.files[match.URI]
+	s.mu.RUnlock()
+	if file == nil || file.root != root || file.target.Scope != scope || file.invalidated || file.incomplete || file.err != nil || file.revision != match.Revision {
+		return symbolEntry{}, false, nil
+	}
+	ordinal, ok := strings.CutPrefix(string(match.Symbol.ID), "document:")
+	ordinal, _, _ = strings.Cut(ordinal, ":")
+	n, err := strconv.Atoi(ordinal)
+	if !ok || err != nil || n < 0 || n >= len(file.summary.Documents) {
+		return symbolEntry{}, false, nil
+	}
+	doc := file.summary.Documents[n]
+	items := analysis.Symbols([]analysis.Document{doc}, string(doc.Snapshot.URI()))
+	if len(items) != 1 || items[0].Name != match.Symbol.Name {
+		return symbolEntry{}, false, nil
+	}
+	item := items[0]
+	return symbolEntry{workspaceSymbol{item.Name, item.Kind, analysis.Location{URI: string(doc.Snapshot.URI()), Range: item.SelectionRange}, doc.Kind}, match.URI, match.Revision}, true, nil
+}
+
+func (s *workspaceIndex) collectSymbols(ctx context.Context, rootPath, scope, query string, collected *symbolCollection) error {
+	const limit = 20000
+	// Project's any-namespace key excludes its second exact-namespace lookup key.
+	for _, prefix := range []index.Key{"resource:", analysis.ProjectKey("", "")} {
+		remaining := workspaceSymbolWork - collected.work
+		if remaining <= 0 {
+			return index.ErrQueryBudget
+		}
+		matches, err := s.facts.SymbolsWithPrefixContext(ctx, indexScope(rootPath, scope), prefix, query, limit, remaining)
+		collected.work += matches.Work
+		if err != nil {
+			return err
+		}
+		collected.complete = collected.complete && !matches.Truncated
+		for _, match := range matches.Items {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			entry, ok, err := s.symbolEntry(ctx, match, rootPath, scope)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				collected.complete = false
+				continue
+			}
+			if len(collected.retained) < limit {
+				heap.Push(&collected.retained, entry)
+				continue
+			}
+			collected.complete = false
+			if symbolLess(entry.symbol, collected.retained[0].symbol) {
+				collected.retained[0] = entry
+				heap.Fix(&collected.retained, 0)
+			}
+		}
+	}
+	return nil
+}
+
+// Symbol lookup uses retained source ranges and never materializes closed text.
+// Root order, catalogs and file records are immutable after publication. Borrow
+// them under short locks, query/map outside those locks, then retain the original
+// delivery proof. That proof covers returned positions, not complete discovery.
+func (s *workspaceIndex) workspaceSymbols(ctx context.Context, query string) ([]workspaceSymbol, *symbolReadProof, bool, error) {
+	proof := &symbolReadProof{catalogs: map[string]*workspace.Catalog{}, events: map[string]uint64{}, files: map[source.URI]source.Revision{}}
+	collected := symbolCollection{complete: true}
+	if err := s.queryReadLock(ctx); err != nil {
+		return nil, nil, false, err
+	}
+	roots := s.rootOrder
+	s.mu.RUnlock()
+	for _, rootPath := range roots {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, false, err
+		}
+		if err := s.queryReadLock(ctx); err != nil {
+			return nil, nil, false, err
+		}
+		root := s.roots[rootPath]
+		var catalog *workspace.Catalog
+		if root != nil && root.catalog != nil && root.err == nil {
+			catalog = root.catalog
+			proof.catalogs[rootPath], proof.events[rootPath] = catalog, root.configEvent
+		}
+		s.mu.RUnlock()
+		if catalog == nil {
+			collected.complete = false
+			continue
+		}
+		for _, target := range catalog.Input.Targets {
+			if err := s.queryReadLock(ctx); err != nil {
+				return nil, nil, false, err
+			}
+			current := s.roots[rootPath]
+			ready := current != nil && current.catalog == catalog && s.scopeComplete(current, target.Scope)
+			s.mu.RUnlock()
+			collected.complete = collected.complete && ready
+			if err := s.collectSymbols(ctx, rootPath, target.Scope, query, &collected); err != nil {
+				return nil, nil, false, err
+			}
+		}
+	}
+	result := make([]workspaceSymbol, len(collected.retained))
+	for i, entry := range collected.retained {
+		if revision, exists := proof.files[entry.uri]; exists && revision != entry.revision {
+			return nil, nil, false, index.ErrQueryChanged
+		}
 		result[i] = entry.symbol
 		proof.files[entry.uri] = entry.revision
 	}
 	sort.Slice(result, func(i, j int) bool { return symbolLess(result[i], result[j]) })
-	return result, proof, complete, nil
+	if err := ctx.Err(); err != nil {
+		return nil, nil, false, err
+	}
+	return result, proof, collected.complete, nil
 }
 
 func (s *workspaceIndex) symbolsValid(proof *symbolReadProof) bool {

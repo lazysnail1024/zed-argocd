@@ -42,6 +42,10 @@ variants = [
     ('root-fence', 'internal/lsp/incremental.go',
      'func (s *workspaceIndex) invalidateRoot(root string) {', 'func (s *workspaceIndex) invalidateRoot(root string) {\n\treturn',
      'proof', 'TestProjectRenameProofRejectsNewMembersAndRootRecreation', 'same-path root recreation must revoke proof at notification acceptance'),
+    ('symbol-owner-lock', 'internal/lsp/symbols.go',
+     'func (s *workspaceIndex) workspaceSymbols(ctx context.Context, query string) ([]workspaceSymbol, *symbolReadProof, bool, error) {',
+     'func (s *workspaceIndex) workspaceSymbols(ctx context.Context, query string) ([]workspaceSymbol, *symbolReadProof, bool, error) {\n\ts.mu.RLock()\n\tdefer s.mu.RUnlock()',
+     'proof', 'TestWorkspaceSymbolCheckpointsReleaseOwner', 'symbol traversal held the workspace owner lock'),
 ]
 if args.variants:
     selected = set(args.variants.split(','))

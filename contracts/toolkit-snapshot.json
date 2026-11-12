@@ -1,21 +1,22 @@
 {
   "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-  "version": "v0.0.0-20261111044740-2be4e04dc495",
+  "version": "v0.0.0-20261112033740-db4adba0093e",
   "origin": "go-module-commit",
   "published": false,
-  "sourceSHA256": "90cb27fdc27e518185aee2c7fd5172bb2322caf47dca6b3a0d5b30d8ad4ae12e",
-  "contractSHA256": "621d2825aea12f56f817b666620a87b897616fe0213b4413db1b6c87192a3a53",
-  "zipSHA256": "a098bcbcf997fcebf172cb758edb2e3997a51b9601cf4e4193710ff2e944f975",
+  "sourceSHA256": "bd7fb7b096e8f8e899feffe4504e30fced08da86df796f21d8bcc479b6239250",
+  "contractSHA256": "964e6c4be583a7fa7b0853331592a01a515c92a2b7b72bb7c34c44fe31609fdf",
+  "zipSHA256": "12de0fa23fb2b20a4b010518972242967fe7629bd063320cb7bef08814b9f857",
   "files": {
-    "CONTRACT.md": "621d2825aea12f56f817b666620a87b897616fe0213b4413db1b6c87192a3a53",
+    "CONTRACT.md": "964e6c4be583a7fa7b0853331592a01a515c92a2b7b72bb7c34c44fe31609fdf",
     "LICENSE": "265ef4492c50a2720eb5897c1f8a196f6170396115c90517ec40cd89c1549a26",
     "edit/plan.go": "92636f55c083e0ab62a1f76a75e279e204dee41793ca0706fd506cc021c40564",
     "go.mod": "25b15cd147c60bff1558782a5d7463b6060532dde40f851b06138426775cd77c",
     "go.sum": "273a64564c314a8202332060fd7135ef571c88b1343720fc5f88e78f4da43933",
     "index/facts.go": "982066e6e7b88bd2c4f384650a95bfeed255bce7d011059b62d880d307ed579a",
-    "index/index.go": "0928a3359ca323d30e4185bb628f25c506c6b03e473b00cc862800bbb61e9525",
+    "index/index.go": "d0b7838555d8aae1905951f9c247479d3b7c8e870219472ef097439602ec6bf1",
     "index/query.go": "2171b3e1a0c100527a3443984d7e22843959cfa6a4fb07b70c3e1506901d2599",
-    "index/types.go": "29411ceeda29aabf09ef46bc25234a1700694d913d584b87f6d3ab7240422d51",
+    "index/query_context.go": "6e809f7c86390e80af4534141a5984b9374dff4f6b3dfc829edaf97edf839381",
+    "index/types.go": "8195bc958e9cfff10b61933aceb823e22253a33eb66210c065d6851575481258",
     "schemaquery/query.go": "e9717126ca75c1f1e9f4402d275ee2a3eb81a6d7c392afb7b52b91440934d3a2",
     "source/snapshot.go": "abb78d4cf33b3ed74f493204e7b7303c4fb0e26d63e28e97a8a626b6ee1199dd",
     "workspace/documents.go": "0903d58f42cf4cbc12720b41bc5ccd7484ba71c899c7b9b257100e1203d51b33",
@@ -41,6 +42,6 @@
     "yamlview/internal/parser/parser.go": "7408f0a822df4438d8cc827c53ff54c452552d984f7da67ba8dd09451f2c661c",
     "yamlview/view.go": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   },
-  "commit": "2be4e04dc4955991bd937ace3abf28673d289898",
+  "commit": "db4adba0093ee2a709356aa1c2517e6d62644745",
   "sourceSHA256Scope": "listed runtime and contract files"
 }

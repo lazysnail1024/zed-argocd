@@ -131,7 +131,10 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	// Pin actions keep their existing bounded whole-scope before/after proof.
 	// The before view needs diagnostics and completeness, not retained YAML.
 	if filepath.Base(path) == ".argocd-ls.yaml" {
-		s.mu.RLock()
+		if err := s.queryReadLock(ctx); err != nil {
+			result.err = err
+			return result
+		}
 		for rootPath, root := range s.roots {
 			if root.catalog == nil {
 				continue
@@ -230,8 +233,53 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	selected := &indexedFile{uri: source.URI(workspace.FileURI(path)), path: path, spelling: string(snapshot.URI()), root: catalog.Input.Root, target: file.Target, hash: sha256.Sum256([]byte(snapshot.Text())), summary: summary}
 	allProjects := m.Method == "textDocument/completion" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	references := m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
-	s.mu.RLock()
-	documents, candidatesComplete := s.related(selected, summary.Facts, references, allProjects)
+	var candidates *index.SymbolQueryResult
+	var candidateGeneration uint64
+	if allProjects {
+		// Query the shared index outside the workspace owner lock. Only a stable
+		// Project generation may supply candidates to the later dependency proof.
+		if err := s.queryReadLock(ctx); err != nil {
+			result.err = err
+			return result
+		}
+		root := s.roots[selected.root]
+		valid := root != nil && root.catalog == catalog
+		if valid {
+			candidateGeneration = root.projectGeneration[selected.target.Scope]
+		}
+		s.mu.RUnlock()
+		if !valid {
+			result.err = index.ErrQueryChanged
+			return result
+		}
+		matches, err := s.facts.SymbolsWithPrefixContext(ctx, indexScope(selected.root, selected.target.Scope), analysis.ProjectKey(catalog.Input.Config.ControlPlaneNamespace, ""), "", 1000, workspaceSymbolWork/2)
+		if err != nil {
+			if ctx.Err() != nil {
+				result.err = ctx.Err()
+				return result
+			}
+			// Optional Project candidates must not block local Schema completion
+			// while background commits keep changing the scope. No partial scan
+			// is consumed or allowed to prove a safe cross-resource modification.
+			matches = index.SymbolQueryResult{}
+			allProjects = false
+		}
+		candidates = &matches
+	}
+	if err := s.queryReadLock(ctx); err != nil {
+		result.err = err
+		return result
+	}
+	root := s.roots[selected.root]
+	if root == nil || root.catalog != catalog {
+		s.mu.RUnlock()
+		result.err = index.ErrQueryChanged
+		return result
+	}
+	if allProjects && root.projectGeneration[selected.target.Scope] != candidateGeneration {
+		candidates, allProjects = &index.SymbolQueryResult{}, false
+	}
+	documents, candidatesComplete := s.related(selected, summary.Facts, references, candidates)
 	result.candidatesTruncated = !candidatesComplete
 	complete = complete && candidatesComplete
 	proof := &readProof{engine: s, catalog: catalog, scope: indexScope(selected.root, selected.target.Scope), scopeName: selected.target.Scope, complete: complete, hashes: map[source.URI][32]byte{}, candidates: map[index.Key][]index.Definition{}, uses: map[index.Key][]index.Use{}, allProjects: allProjects}

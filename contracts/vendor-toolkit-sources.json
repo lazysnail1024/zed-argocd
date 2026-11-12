@@ -13,15 +13,19 @@
   },
   {
     "path": "index/index.go",
-    "sha256": "0928a3359ca323d30e4185bb628f25c506c6b03e473b00cc862800bbb61e9525"
+    "sha256": "d0b7838555d8aae1905951f9c247479d3b7c8e870219472ef097439602ec6bf1"
   },
   {
     "path": "index/query.go",
     "sha256": "2171b3e1a0c100527a3443984d7e22843959cfa6a4fb07b70c3e1506901d2599"
   },
   {
+    "path": "index/query_context.go",
+    "sha256": "6e809f7c86390e80af4534141a5984b9374dff4f6b3dfc829edaf97edf839381"
+  },
+  {
     "path": "index/types.go",
-    "sha256": "29411ceeda29aabf09ef46bc25234a1700694d913d584b87f6d3ab7240422d51"
+    "sha256": "8195bc958e9cfff10b61933aceb823e22253a33eb66210c065d6851575481258"
   },
   {
     "path": "schemaquery/query.go",

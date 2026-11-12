@@ -23,6 +23,7 @@ def audit_consumers(platform):
   ('host-capabilities','host_capabilities_e2e.py',[],60),
   ('navigation-editing','navigation_editing_e2e.py',[],120),
   ('navigation-editing-guards','navigation_editing_guards_e2e.py',[],180),
+  ('bounded-symbol-queries','bounded_symbol_queries_e2e.py',[],180),
   ('project-rename','project_rename_e2e.py',[],180),
   ('shared-schemaquery','shared_schemaquery_e2e.py',[],120),
   ('appset-overrides','appset_overrides_e2e.py',['--all-targets'] if full_catalog else [],480 if full_catalog else 180),
@@ -38,6 +39,7 @@ def audit_consumers(platform):
  if platform=='linux/amd64':
   cases.extend([
    ('publication-delivery','publication_delivery_e2e.py',[],45),
+   ('bounded-symbol-queries-cap','bounded_symbol_queries_e2e.py',['--count','1800','--files','12'],240),
    ('persistent-workspace-50000','persistent_workspace_e2e.py',['--count','50000','--padding','4096','--reference-mix','--ordinary-files','100000','--max-rss-mib','512','--ready-timeout','120','--reconcile-timeout','120'],360),
    ('mixed-parent-index-50000','mixed_parent_index_e2e.py',['--ordinary-files','50000','--padding-bytes','4096','--background-edits'],180),
    ('incremental-performance','incremental_performance_e2e.py',['--sizes','1000,3000','--repeats','30','--require-incremental'],180),
