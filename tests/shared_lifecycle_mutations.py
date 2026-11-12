@@ -36,7 +36,7 @@ report = {'command': sys.argv, 'rows': [], 'passed': False,
 
 
 def run(folder, test, overlay=None):
-    command = [go, 'test', '-mod=vendor', '-count=1', '-timeout=30s']
+    command = [go, 'test', '-mod=readonly', '-count=1', '-timeout=30s']
     if overlay:
         command.append('-overlay=' + str(overlay))
     command += ['./internal/lsp', '-run', '^(' + test + ')$']

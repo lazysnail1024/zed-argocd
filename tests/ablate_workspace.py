@@ -2,12 +2,12 @@
 """Remove actual schema validation in a temporary build; CLI oracle must fail."""
 import hashlib,json,pathlib,shutil,subprocess,tempfile,os,sys
 root=pathlib.Path(__file__).resolve().parents[1];out=root/'artifacts/workspace-ablation';out.mkdir(parents=True,exist_ok=True);d=pathlib.Path(tempfile.mkdtemp(prefix='argocd-schema-ablation-'))
-for p in ['go.mod','go.sum','cmd','internal','vendor']:
+for p in ['go.mod','go.sum','cmd','internal']:
  source=root/p
  if source.is_dir():shutil.copytree(source,d/p)
  elif source.exists():shutil.copy2(source,d/p)
 p=d/'internal/workspace/workspace.go';s=p.read_text();needle='if override != "" {';assert needle in s;s=s.replace(needle,'if false {',1);p.write_text(s)
-env=os.environ.copy();env.update(GOROOT='/tmp/zed-argo-go-mod/golang.org/toolchain@v0.0.1-go1.27.3.linux-amd64',GOMODCACHE='/tmp/zed-argo-go-mod',GOCACHE='/tmp/zed-argo-go-build',GOWORK='off');cmd=[env['GOROOT']+'/bin/go','build','-buildvcs=false','-trimpath','-o',str(d/'argocd-ls'),'./cmd/argocd-ls'];p=subprocess.run(cmd,cwd=d,env=env,capture_output=True);(out/'build.stdout').write_bytes(p.stdout);(out/'build.stderr').write_bytes(p.stderr)
+env=os.environ.copy();env.update(GOWORK='off',GOTOOLCHAIN='local',GOFLAGS='');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go');cmd=[go,'build','-buildvcs=false','-trimpath','-o',str(d/'argocd-ls'),'./cmd/argocd-ls'];p=subprocess.run(cmd,cwd=d,env=env,capture_output=True);(out/'build.stdout').write_bytes(p.stdout);(out/'build.stderr').write_bytes(p.stderr)
 run=None
 if p.returncode==0:
  run=subprocess.run([sys.executable,str(root/'tests/workspace_e2e.py'),str(d/'argocd-ls')],capture_output=True);(out/'oracle.stdout').write_bytes(run.stdout);(out/'oracle.stderr').write_bytes(run.stderr);shutil.copytree(root/'artifacts/workspace',out/'oracle',dirs_exist_ok=True)

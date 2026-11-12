@@ -83,7 +83,7 @@ def main():
                 if variant != 'baseline':
                     # Copy only native inputs. The checked-out repository is never
                     # edited, and no editor or release module participates.
-                    for directory in ('cmd', 'internal', 'vendor'):
+                    for directory in ('cmd', 'internal'):
                         shutil.copytree(ROOT / directory, tree / directory)
                     for filename in ('go.mod', 'go.sum'):
                         shutil.copyfile(ROOT / filename, tree / filename)
@@ -132,7 +132,7 @@ def main():
                         if path.relative_to(tree).as_posix() not in exact | auto:
                             path.unlink()
                     binary = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-                    build = subprocess.run(['go', 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', '-o', str(binary), './cmd/argocd-ls'], cwd=tree, capture_output=True, timeout=180)
+                    build = subprocess.run(['go', 'build', '-mod=readonly', '-buildvcs=false', '-trimpath', '-o', str(binary), './cmd/argocd-ls'], cwd=tree, capture_output=True, timeout=180)
                     (folder / 'build.stderr').write_bytes(build.stderr)
                     if build.returncode:
                         raise RuntimeError('mutant build failed')

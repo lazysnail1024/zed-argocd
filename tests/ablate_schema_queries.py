@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Compile query variants and observe real LSP behavior, with retained failures."""
 import argparse,pathlib,subprocess,shutil,json,hashlib,sys
+from module_source import toolkit_copy
 r=pathlib.Path(__file__).resolve().parents[1];ap=argparse.ArgumentParser();ap.add_argument('output',type=pathlib.Path);a=ap.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);rows=[]
 files=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=r).decode().split('\0')
 for name in ['without-recovery','with-obsolete-traversal','without-leaf-validation']:
- d=out/name;tree=d/'source';tree.mkdir(parents=True);row={'id':name,'passed':False};rows.append(row)
+ d=out/name;tree=d/'source';tree.mkdir(parents=True);row={'id':name,'passed':False};rows.append(row);flags=[]
  try:
   for f in files:
    if f and (r/f).is_file():p=tree/f;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(r/f,p)
   if name=='without-recovery':
    p=tree/'internal/analysis/schema_queries.go';s=p.read_text();needle='offset, err := s.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})';assert needle in s;s=s.replace(needle,'if true { return nil }\n\t'+needle,1);p.write_text(s)
   elif name=='without-leaf-validation':
-   p=tree/'vendor/github.com/lazysnail1024/k8s-crd-toolkit/schemaquery/query.go';s=p.read_text();needle='valid := s.Validate(value) == nil';assert needle in s;p.write_text(s.replace(needle,'valid := true',1))
+   source,modfile=toolkit_copy(tree,d,'schemaquery/query.go');s=source.read_text();needle='valid := s.Validate(value) == nil';assert needle in s
+   source.write_text(s.replace(needle,'valid := true',1));flags=[modfile]
    catalog=json.loads((tree/'compat/catalog.lock.json').read_text())
    for v in catalog['versions']:
     for asset in v['schemas']:
@@ -20,7 +22,7 @@ for name in ['without-recovery','with-obsolete-traversal','without-leaf-validati
    p=tree/'internal/analysis/queries.go';p.write_text(p.read_text()+'''\nfunc schemaAt(schema map[string]any, parts []string) map[string]any {
  for _,part:=range parts { if schema["type"]=="array" {schema=object(schema["items"])} else {schema=object(object(schema["properties"])[part])} };return schema
 }\n''')
-  cmd=['go','build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(d/'argocd-ls'),'./cmd/argocd-ls'];p=subprocess.run(cmd,cwd=tree,capture_output=True,timeout=120);(d/'build.stdout').write_bytes(p.stdout);(d/'build.stderr').write_bytes(p.stderr);row['buildExit']=p.returncode
+  cmd=['go','build','-mod=readonly','-buildvcs=false','-trimpath',*flags,'-o',str(d/'argocd-ls'),'./cmd/argocd-ls'];p=subprocess.run(cmd,cwd=tree,capture_output=True,timeout=120);(d/'build.stdout').write_bytes(p.stdout);(d/'build.stderr').write_bytes(p.stderr);row['buildExit']=p.returncode
   if p.returncode:continue
   row['binarySHA256']=hashlib.sha256((d/'argocd-ls').read_bytes()).hexdigest();cmd=[sys.executable,str(r/'tests/schema_queries_e2e.py'),str(d/'argocd-ls'),str(d/'lsp')]
   if name=='without-leaf-validation':cmd+=['--cases',str(r/'tests/schema-query-repair-fixture-cases.json')]

@@ -53,7 +53,7 @@ def main():
         report['originalSHA256'], report['mutantSHA256'] = sha(source), sha(mutant)
         go = str(pathlib.Path(os.environ['GOROOT']) / 'bin/go') if 'GOROOT' in os.environ else 'go'
         mutated_binary = output / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-        command = [go, 'build', '-mod=vendor', '-buildvcs=false', '-overlay=' + str(overlay), '-o', str(mutated_binary), './cmd/argocd-ls']
+        command = [go, 'build', '-mod=readonly', '-buildvcs=false', '-overlay=' + str(overlay), '-o', str(mutated_binary), './cmd/argocd-ls']
         if run('build', command, 180) != 0:
             raise ValueError('a compilation failure is not a killed semantic mutant')
         report['mutantBinarySHA256'] = sha(mutated_binary)

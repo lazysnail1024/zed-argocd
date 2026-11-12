@@ -12,4 +12,4 @@
 | 版本目录、Schema 生成和更新验证 | [多版本支持](multi-version-support.md) |
 | 原生服务和 Zed 适配器的安装、发布、回滚 | [分发](distribution.md) |
 
-[原生发布说明](native-release-notes.md)和 [Zed 发布说明](../editors/zed/release-notes.md)是发布工作流使用的当前输入。`contracts/`、`compat/`、`schemas/`、`internal/assets/` 与 `vendor/` 中的合同、锁、来源清单和许可证承担构建或验证职责，不能按过程文档删除。
+[原生发布说明](native-release-notes.md)和 [Zed 发布说明](../editors/zed/release-notes.md)是发布工作流使用的当前输入。`contracts/`、`compat/`、`schemas/`、`internal/assets/` 中的合同、锁、来源清单和许可证承担构建或验证职责。Go 依赖由 `go.mod`/`go.sum` 固定，原始许可证从验证后的模块源码随产物打包，不提交 `vendor/`。

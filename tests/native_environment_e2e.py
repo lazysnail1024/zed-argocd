@@ -13,7 +13,7 @@ def run(name,cmd,env,cwd=ROOT):
 try:
  fixture=out/'synthetic-source';fixture.mkdir()
  for name in subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=ROOT).decode().split('\0'):
-  if name:q=fixture/name;q.parent.mkdir(parents=True,exist_ok=True);q.write_bytes((ROOT/name).read_bytes())
+  if name and (ROOT/name).exists():q=fixture/name;q.parent.mkdir(parents=True,exist_ok=True);q.write_bytes((ROOT/name).read_bytes())
  env=dict(os.environ,GIT_AUTHOR_NAME='Synthetic fixture',GIT_AUTHOR_EMAIL='fixture@example.invalid',GIT_COMMITTER_NAME='Synthetic fixture',GIT_COMMITTER_EMAIL='fixture@example.invalid',GIT_AUTHOR_DATE='2000-01-01T00:00:00Z',GIT_COMMITTER_DATE='2000-01-01T00:00:00Z')
  for key in ['CGO_CFLAGS','CGO_CPPFLAGS','CGO_CXXFLAGS','CGO_FFLAGS','CGO_LDFLAGS','CPATH','C_INCLUDE_PATH','CPLUS_INCLUDE_PATH','OBJC_INCLUDE_PATH','LIBRARY_PATH','COMPILER_PATH','GCC_EXEC_PREFIX','GOENV','GOFLAGS']:env.pop(key,None)
  for i,cmd in enumerate([['git','init'],['git','-c','core.autocrlf=false','add','.'],['git','-c','commit.gpgsign=false','commit','-m','Synthetic environment provenance only']]):assert run('git-'+str(i),cmd,env,fixture)[0]==0
@@ -21,7 +21,7 @@ try:
  poison=out/'undeclared-inputs';poison.mkdir();header=poison/'marker.h';header.write_text('#ifndef __ASSEMBLER__\nextern char *getenv(const char *);\nextern int open(const char *, int, ...);\nextern long write(int, const void *, unsigned long);\nextern int close(int);\n__attribute__((constructor)) static void nd_environment_marker(void) {\n const char *p=getenv("CD_ENV_MARKER");\n if (p) { int fd=open(p, 1|64|512, 0600); if (fd>=0) { const char value[]="undeclared environment header executed\\n"; (void)write(fd,value,sizeof(value)-1); (void)close(fd); } }\n}\n#endif\n')
  search=poison/'search';search.mkdir();(search/'stddef.h').write_text('#error UNDECLARED_SEARCH_HEADER\n')
  go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go');persisted=poison/'go-env';assert run('write-fixture-goenv',[go,'env','-w','CGO_CFLAGS=-include '+str(header)],dict(env,GOENV=str(persisted)))[0]==0
- cases=[('normal',{}),('flags',{'CGO_CFLAGS':'-include '+str(header)}),('search',{'CPATH':str(search),'C_INCLUDE_PATH':str(search),'CPLUS_INCLUDE_PATH':str(search),'OBJC_INCLUDE_PATH':str(search)}),('link',{'CGO_LDFLAGS':'-Wl,--native-delivery-untrusted-input','LIBRARY_PATH':str(poison)}),('persisted-go',{'GOENV':str(persisted)})]
+ cases=[('normal',{}),('flags',{'CGO_CFLAGS':'-include '+str(header)}),('search',{'CPATH':str(search),'C_INCLUDE_PATH':str(search),'CPLUS_INCLUDE_PATH':str(search),'OBJC_INCLUDE_PATH':str(search)}),('link',{'CGO_LDFLAGS':'-Wl,--native-delivery-untrusted-input','LIBRARY_PATH':str(poison)}),('persisted-go',{'GOENV':str(persisted)}),('go-context',{'GOWORK':str(poison/'unexpected.go.work'),'GOFLAGS':'-mod=vendor'})]
  expected=None
  for name,extra in cases:
   cache=out/(name+'-cache');cache.mkdir();marker=out/(name+'-marker');current=dict(env,**extra,GOCACHE=str(cache),CD_ENV_MARKER=str(marker));build=out/(name+'-build');cmd=[sys.executable,str(fixture/'tools/native.py'),'build','--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit,'--output',str(build)];status,stdout=run(name+'-build',cmd,current,fixture)
@@ -36,5 +36,5 @@ try:
   rows.append({'id':name,'checks':checks,'observed':observed,'passed':all(checks.values())})
 except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
 finally:
- report={'scope':'synthetic-source-history/test-only, trusted compiler/system SDK; not a sandbox','platform':a.platform,'runnerSHA256':sha(pathlib.Path(__file__)),'expectedCases':5,'rows':rows,'commands':commands,'passed':len(rows)==5 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'passed':report['passed'],'rows':len(rows)}))
+ report={'scope':'synthetic-source-history/test-only, trusted compiler/system SDK; not a sandbox','platform':a.platform,'runnerSHA256':sha(pathlib.Path(__file__)),'expectedCases':6,'rows':rows,'commands':commands,'passed':len(rows)==6 and all(r['passed'] for r in rows)};(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({'passed':report['passed'],'rows':len(rows)}))
 sys.exit(0 if report['passed'] else 1)

@@ -2,7 +2,7 @@
 """Native CI entry: retain each real-process outcome, including failures."""
 import argparse,hashlib,json,os,pathlib,subprocess,sys,signal,time
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-BASE_STEPS=('build','package','ci-process-boundary','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
+BASE_STEPS=('build','package','module-sources','ci-process-boundary','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
 SOURCE_ABLATIONS=(('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240))
 
 def audit_consumers(platform):
@@ -55,7 +55,7 @@ def accepted():
 
 def configure(argv=None):
  global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;cache=out/'go-cache';modules=out/'.module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
  expected_steps=list(BASE_STEPS)+[case[0] for case in audit_consumers(a.platform)]+([case[0] for case in SOURCE_ABLATIONS] if a.platform=='linux/amd64' else [])
 def start_command(command,child_env):
  # Own this CI command and its descendants before any helper code executes.
@@ -165,6 +165,7 @@ def main():
   manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
   if a.compiler_version and a.compiler_version not in manifest['compiler']:raise RuntimeError('Actual compiler differs from pinned CI version')
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
+  run('module-sources',[sys.executable,str(ROOT/'tests/module_sources_e2e.py'),str(out/'module-sources'),'--platform',a.platform],timeout=480)
   run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
   run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420)
   run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900)
@@ -177,7 +178,7 @@ def main():
   run('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')])
   run('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')])
   helper=out/('native-helper.exe' if a.platform.startswith('windows/') else 'native-helper')
-  if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
+  if run('helper-build',[go,'build','-mod=readonly','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
   for name,script,options,timeout in audit_consumers(a.platform):
    run(name,[sys.executable,str(ROOT/'tests'/script),str(binary),str(out/name),*options],timeout=timeout)
   if a.platform=='linux/amd64':

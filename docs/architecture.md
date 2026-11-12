@@ -20,7 +20,7 @@
 | [internal/assets](../internal/assets/catalog.go) | 嵌入运行时版本目录、Schema、默认 `auto` 目标和 readiness；[schema.go](../internal/assets/schema.go)使用本地数据编译，禁止运行时网络加载。 |
 | [internal/buildinfo](../internal/buildinfo/buildinfo.go) | 原生产品、版本、源码、合同、目录和构建身份，供 CLI、打包器与适配器核对。 |
 | [editors/zed](../editors/zed/README.md) | 独立 Rust/WASM 包；`src/lib.rs` 对接 Zed，`src/distribution.rs` 管理下载/缓存/激活，`src/identity.rs` 校验原生身份。 |
-| [tools](../tools/) | `collect_catalog.py` 采集版本来源，`normalize_schemas.py` 生成与接纳目录，`vendor_c.py` 恢复/核对 native parser 来源，`native.py` 构建打包，`release.py` 验证发行身份和聚合平台产物。 |
+| [tools](../tools/) | `collect_catalog.py` 采集版本来源，`normalize_schemas.py` 生成与接纳目录，`native.py` 校验固定 Go 模块、构建并打包，`release.py` 验证发行身份和聚合平台产物。 |
 | [tests](../tests/)、[.github/workflows](../.github/workflows/) | 真实 CLI/stdio 消费者、资源与工作量门禁、源码故障对照、归档和原生/适配器隔离验证；可执行入口见[开发说明](../DEVELOPMENT.md)。 |
 
 ### 领域分析内部
@@ -41,7 +41,7 @@
 
 ## 公共依赖及状态归属
 
-公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261112033740-db4adba0093e`，完整提交为 `db4adba0093ee2a709356aa1c2517e6d62644745`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 来源及校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)与 [toolkit-snapshot.json](../contracts/toolkit-snapshot.json)固定 design-5 合同及运行时文件摘要。构建使用已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)，无需发布 tag、相邻 checkout 或本地 `replace`。
+公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261112033740-db4adba0093e`，完整提交为 `db4adba0093ee2a709356aa1c2517e6d62644745`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 版本与内容校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)固定 design-5 合同、完整提交与合同摘要。构建通过 Go Modules 获取源码，不提交 vendor，不需要发布 tag、相邻 checkout 或本地 `replace`。
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |
@@ -57,7 +57,7 @@
 
 `Index.Reuse` 的调用点在 `incremental.go`：本仓先确认字节 hash、target/配置解释和客户端 URI 均未变化，再给新的有效票据复用已保留事实。公共 Index 不推断“内容未变”，也不替本仓判断解释是否相同。内容/位置变化走重新分析和 Commit；只有语义相同并不意味着旧位置仍然正确。
 
-[toolkit-design-5.md](../contracts/toolkit-design-5.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录；锁文件、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
+[toolkit-design-5.md](../contracts/toolkit-design-5.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录。`native.py` 在精确源码快照中下载模块，拒绝本地替换与依赖声明的隐式修改，核对 `go.sum`、伪版本提交标识和合同原文，并在编译前后执行 `go mod verify`。Go 模块内容摘要是依赖校验依据，不再重复维护 vendor 文件摘要或原始 ZIP 字节摘要；原生 C parser 文件直接来自校验后的完整模块。
 
 公共层提供有界的数据结构和有效性规则；worker、timer、watcher 注册、配置、Argo 领域语义、LSP 消息和发布策略由本仓持有。Argo CD 与 `zed-argo-workflows` 各自编译引用公共源码，两者没有直接模块依赖；各个原生进程分别实例化 Documents、Index 和 WorkQueue，不共享运行时索引或缓存，也不因此自动提供跨插件跳转。
 
@@ -161,7 +161,7 @@ Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML
 
 ## 原生进程、编辑器与发行隔离
 
-原生构建只依赖 Go/C、vendor、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。
+原生构建只依赖 Go/C、固定模块源码、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。冷模块缓存只在下载阶段需要联网，编译显式使用 `-mod=readonly` 且禁用模块网络获取。产物记录实际链接模块的版本与内容摘要、原始许可证；打包按原构建的依赖声明校验模块和许可证，平台聚合仍只消费自包含产物且不依赖 Go 或网络。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。
 
 适配器协议版本与公共源码合同 `toolkit-design-5` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
 

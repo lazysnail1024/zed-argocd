@@ -59,7 +59,7 @@ for name, filename, before, after, suite, expected_case, expected_assertion in v
     dest.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='cd-navigation-ablation-') as directory:
         copy = Path(directory)
-        for folder in ['cmd', 'compat', 'internal', 'vendor']:
+        for folder in ['cmd', 'compat', 'internal']:
             shutil.copytree(ROOT / folder, copy / folder)
         for file in ['go.mod', 'go.sum']:
             shutil.copy2(ROOT / file, copy / file)
@@ -70,7 +70,7 @@ for name, filename, before, after, suite, expected_case, expected_assertion in v
         source.write_text(original.replace(before, after))
         shutil.copy2(source, dest / 'mutation.go.txt')
         binary = dest / ('server.exe' if os.name == 'nt' else 'server')
-        build_command = [go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', '-o', binary, './cmd/argocd-ls']
+        build_command = [go, 'build', '-mod=readonly', '-buildvcs=false', '-trimpath', '-o', binary, './cmd/argocd-ls']
         build = subprocess.run([str(a) for a in build_command], cwd=copy, env=env, capture_output=True, timeout=240)
         (dest / 'build.stdout').write_bytes(build.stdout)
         (dest / 'build.stderr').write_bytes(build.stderr)
@@ -80,7 +80,7 @@ for name, filename, before, after, suite, expected_case, expected_assertion in v
             (output / 'report.json').write_text(json.dumps(reports, indent=2) + '\n')
             raise AssertionError('compile failure is not ablation evidence')
         if suite == 'proof':
-            command = [go, 'test', '-mod=vendor', '-count=1', '-run', '^' + expected_case + '$', './internal/lsp']
+            command = [go, 'test', '-mod=readonly', '-count=1', '-run', '^' + expected_case + '$', './internal/lsp']
         else:
             command = [sys.executable, ROOT / 'tests/navigation_editing_guards_e2e.py', binary, dest / 'run', '--cases', suite]
         tested = subprocess.run([str(a) for a in command], cwd=copy if suite == 'proof' else ROOT, env=env, capture_output=True, timeout=120)

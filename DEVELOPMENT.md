@@ -2,12 +2,14 @@
 
 ## Native language server
 
-Use the Go version in `go.mod` and a C compiler for the vendored parser. Dependencies
-are vendored; no Rust toolchain or editor checkout is needed.
+Use the Go version in `go.mod` and a C compiler for the native parser. Dependencies
+are pinned by module version and `go.sum`; no Rust toolchain or editor checkout is needed.
 
 ```sh
-go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
-go vet -mod=vendor ./cmd/... ./internal/...
+go mod download
+go mod verify
+go build -mod=readonly -o build/argocd-ls ./cmd/argocd-ls
+go vet -mod=readonly ./cmd/... ./internal/...
 ./build/argocd-ls version --json
 ./build/argocd-ls check --root /path/to/yaml --format json
 ```
@@ -32,20 +34,30 @@ and publishes the native assets. An exact version-tag push or a manual run on
 
 The toolkit dependency is pinned to the full source commit recorded in
 `contracts/toolkit.lock.json`, represented by the Go pseudo-version in `go.mod`.
-It does not require a toolkit release tag. The vendored `source`, `yamlview`,
+It does not require a toolkit release tag. The downloaded `source`, `yamlview`,
 `yamlvalue`, `schemaquery`, `edit`, `index`, and `workspace` packages match that
 commit; builds need no sibling checkout or local `replace` directive.
 [contracts/toolkit-design-5.md](contracts/toolkit-design-5.md) is the byte-identical
-API contract, with its implementation and content identities in `contracts/toolkit.lock.json` and
-`contracts/toolkit-snapshot.json`.
+API contract, with its implementation identity and contract digest in `contracts/toolkit.lock.json`.
+`go.sum` authenticates the module content; a raw ZIP-byte hash is not a Go module checksum.
 
 When advancing the source pin, update the Go dependency, contract snapshot and
-lock identities together. Regenerate vendor with `go mod vendor`, then run
-`python3 tools/vendor_c.py` to restore and verify the native parser source trees.
-Keep `go.sum`, vendored sources and provenance records in the same change.
+lock identities together. Use `go get github.com/lazysnail1024/k8s-crd-toolkit@<commit-or-tag>`,
+then `go mod tidy`, `go mod download` and `go mod verify`. Keep `go.mod`, `go.sum`,
+the lock and byte-identical contract snapshot in the same change. Do not edit the module cache.
+The module ZIP already contains the native parser C headers; no vendor restoration is needed.
 The contract snapshot is hash-checked build input, not an editable architecture
 note. State ownership and the boundary between toolkit and Argo CD policy are
 documented in [the current architecture](docs/architecture.md).
+
+The native build tool downloads/verifies modules from an isolated snapshot of the exact
+source inputs, compiles with `-mod=readonly` and network access disabled, and records linked
+module versions/checksums. A cold module cache needs network access for acquisition. Packages
+include original dependency notices and do not require a Go toolchain or network at runtime.
+`tests/module_sources_e2e.py` verifies cold/warm acquisition, checksum/contract/replacement
+rejection, and corruption of an isolated test cache. Mutation tests use a copied Toolkit
+and an alternate test-only modfile, not edits to the shared module cache.
+The repo does not commit a `vendor/` tree.
 
 ## Zed adapter
 
@@ -79,8 +91,8 @@ Rust toolchain on the user's machine. See [distribution](docs/distribution.md).
 From the repository root, use the existing consumers for the affected boundary:
 
 ```sh
-go test -mod=vendor ./internal/...
-go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
+go test -mod=readonly ./internal/...
+go test -mod=readonly -race -count=1 ./internal/lsp ./internal/workspace
 python3 tests/mixed_parent_index_e2e.py build/argocd-ls artifacts/mixed-parent
 python3 tests/persistent_workspace_e2e.py build/argocd-ls artifacts/persistent --count 1000 --padding 4096
 python3 tests/config_uri_e2e.py build/argocd-ls artifacts/config-uris

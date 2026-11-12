@@ -15,10 +15,6 @@ __pycache__/
 /tests/FAILURE_MODES.md
 /artifacts/
 
-/vendor/sigs.k8s.io/yaml/CONTRIBUTING.md
-/vendor/sigs.k8s.io/yaml/RELEASE.md
-/vendor/sigs.k8s.io/yaml/code-of-conduct.md
-
-/vendor/github.com/santhosh-tekuri/jsonschema/v6/.swp
+/vendor/
 
 /native/
