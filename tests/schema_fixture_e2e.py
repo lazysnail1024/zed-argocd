@@ -13,7 +13,7 @@ def main():
   for v in catalog['versions']:
    for s in v['schemas']:
     if s['kind']=='Application':shutil.copyfile(fixture,tree/s['path']);replaced.add(s['path'])
-  binary=out/'argocd-ls';cmd=['go','build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(binary),'./cmd/argocd-ls'];r=subprocess.run(cmd,cwd=tree,capture_output=True,timeout=120);(out/'build.stdout').write_bytes(r.stdout);(out/'build.stderr').write_bytes(r.stderr);rows.append({'id':'build','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0})
+  binary=out/'argocd-ls';cmd=['go','build','-mod=readonly','-buildvcs=false','-trimpath','-o',str(binary),'./cmd/argocd-ls'];r=subprocess.run(cmd,cwd=tree,capture_output=True,timeout=120);(out/'build.stdout').write_bytes(r.stdout);(out/'build.stderr').write_bytes(r.stderr);rows.append({'id':'build','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0})
   if r.returncode==0:
    cmd=[sys.executable,str(root/'tests/schema_queries_e2e.py'),str(binary),str(out/'lsp'),'--cases',str(root/'tests'/args.cases)];r=subprocess.run(cmd,capture_output=True,timeout=240);(out/'lsp.stdout').write_bytes(r.stdout);(out/'lsp.stderr').write_bytes(r.stderr);rows.append({'id':'synthetic-lsp','command':cmd,'exitCode':r.returncode,'passed':r.returncode==0,'binarySHA256':sha(binary)})
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})

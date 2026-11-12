@@ -145,3 +145,9 @@ Windows 构建曾为随机临时目录添加额外 `CGO_CPPFLAGS`，使相同 C 
 源码删除也有保留反例：Rust 身份校验改成单次 typed JSON 解析，会放宽未知深层字段的输入限制，因此保留原校验；native pin 与 Cargo 版本重新耦合、删除 WASM 身份检查或依赖许可证都被对应消费者拒绝。保护为 [ablate_identity.py](../editors/zed/tests/ablate_identity.py)、[ablate_distribution.py](../editors/zed/tests/ablate_distribution.py)、[native_package_e2e.py](../tests/native_package_e2e.py)和 [native_ci_process_e2e.py](../tests/native_ci_process_e2e.py)。
 
 当前安装入口仍指向已发布的固定版本，源码合并不会自动更新它。发布证明要对应具体 commit、产物摘要和实际平台；原生 CLI/stdio、Rust 安装器、WASM 打包和真实 Zed GUI 各有验收边界。缺少 GUI 执行记录时不标记通过。
+
+## 固定依赖版本不要求提交依赖源码副本
+
+**来源：无 vendor 构建及交付消费者。** 完整 Go 模块已包含 native parser 的 C 源码和头文件，原恢复脚本补的是 `go mod vendor` 的裁剪结果，不是模块本身缺失内容。当前直接使用固定版本和 `go.sum`，只保留 Toolkit 合同/提交锁；不再维护重复的逐文件与 ZIP 摘要。Go 不允许 overlay 覆盖模块缓存，故障注入使用校验后复制的 Toolkit 源码和独立测试 modfile；不修改共享缓存和项目声明，生产构建仍拒绝 replace。
+
+首轮迁移验收分别捕获了下载环境丢失传输代理和打包局部变量覆盖 executable 文件名的问题。当前只保留必要代理/CA 设置用于校验下载；编译仍拒绝工作区、替换和编译参数注入，交付测试实际解压并启动二进制。保护：[module_sources_e2e.py](../tests/module_sources_e2e.py)、[native_package_e2e.py](../tests/native_package_e2e.py)、[native_environment_e2e.py](../tests/native_environment_e2e.py)与 [ablate_shared_schemaquery.py](../tests/ablate_shared_schemaquery.py)。

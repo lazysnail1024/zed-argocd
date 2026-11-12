@@ -268,7 +268,7 @@ def main():
                 raise RuntimeError("The unmodified binary did not pass this consumer")
             with tempfile.TemporaryDirectory(prefix="argocd-audit-mutation-") as temporary:
                 source = pathlib.Path(temporary)
-                for name in ("go.mod", "go.sum", "cmd", "internal", "vendor"):
+                for name in ("go.mod", "go.sum", "cmd", "internal"):
                     original, destination = ROOT / name, source / name
                     shutil.copytree(original, destination) if original.is_dir() else shutil.copy2(original, destination)
                 target = source / spec["file"]
@@ -280,7 +280,7 @@ def main():
                 row["mutatedSourceSHA256"] = digest(target)
                 (folder / "mutated-source.txt").write_bytes(target.read_bytes())
                 mutated = folder / ("argocd-ls.exe" if os.name == "nt" else "argocd-ls")
-                row["build"] = command([go, "build", "-mod=vendor", "-buildvcs=false", "-trimpath",
+                row["build"] = command([go, "build", "-mod=readonly", "-buildvcs=false", "-trimpath",
                                          "-o", str(mutated), "./cmd/argocd-ls"], folder, "build", env, source)
                 if row["build"]["exit"] != 0 or row["build"].get("cleanupError") is not None:
                     raise RuntimeError("Fault variant did not compile")

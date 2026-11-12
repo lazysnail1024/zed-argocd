@@ -39,17 +39,17 @@ try:
  invoke('unsafe-version',ROOT,['build','--output',str(out/'unsafe-version'),'--platform',a.platform,'--version','../escape'],2)
  fixture=out/'synthetic-source-history';fixture.mkdir();names=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=ROOT).decode().split('\0')
  for name in names:
-  if name:p=fixture/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,p)
+  if name and (ROOT/name).exists():p=fixture/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,p)
  env=dict(os.environ,GIT_AUTHOR_NAME='Synthetic fixture',GIT_AUTHOR_EMAIL='fixture@example.invalid',GIT_COMMITTER_NAME='Synthetic fixture',GIT_COMMITTER_EMAIL='fixture@example.invalid',GIT_AUTHOR_DATE='2000-01-01T00:00:00Z',GIT_COMMITTER_DATE='2000-01-01T00:00:00Z')
  for command in [['git','init'],['git','-c','core.autocrlf=false','add','.'],['git','-c','commit.gpgsign=false','commit','-m','Synthetic E2E source history only']]:
   p=subprocess.run(command,cwd=fixture,env=env,capture_output=True);assert p.returncode==0,p.stderr
  commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=fixture).decode().strip();(out/'synthetic-provenance.json').write_text(json.dumps({'scope':'synthetic-source-history/test-only','commit':commit})+'\n')
  release=out/'synthetic-release';invoke('synthetic-release',fixture,['build','--output',str(release),'--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit]);rm=json.loads((release/'manifest.json').read_text());record({'id':'synthetic-release-identity','passed':rm['identity']['sourceCommit']==commit and rm['identity']['dirty'] is False and rm['identity']['buildMode']=='release'})
  # Ignored checkout inputs must not enter the validated compilation snapshot.
- ignored=[('go','cmd/argocd-ls/ignored_delivery.go','package main\nfunc init(){println("UNCOMMITTED DELIVERY INPUT")}\n'),('embed','internal/assets/schemas/ignored-delivery.json','{}\n'),('native','vendor/github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser/grammar/ignored_delivery.c','#error UNCOMMITTED_DELIVERY_INPUT\n')]
+ ignored=[('go','cmd/argocd-ls/ignored_delivery.go','package main\nfunc init(){println("UNCOMMITTED DELIVERY INPUT")}\n'),('embed','internal/assets/schemas/ignored-delivery.json','{}\n'),('native','cmd/argocd-ls/ignored_delivery.c','#error UNCOMMITTED_DELIVERY_INPUT\n'),('vendor','vendor/poison/ignored_delivery.c','#error UNTRUSTED_VENDOR_INPUT\n')]
  exclude=fixture/'.git/info/exclude';savedExclude=exclude.read_text()
  for label,name,value in ignored:
-  (fixture/name).write_text(value)
+  path=fixture/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(value)
  exclude.write_text(savedExclude+'\n'+''.join('/'+name+'\n' for _,name,_ in ignored));assert not subprocess.check_output(['git','status','--porcelain'],cwd=fixture)
  result=invoke('ignored-inputs',fixture,['build','--output',str(out/'ignored-inputs'),'--platform',a.platform,'--mode','release','--version','0.1.0','--source-commit',commit])
  actual=json.loads((out/'ignored-inputs/manifest.json').read_text()) if result.get('passed') else {}
@@ -79,6 +79,13 @@ try:
  shutil.rmtree(fixture/'cmd')
  for label in ['one','two']:invoke('package-'+label,fixture,['package','--manifest',str(release/'manifest.json'),'--output',str(out/('package-'+label+'-result'))])
  p1=json.loads((out/'package-one-result/package.json').read_text());p2=json.loads((out/'package-two-result/package.json').read_text());archive=out/'package-one-result'/p1['archive'];record({'id':'deterministic-archive','passed':p1['archiveSHA256']==p2['archiveSHA256']==sha(archive)})
+ # Packaging must still use the original module declarations, not a later pin.
+ modulePath=fixture/'go.mod';originalModule=modulePath.read_bytes();toolkit=json.loads((fixture/'contracts/toolkit.lock.json').read_text())
+ try:
+  modulePath.write_bytes(originalModule.replace(toolkit['implementationVersion'].encode(),b'v0.0.0'))
+  invoke('changed-module-declaration',fixture,['package','--manifest',str(release/'manifest.json'),'--output',str(out/'changed-module-declaration')],2)
+ finally:modulePath.write_bytes(originalModule)
+ bad=json.loads((release/'manifest.json').read_text());bad['moduleInputs'][toolkit['module']]['Sum']='h1:'+'A'*43+'=';(release/'changed-module-sum.json').write_text(json.dumps(bad));invoke('changed-module-sum',fixture,['package','--manifest',str(release/'changed-module-sum.json'),'--output',str(out/'changed-module-sum')],2)
  # A later conflicting digest for the same path must not disappear in deduplication.
  catalogPath=fixture/'compat/catalog.lock.json';originalCatalog=catalogPath.read_bytes();conflicting=json.loads(originalCatalog)
  target=next(t for t in conflicting['versions'] if any(s['path'] in ['LICENSE','NOTICE'] for s in t['sources']));source=next(s for s in target['sources'] if s['path'] in ['LICENSE','NOTICE']);target['sources'].append(dict(source,sha256='0'*64))
@@ -111,7 +118,7 @@ try:
  if os.name!='nt':
   link=release/'linked-manifest.json';link.symlink_to(release/'manifest.json');invoke('symlink-manifest',fixture,['package','--manifest',str(link),'--output',str(out/'symlink')],2)
  # Editing a copied legal file together with its claimed digest must still fail.
- for label,name in [('go-license','licenses/go/LICENSE'),('go-patents','licenses/go/PATENTS'),('crd-license',next(n for n in rm['legalInputs'] if n.startswith('licenses/argo-cd/')))]:
+ for label,name in [('go-license','licenses/go/LICENSE'),('go-patents','licenses/go/PATENTS'),('crd-license',next(n for n in rm['legalInputs'] if n.startswith('licenses/argo-cd/'))),('module-license',next(n for n in rm['legalInputs'] if n.startswith('licenses/github.com/') and n.endswith('/LICENSE')))]:
   path=release/'legal'/name;original=path.read_bytes();path.write_bytes(b'Altered legal grant\n');bad=json.loads((release/'manifest.json').read_text());bad['legalInputs'][name]=sha(path);changed=release/(label+'.json');changed.write_text(json.dumps(bad));invoke('altered-'+label,fixture,['package','--manifest',str(changed),'--output',str(out/('altered-'+label))],2);path.write_bytes(original)
  import audit_repair_e2e as wire
  workspace=out/'extracted-workspace';workspace.mkdir();app=wire.write(workspace,'app.yaml',wire.APP);wire.write(workspace,'project.yaml',wire.PROJECT);wire.write(workspace,'.argocd-ls.yaml',wire.CONFIG);wire.BINARY=binary

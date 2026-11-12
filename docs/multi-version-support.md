@@ -58,11 +58,11 @@ Argo CD 各产品版本共享 `argoproj.io/v1alpha1`，文件不能据此识别�
 catalog_cutoff=2026-11-05T23:59:59Z
 python3 tools/collect_catalog.py --cutoff "$catalog_cutoff"
 python3 tools/normalize_schemas.py
-go test -mod=vendor ./internal/assets ./internal/analysis
-go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
+go test -mod=readonly ./internal/assets ./internal/analysis
+go build -mod=readonly -o build/argocd-ls ./cmd/argocd-ls
 python3 tests/multi_version_e2e.py build/argocd-ls artifacts/catalog-bootstrap --bootstrap
 python3 tools/normalize_schemas.py --accept-report artifacts/catalog-bootstrap/report.json
-go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
+go build -mod=readonly -o build/argocd-ls ./cmd/argocd-ls
 python3 tests/multi_version_e2e.py build/argocd-ls artifacts/catalog-final
 ```
 

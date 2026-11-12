@@ -47,7 +47,7 @@ def run(command, folder, name, cwd=root, environment=env):
 
 def build(tree, folder):
     binary = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-    result = run([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', '-o', str(binary),
+    result = run([go, 'build', '-mod=readonly', '-buildvcs=false', '-trimpath', '-o', str(binary),
                   './cmd/argocd-ls'], folder, 'build', cwd=tree)
     if result['exit'] != 0:
         raise RuntimeError('Variant did not compile: ' + str(folder))
@@ -83,7 +83,7 @@ try:
         report['cases'].append(row)
         with tempfile.TemporaryDirectory(prefix='cd-repair-') as temporary:
             tree = pathlib.Path(temporary)
-            for part in ('go.mod', 'go.sum', 'cmd', 'internal', 'vendor'):
+            for part in ('go.mod', 'go.sum', 'cmd', 'internal'):
                 source = root / part
                 shutil.copytree(source, tree / part) if source.is_dir() else shutil.copy2(source, tree / part)
             target = tree / file

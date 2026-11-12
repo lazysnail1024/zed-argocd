@@ -26,7 +26,7 @@ def main():
     overlay.write_text(json.dumps({'Replace': {str(source): str(mutant)}}, indent=2) + '\n')
     go = str(pathlib.Path(os.environ['GOROOT']) / 'bin/go') if 'GOROOT' in os.environ else 'go'
     binary = output / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-    command = [go, 'build', '-mod=vendor', '-buildvcs=false', '-overlay=' + str(overlay), '-o', str(binary), './cmd/argocd-ls']
+    command = [go, 'build', '-mod=readonly', '-buildvcs=false', '-overlay=' + str(overlay), '-o', str(binary), './cmd/argocd-ls']
     build = subprocess.run(command, cwd=root, capture_output=True, timeout=180)
     (output / 'build.stdout').write_bytes(build.stdout)
     (output / 'build.stderr').write_bytes(build.stderr)

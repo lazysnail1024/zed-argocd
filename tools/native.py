@@ -4,6 +4,8 @@ import argparse,gzip,hashlib,io,json,os,pathlib,re,shutil,stat,subprocess,sys,ta
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 PLATFORMS={'linux/amd64','linux/arm64','darwin/amd64','darwin/arm64','windows/amd64'}
 MODULE='github.com/lazysnail1024/zed-argocd'
+TOOLKIT='github.com/lazysnail1024/k8s-crd-toolkit'
+LEGAL_NAMES={'LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING'}
 def digest(data):return hashlib.sha256(data).hexdigest()
 def content(path,limit=128*1024*1024):
  if path.is_symlink() or not path.is_file() or path.stat().st_size>limit:raise ValueError('Expected bounded regular file: '+str(path))
@@ -17,17 +19,59 @@ def write(path,data):path.write_bytes(data)
 def crd_legal_sources(catalog):
  # Repeated identical declarations share IO; conflicting claims remain distinct.
  return dict.fromkeys((source['localPath'],source['sha256'],source['path']) for target in catalog['versions'] for source in target['sources'] if source['path'] in ['LICENSE','NOTICE'])
+def module_sources(root,go,run):
+ # Only checksummed source enters a build. Acquisition cannot rewrite the
+ # declarations, use local replaces, or modify files in the shared module cache.
+ files={name:content(root/name) for name in ('go.mod','go.sum')}
+ spec=json.loads(run([go,'mod','edit','-json'],cwd=root).stdout)
+ if spec.get('Replace'):raise ValueError('Native module sources must not use replace directives')
+ raw=run([go,'mod','download','-json'],cwd=root,network=True).stdout.decode();modules={};decoder=json.JSONDecoder()
+ while raw.strip():
+  row,end=decoder.raw_decode(raw.lstrip());raw=raw.lstrip()[end:];modules[row['Path']]=row
+ if any(content(root/name)!=value for name,value in files.items()):raise ValueError('Module acquisition changed pinned go.mod or go.sum')
+ sums=set(files['go.sum'].decode().splitlines())
+ for name,row in modules.items():
+  for suffix,key in (('','Sum'),('/go.mod','GoModSum')):
+   if not row.get(key) or name+' '+row['Version']+suffix+' '+row[key] not in sums:raise ValueError('Downloaded module is not pinned by go.sum: '+name)
+ run([go,'mod','verify'],cwd=root)
+ lock=json.loads(content(root/'contracts/toolkit.lock.json'));module=modules.get(lock['module'])
+ if lock['module']!=TOOLKIT or not module or module['Version']!=lock['implementationVersion']:raise ValueError('Toolkit module version differs from source lock')
+ if not re.fullmatch('[0-9a-f]{40}',lock['implementationCommit']):raise ValueError('Toolkit source commit must be exact')
+ if re.search(r'-[0-9]{14}-[0-9a-f]{12}$',module['Version']) and not module['Version'].endswith('-'+lock['implementationCommit'][:12]):raise ValueError('Toolkit pseudo-version differs from source commit')
+ origin=module.get('Origin',{}).get('Hash')
+ if origin and origin!=lock['implementationCommit']:raise ValueError('Toolkit module origin differs from source lock')
+ name=lock['contractFile']
+ if pathlib.PurePosixPath(name).name!=name or '\\' in name:raise ValueError('Unsafe Toolkit contract path')
+ contract=content(root/'contracts'/name)
+ if digest(contract)!=lock['contractSha256'] or contract!=content(pathlib.Path(module['Dir'])/'CONTRACT.md'):raise ValueError('Toolkit contract differs from pinned module source')
+ return modules
+def linked_modules(metadata,modules):
+ result={}
+ for dep in metadata['Deps']:
+  row=modules.get(dep['Path'])
+  if dep.get('Replace') or not row or dep.get('Version')!=row['Version'] or dep.get('Sum')!=row['Sum']:raise ValueError('Linked module differs from verified source: '+dep['Path'])
+  result[dep['Path']]={key:row[key] for key in ('Version','Sum','GoModSum')}
+ return result
+def module_legal(metadata,modules):
+ legal={}
+ for dep in metadata['Deps']:
+  folder=pathlib.Path(modules[dep['Path']]['Dir']);found=False
+  for source in sorted(folder.rglob('*')):
+   if source.name in LEGAL_NAMES and source.is_file():legal['licenses/'+dep['Path']+'/'+source.relative_to(folder).as_posix()]=content(source);found=True
+  if not found:raise ValueError('Missing legal inputs for linked module '+dep['Path'])
+ return legal
 def main():
  ap=argparse.ArgumentParser();sub=ap.add_subparsers(dest='command',required=True)
  b=sub.add_parser('build');b.add_argument('--output',type=pathlib.Path,required=True);b.add_argument('--platform',required=True);b.add_argument('--mode',choices=['development','release'],default='development');b.add_argument('--version',default=(ROOT/'VERSION').read_text().strip()+'-dev');b.add_argument('--source-commit')
  p=sub.add_parser('package');p.add_argument('--output',type=pathlib.Path,required=True);p.add_argument('--manifest',type=pathlib.Path,required=True)
  args=ap.parse_args();out=args.output.absolute();report={'passed':False,'command':sys.argv,'steps':[]};created=False
  # Trust selected tools/system SDK, not inherited compiler flags or search paths.
- env={k:v for k,v in os.environ.items() if k.upper() in {'PATH','HOME','USERPROFILE','HOMEDRIVE','HOMEPATH','TMPDIR','TMP','TEMP','SYSTEMROOT','SYSTEMDRIVE','WINDIR','COMSPEC','PATHEXT','LOCALAPPDATA','APPDATA','PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMW6432','GO','GOROOT','GOCACHE','GOMODCACHE','GOTMPDIR','CC'}}
- env.update(GOENV='off',GOWORK='off',CGO_ENABLED='1',GOTOOLCHAIN='local',GOFLAGS='',GOPROXY='off',GOSUMDB='off',CGO_CFLAGS='-O2 -g',CGO_CPPFLAGS='',CGO_CXXFLAGS='-O2 -g',CGO_FFLAGS='-O2 -g',CGO_LDFLAGS='-O2 -g',MACOSX_DEPLOYMENT_TARGET='13.0',LC_ALL='C')
+ env={k:v for k,v in os.environ.items() if k.upper() in {'PATH','HOME','USERPROFILE','HOMEDRIVE','HOMEPATH','TMPDIR','TMP','TEMP','SYSTEMROOT','SYSTEMDRIVE','WINDIR','COMSPEC','PATHEXT','LOCALAPPDATA','APPDATA','PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMW6432','GO','GOROOT','GOCACHE','GOMODCACHE','GOTMPDIR','CC','HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','SSL_CERT_FILE','SSL_CERT_DIR'}}
+ env.update(GOENV='off',GOWORK='off',CGO_ENABLED='1',GOTOOLCHAIN='local',GOFLAGS='',GOPROXY='off',GOSUMDB='sum.golang.org',CGO_CFLAGS='-O2 -g',CGO_CPPFLAGS='',CGO_CXXFLAGS='-O2 -g',CGO_FFLAGS='-O2 -g',CGO_LDFLAGS='-O2 -g',MACOSX_DEPLOYMENT_TARGET='13.0',LC_ALL='C')
  go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else shutil.which('go'))
- def run(command,required=True,cwd=ROOT):
-  r=subprocess.run(command,cwd=cwd,env=env,capture_output=True,timeout=180);step={'command':command,'cwd':str(cwd),'exit':r.returncode,'stdout':r.stdout.decode(errors='replace'),'stderr':r.stderr.decode(errors='replace')};report['steps'].append(step)
+ def run(command,required=True,cwd=ROOT,network=False):
+  selected=dict(env,GOPROXY='https://proxy.golang.org,direct') if network else env
+  r=subprocess.run(command,cwd=cwd,env=selected,capture_output=True,timeout=180);step={'command':command,'cwd':str(cwd),'exit':r.returncode,'stdout':r.stdout.decode(errors='replace'),'stderr':r.stderr.decode(errors='replace')};report['steps'].append(step)
   if required and r.returncode:raise RuntimeError('Command failed: '+repr(command)+'\n'+step['stderr'])
   return r
  try:
@@ -57,7 +101,7 @@ def main():
    status=run(['git','status','--porcelain','--untracked-files=all'],False);dirty=commit is None or status.returncode!=0 or bool(status.stdout)
    if args.source_commit and (not re.fullmatch('[0-9a-f]{40}',args.source_commit) or args.source_commit!=commit):raise ValueError('Requested source commit must equal exact HEAD')
    if args.mode=='release' and (not args.source_commit or not commit or dirty):raise ValueError('Release requires known exact clean committed provenance')
-   paths=run(['git','ls-files','--cached','--others','--exclude-standard','-z']).stdout.decode().split('\0');sources={name:digest(content(ROOT/name)) for name in sorted(set(paths)) if name}
+   paths=run(['git','ls-files','--cached','--others','--exclude-standard','-z']).stdout.decode().split('\0');sources={name:digest(content(ROOT/name)) for name in sorted(set(paths)) if name and ((ROOT/name).exists() or (ROOT/name).is_symlink())}
    if not sources:raise ValueError('Empty source inventory')
    if args.source_commit:
     entries=run(['git','ls-tree','-rz',commit]).stdout.split(b'\0');tree={}
@@ -82,7 +126,9 @@ def main():
      value=content(ROOT/name)
      if digest(value)!=expected:raise ValueError('Source changed before snapshot: '+name)
      destination=snapshot/name;destination.parent.mkdir(parents=True,exist_ok=True);write(destination,value)
-    run([go,'build','-mod=vendor','-buildvcs=false','-trimpath','-ldflags',flags,'-o',str(binary),'./cmd/argocd-ls'],cwd=snapshot)
+    modules=module_sources(snapshot,go,run)
+    run([go,'build','-mod=readonly','-buildvcs=false','-trimpath','-ldflags',flags,'-o',str(binary),'./cmd/argocd-ls'],cwd=snapshot)
+    run([go,'mod','verify'],cwd=snapshot)
     if windows:
      linkMap=content(snapshot/'argocd-native-link.map');write(out/'native-link.map',linkMap);report['linkMap']={'file':'native-link.map','sha256':digest(linkMap),'buildDirectory':str(snapshot)}
    if any(digest(content(ROOT/name))!=expected for name,expected in sources.items()):raise ValueError('Source changed during build')
@@ -94,18 +140,13 @@ def main():
      value=content(toolRoot/'licenses'/name)
      if digest(value)!=expected:raise ValueError('Windows runtime notice changed during build: '+name)
      legal['licenses/windows-runtime/'+name]=value
-   for dep in metadata['Deps']:
-    folder=ROOT/'vendor'/dep['Path'];found=False
-    for source in sorted(folder.rglob('*')):
-     if source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING'] and source.is_file():
-      rel=source.relative_to(ROOT).as_posix();legal['licenses/'+rel.removeprefix('vendor/')]=content(source);found=True
-    if not found:raise ValueError('Missing legal inputs for linked module '+dep['Path'])
+   moduleInputs=linked_modules(metadata,modules);legal.update(module_legal(metadata,modules))
    catalog=json.loads(content(ROOT/'compat/catalog.lock.json'))
    for localPath,claimedHash,sourcePath in crd_legal_sources(catalog):
     data=content(ROOT/localPath)
     if digest(data)!=claimedHash:raise ValueError('CRD legal input hash mismatch')
     legal['licenses/argo-cd/'+claimedHash+'/'+sourcePath]=data
-   legal['NOTICE.txt']=b'Original server: MIT, Copyright (c) 2026 snail (lazysnail1024).\nArgo CD embedded schemas are normalized derivatives of the pinned Apache-2.0 CRDs.\nVendored golang.org/x/text CJK character data uses equivalent Unicode escapes; a comment uses Unicode notation.\nGo standard-library/runtime, linked modules and native parser legal texts are included unchanged.\nThis native package does not contain the Rust Zed adapter.\n'
+   legal['NOTICE.txt']=b'Original server: MIT, Copyright (c) 2026 snail (lazysnail1024).\nArgo CD embedded schemas are normalized derivatives of the pinned Apache-2.0 CRDs.\nGo modules are downloaded at pinned versions and verified against go.sum, without local dependency patches.\nGo standard-library/runtime, linked modules and native parser legal texts are included unchanged.\nThis native package does not contain the Rust Zed adapter.\n'
    # Keep legal bytes bound to the build; packaging compares current source legal inputs below.
    if windows:legal['NOTICE.txt']+=b'Windows runtime is statically linked from the fixed MinGW-Builds distribution; full MinGW, winpthreads and GCC runtime notices are included.\n'
    legalInputs={}
@@ -119,6 +160,7 @@ def main():
     allowed={'kernel32.dll','msvcrt.dll','ntdll.dll','ws2_32.dll','advapi32.dll','shell32.dll','user32.dll','iphlpapi.dll','bcrypt.dll','secur32.dll','crypt32.dll','ole32.dll','oleaut32.dll','combase.dll','ucrtbase.dll'}
     if not libraries or any(x.lower() not in allowed and not x.lower().startswith('api-ms-win-') for x in libraries):raise ValueError('Non-system Windows runtime dependency requires explicit reviewed redistribution')
    m={'formatVersion':1,'product':'argo-cd','platform':args.platform,'binary':binary.name,'binarySHA256':digest(content(binary)),'identity':identity,'goBuild':metadata,'goEnvironment':ge,'buildEnvironment':{k:env[k] for k in ['GOENV','GOWORK','GOTOOLCHAIN','GOFLAGS','CGO_ENABLED','CGO_CFLAGS','CGO_CPPFLAGS','CGO_CXXFLAGS','CGO_FFLAGS','CGO_LDFLAGS','MACOSX_DEPLOYMENT_TARGET']},'compiler':compiler,'toolSHA256':{'go':digest(content(pathlib.Path(shutil.which(go) or go).resolve())),'cc':digest(content(pathlib.Path(shutil.which(cc) or cc).resolve()))},'runtimeLibraries':re.sub(r'0x[0-9a-fA-F]+','ADDRESS',runtime),'sourceInputs':sources,'legalInputs':legalInputs,'catalogSHA256':digest(content(ROOT/'internal/assets/catalog.json'))}
+   m['moduleInputs']=moduleInputs
    if windows:m['windowsRuntime']=windows
    write(out/'manifest.json',canonical(m));report.update(manifest='manifest.json',binarySHA256=m['binarySHA256'],platform=args.platform)
   else:
@@ -144,9 +186,19 @@ def main():
    if windows:
     if m.get('windowsRuntime')!=windows:raise ValueError('Windows runtime provenance differs from fixed source')
     expectedLegal.update('licenses/windows-runtime/'+name for name in windows['legalFiles'])
-   for dep in metadata['Deps']:
-    for source in sorted((ROOT/'vendor'/dep['Path']).rglob('*')):
-     if source.name in ['LICENSE','LICENSE.libyaml','NOTICE','PATENTS','COPYING'] and source.is_file():expectedLegal.add('licenses/'+source.relative_to(ROOT/'vendor').as_posix())
+   # Package workers already need Go. Rehydrate the original declarations in
+   # isolation; aggregate verification stays offline and consumes this package.
+   with tempfile.TemporaryDirectory(prefix='argocd-package-modules-') as temporary:
+    snapshot=pathlib.Path(temporary);lock=json.loads(content(ROOT/'contracts/toolkit.lock.json'))
+    contractName=lock['contractFile']
+    if pathlib.PurePosixPath(contractName).name!=contractName or '\\' in contractName:raise ValueError('Unsafe Toolkit contract path')
+    for path in ('go.mod','go.sum','contracts/toolkit.lock.json','contracts/'+contractName):
+     value=content(ROOT/path)
+     if digest(value)!=m['sourceInputs'].get(path):raise ValueError('Dependency declaration differs from original build: '+path)
+     destination=snapshot/path;destination.parent.mkdir(parents=True,exist_ok=True);write(destination,value)
+    modules=module_sources(snapshot,go,run)
+   if linked_modules(metadata,modules)!=m.get('moduleInputs'):raise ValueError('Module checksums differ from build manifest')
+   dependencyLegal=module_legal(metadata,modules);expectedLegal.update(dependencyLegal)
    catalog=json.loads(content(ROOT/'compat/catalog.lock.json'))
    for localPath,claimedHash,sourcePath in crd_legal_sources(catalog):
     value=content(ROOT/localPath)
@@ -163,7 +215,7 @@ def main():
     if path.startswith('licenses/windows-runtime/') and digest(value)!=windows['legalFiles'][path.removeprefix('licenses/windows-runtime/')]:raise ValueError('Windows runtime notice differs from fixed source')
     if path in crdLegal and digest(value)!=crdLegal[path]:raise ValueError('CRD legal text differs from pinned source')
     if path=='LICENSE' and content(ROOT/'LICENSE')!=value:raise ValueError('Current project license differs from build')
-    if path.startswith('licenses/') and not path.startswith(('licenses/go/','licenses/argo-cd/','licenses/windows-runtime/')) and content(ROOT/'vendor'/path.removeprefix('licenses/'))!=value:raise ValueError('Current dependency license differs from build')
+    if path in dependencyLegal and dependencyLegal[path]!=value:raise ValueError('Current dependency license differs from build')
     files[path]=value
    if 'LICENSE' not in files or 'licenses/go/LICENSE' not in files or 'NOTICE.txt' not in files or not any(p.startswith('licenses/argo-cd/') for p in files):raise ValueError('Missing required legal inventory')
    files['provenance/build.json']=canonical(m)

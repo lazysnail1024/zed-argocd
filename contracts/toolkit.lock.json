@@ -8,7 +8,5 @@
   "implementationCommit": "db4adba0093ee2a709356aa1c2517e6d62644745",
   "ready": true,
   "implementationSource": "go-module-commit",
-  "sourceSHA256": "bd7fb7b096e8f8e899feffe4504e30fced08da86df796f21d8bcc479b6239250",
-  "zipSHA256": "12de0fa23fb2b20a4b010518972242967fe7629bd063320cb7bef08814b9f857",
   "published": false
 }

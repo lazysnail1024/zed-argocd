@@ -98,7 +98,7 @@ def worker(args):
             save()
             with tempfile.TemporaryDirectory(prefix='argocd-parent-fault-') as temporary:
                 source = pathlib.Path(temporary)
-                for name in ('go.mod', 'go.sum', 'cmd', 'internal', 'vendor'):
+                for name in ('go.mod', 'go.sum', 'cmd', 'internal'):
                     original, destination = ROOT / name, source / name
                     shutil.copytree(original, destination) if original.is_dir() else shutil.copy2(original, destination)
                 target = source / 'internal/lsp/server.go'
@@ -113,7 +113,7 @@ def worker(args):
                 target.write_text(text, encoding='utf-8')
                 row['variantSourceSHA256'] = digest(target)
                 candidate = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-                row['build'] = command([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath',
+                row['build'] = command([go, 'build', '-mod=readonly', '-buildvcs=false', '-trimpath',
                                         '-o', str(candidate), './cmd/argocd-ls'], folder, 'build', env, source)
                 if row['build']['exit'] != 0:
                     raise RuntimeError(ident + ': fault variant did not compile')
