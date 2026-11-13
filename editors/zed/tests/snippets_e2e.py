@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pathlib,json,subprocess,sys,os,re,hashlib
-root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(root/'artifacts/snippets')));out.mkdir(parents=True,exist_ok=True);snippets=json.loads((root/'snippets/yaml.json').read_text());inputs=[]
+root=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve();out=pathlib.Path(sys.argv[2]).resolve() if len(sys.argv)>2 else pathlib.Path(os.environ.get('CD_AUDIT_OUTPUT',str(root/'artifacts/snippets')));out.mkdir(parents=True,exist_ok=True);snippets=json.loads((root/'snippets/yaml.json').read_text());inputs=[]
 for title,item in snippets.items():
  assert item['prefix'].startswith('argo-cd-') and '3.0.0' in item['description'];body='\n'.join(item['body'])+'\n';body=re.sub(r'\$\{\d+:([^}]+)\}',lambda m:m[1],body).replace('$0','');inputs.append(body)
 assert len(inputs)==3

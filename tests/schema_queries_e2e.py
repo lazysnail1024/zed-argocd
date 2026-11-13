@@ -18,6 +18,7 @@ class Client(wire.LSP):
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('binary',type=pathlib.Path);ap.add_argument('output',type=pathlib.Path);ap.add_argument('--cases',type=pathlib.Path,default=pathlib.Path(__file__).with_name('schema-query-cases.json'));args=ap.parse_args()
     wire.BINARY=args.binary.resolve();out=args.output.resolve();out.mkdir(parents=True,exist_ok=True);cases=json.loads(args.cases.read_text());rows=[]
+    if not cases or len({case['id'] for case in cases})!=len(cases):raise ValueError('Expected nonempty independently named schema cases')
     try:
       for version in ['3.0.0','3.5.6']:
        for snippets in [False,True]:
@@ -58,9 +59,9 @@ def main():
         except Exception as e:rows.append({'id':'client-start','passed':False,'error':repr(e)})
         finally:
           if client:
-            client.close();rows.append({'id':'shutdown','target':version,'passed':client.proc.returncode==0,'exitCode':client.proc.returncode})
+            client.close();rows.append({'id':'shutdown','target':version,'snippets':snippets,'passed':client.proc.returncode==0,'exitCode':client.proc.returncode})
     finally:
-      report={'scope':'real LSP query consumer; asset provenance is supplied by the invoking build manifest','binarySHA256':sha(wire.BINARY),'runnerSHA256':sha(pathlib.Path(__file__)),'wireSHA256':sha(pathlib.Path(wire.__file__)),'casesSHA256':sha(args.cases),'command':sys.argv,'rows':rows,'passed':bool(rows) and all(r['passed'] for r in rows)}
+      report={'scope':'real LSP query consumer; asset provenance is supplied by the invoking build manifest','binarySHA256':sha(wire.BINARY),'runnerSHA256':sha(pathlib.Path(__file__)),'wireSHA256':sha(pathlib.Path(wire.__file__)),'casesSHA256':sha(args.cases),'command':sys.argv,'rows':rows,'passed':len(rows)==4*(len(cases)+1) and [(r.get('target'),r.get('snippets'),r['id']) for r in rows]==[(version,snippets,ident) for version in ['3.0.0','3.5.6'] for snippets in [False,True] for ident in [case['id'] for case in cases]+['shutdown']] and all(r['passed'] for r in rows)}
       (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');(out/'artifact-hashes.json').write_text(json.dumps({str(p.relative_to(out)):sha(p) for p in out.rglob('*') if p.is_file() and p.name!='artifact-hashes.json'},indent=2)+'\n')
     print(json.dumps({'rows':len(rows),'failed':[r['id'] for r in rows if not r['passed']]}));return 0 if report['passed'] else 1
 if __name__=='__main__':sys.exit(main())

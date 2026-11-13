@@ -1,0 +1,55 @@
+name: Linux resource contracts
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measured:
+    name: Resource / ${{ matrix.suite }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [retention, boundaries, lifecycle]
+    env:
+      CC: gcc-13
+      CGO_ENABLED: '1'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.14.0'
+      - name: Reject incomplete or fabricated resource evidence
+        run: python tests/resource_gate_e2e.py
+      - name: Build exact source outside the measured memory scopes
+        run: python tools/native.py build --platform linux/amd64 --source-commit "${{ github.sha }}" --output artifacts/resource-build
+      - name: Execute original performance and memory contracts in enforced cgroups
+        run: python tests/resource_ci.py --suite "${{ matrix.suite }}" --binary artifacts/resource-build/argocd-ls --output artifacts/resources
+      - name: Pack complete resource evidence
+        if: always()
+        run: |
+          mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
+          python tools/ci_evidence.py pack --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
+      - name: Verify archived resource evidence
+        if: always()
+        run: python tools/ci_evidence.py verify --manifest artifacts/resource-evidence/manifest.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: argocd-resources-${{ matrix.suite }}
+          path: artifacts/resource-evidence/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "execution": {
+    "orthogonal": {
+      "tests/orthogonal_ci.py": [
+        "editors/zed/tests/snippets_e2e.py",
+        "tests/ablate_audit_repair.py",
+        "tests/ablate_schema_boundaries.py",
+        "tests/ablate_schema_queries.py",
+        "tests/alias_provenance_edges_e2e.py",
+        "tests/audit_repair_e2e.py",
+        "tests/bounded_accounting_e2e.py",
+        "tests/bounded_process_e2e.py",
+        "tests/candidate_review_e2e.py",
+        "tests/catalog_e2e.py",
+        "tests/config_input_e2e.py",
+        "tests/dependency_depth_e2e.py",
+        "tests/domain_matrix_e2e.py",
+        "tests/domain_matrix_lsp_e2e.py",
+        "tests/explain_terminal_e2e.py",
+        "tests/helm_e2e.py",
+        "tests/legacy_mutations.py",
+        "tests/oracle_repair_mutation.py",
+        "tests/output_failure_e2e.py",
+        "tests/readiness_render_e2e.py",
+        "tests/render_acquisition_e2e.py",
+        "tests/renderer_input_e2e.py",
+        "tests/schema_constraints_ablation.py",
+        "tests/schema_fixture_e2e.py",
+        "tests/schema_queries_e2e.py",
+        "tests/schema_query_comment_e2e.py",
+        "tests/scope_glob_e2e.py",
+        "tests/scope_refresh_e2e.py",
+        "tests/shared_lifecycle_mutations.py"
+      ]
+    },
+    "aliases": {
+      "tests/legacy_mutations.py": [
+        "tests/ablate_appset.py",
+        "tests/ablate_candidates.py",
+        "tests/ablate_domain.py",
+        "tests/ablate_fix.py",
+        "tests/ablate_lsp.py",
+        "tests/ablate_pin.py",
+        "tests/ablate_pin_review.py",
+        "tests/ablate_schema.py",
+        "tests/ablate_workspace.py"
+      ]
+    },
+    "consumer-controls": {
+      "tests/legacy_mutations.py": [
+        "tests/appset_e2e.py",
+        "tests/candidates_e2e.py",
+        "tests/cd3_e2e.py",
+        "tests/domain_e2e.py",
+        "tests/lsp_e2e.py",
+        "tests/pin_e2e.py",
+        "tests/pin_review_e2e.py",
+        "tests/workspace_e2e.py"
+      ]
+    },
+    "workflow": {
+      ".github/workflows/native.yml": [
+        "tests/ablate_multi_version.py",
+        "tests/mixed_parent_index_e2e.py",
+        "tests/native_ci.py",
+        "tests/native_isolation.py",
+        "tests/orthogonal_ci.py",
+        "tests/publication_delivery_e2e.py",
+        "tests/release_e2e.py",
+        "tests/test_inventory.py"
+      ],
+      ".github/workflows/zed-install.yml": [
+        "editors/zed/tests/install_e2e.py"
+      ],
+      ".github/workflows/zed.yml": [
+        "editors/zed/tests/ablate_distribution.py",
+        "editors/zed/tests/ablate_identity.py",
+        "editors/zed/tests/adapter_e2e.py",
+        "editors/zed/tests/package_e2e.py"
+      ],
+      ".github/workflows/resource.yml": [
+        "tests/resource_ci.py",
+        "tests/resource_gate_e2e.py"
+      ]
+    },
+    "native": {
+      "tests/native_ci.py": [
+        "tests/ablate_document_budget.py",
+        "tests/ablate_project_rename.py",
+        "tests/ablate_shared_schemaquery.py",
+        "tests/alias_projection_cli_e2e.py",
+        "tests/alias_projection_lsp_e2e.py",
+        "tests/appset_overrides_e2e.py",
+        "tests/audit_regression_mutations.py",
+        "tests/bounded_symbol_queries_e2e.py",
+        "tests/candidate_concurrency_e2e.py",
+        "tests/ci_evidence_e2e.py",
+        "tests/ci_shards_e2e.py",
+        "tests/cli_e2e.py",
+        "tests/config_uri_e2e.py",
+        "tests/host_capabilities_e2e.py",
+        "tests/incremental_performance_e2e.py",
+        "tests/interaction_remediation_e2e.py",
+        "tests/lsp_regressions_e2e.py",
+        "tests/multi_version_e2e.py",
+        "tests/native_ci_process_e2e.py",
+        "tests/native_environment_e2e.py",
+        "tests/native_package_e2e.py",
+        "tests/native_process_e2e.py",
+        "tests/navigation_editing_ablation.py",
+        "tests/navigation_editing_e2e.py",
+        "tests/navigation_editing_guards_e2e.py",
+        "tests/parent_workspace_faults.py",
+        "tests/parent_workspace_lsp_e2e.py",
+        "tests/persistent_workspace_e2e.py",
+        "tests/project_rename_e2e.py",
+        "tests/projection_aggregate_e2e.py",
+        "tests/projection_repair_e2e.py",
+        "tests/publication_e2e.py",
+        "tests/query_delivery_e2e.py",
+        "tests/quickfix_scaling_e2e.py",
+        "tests/readiness_e2e.py",
+        "tests/reconciliation_e2e.py",
+        "tests/repository_exclusion_e2e.py",
+        "tests/save_action_e2e.py",
+        "tests/semantic_regressions_e2e.py",
+        "tests/shared_schemaquery_e2e.py",
+        "tests/target_e2e.py",
+        "tests/workspace_regressions_e2e.py"
+      ]
+    },
+    "resources": {
+      "tests/resource_ci.py": [
+        "tests/bounded_cli_e2e.py",
+        "tests/bounded_completion_e2e.py",
+        "tests/bounded_lsp_e2e.py",
+        "tests/projection_retention_probe.py",
+        "tests/repository_rotation_e2e.py",
+        "tests/retained_budget_e2e.py",
+        "tests/retained_input_probe.py"
+      ]
+    },
+    "delegated": {
+      "tests/schema_fixture_e2e.py": [
+        "tests/schema_query_values_e2e.py"
+      ]
+    },
+    "manual-observation": {
+      "RSS observation only. Acceptance thresholds execute in bounded_lsp_e2e.py --full and repository_rotation_e2e.py under resource CI": [
+        "tests/scope_rotation_e2e.py"
+      ]
+    },
+    "go": {
+      ".github/workflows/native.yml": [
+        "internal/analysis/appset_budget_test.go",
+        "internal/analysis/appset_derived_budget_test.go",
+        "internal/analysis/multi_version_test.go",
+        "internal/analysis/shared_schema_test.go",
+        "internal/analysis/summary_test.go",
+        "internal/assets/catalog_test.go",
+        "internal/cli/cli_test.go",
+        "internal/lsp/document_budget_test.go",
+        "internal/lsp/incremental_test.go",
+        "internal/lsp/project_rename_proof_test.go",
+        "internal/lsp/symbols_test.go"
+      ]
+    },
+    "rust": {
+      ".github/workflows/zed.yml": [
+        "editors/zed/tests/distribution.rs"
+      ]
+    }
+  }
+}
