@@ -178,7 +178,10 @@ def save():
 def security_suite(suite):
  global security_cases
  if suite=='provenance':
-  if run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420):builds.append(build_evidence(out/'packaging/development-build/manifest.json'))
+  # Five intentional builds each retain their own 180-second limit; Windows
+  # also needs bounded time for fixture copies, inventories and package checks.
+  provenance_timeout = 1200 if a.platform == 'windows/amd64' else 420
+  if run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=provenance_timeout):builds.append(build_evidence(out/'packaging/development-build/manifest.json'))
  else:
   if run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900):
    builds.extend(build_evidence(out/'environment'/(name+'-build')/'manifest.json') for name in COMPILER_CASES)

@@ -183,8 +183,7 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 		// CST scalar views omit tag wrappers. Potential tag syntax must be
 		// interpreted by projection, rather than used as an early identity hint.
 		if !strings.Contains(raw, "!") {
-			api = fieldString(root, "apiVersion")
-			resourceKind = fieldString(root, "kind")
+			api, resourceKind = ownershipHints(root)
 		}
 		hintOwned := api == "argoproj.io/v1alpha1" && (resourceKind == "Application" || resourceKind == "AppProject" || resourceKind == "ApplicationSet")
 		if (api != "" && api != "argoproj.io/v1alpha1") || (resourceKind != "" && resourceKind != "Application" && resourceKind != "AppProject" && resourceKind != "ApplicationSet") {
@@ -362,28 +361,49 @@ func versionErrorScore(e *schema.ValidationError, unknown map[string]bool) int {
 
 // Early ownership hints require unique literal keys. An unresolved key might
 // name the same field, so only the full projection can establish its identity.
-func fieldString(n yamlview.Node, key string) string {
-	found := false
-	value := ""
-	for _, m := range n.Members() {
-		if m.Key.Kind() != yamlview.Scalar {
-			return ""
+func ownershipHints(n yamlview.Node) (api, kind string) {
+	apiSeen, kindSeen := false, false
+	apiDuplicate, kindDuplicate := false, false
+	for _, member := range n.Members() {
+		if member.Key.Kind() != yamlview.Scalar {
+			return "", ""
 		}
-		var k string
-		if yaml.UnmarshalStrict([]byte(m.Key.Raw()), &k) != nil {
-			return ""
-		}
-		if k == key {
-			if found {
-				return ""
+		key := member.Key.Raw()
+		switch key {
+		case "apiVersion", "kind", "metadata", "spec", "status":
+		default:
+			if yaml.UnmarshalStrict([]byte(key), &key) != nil {
+				return "", ""
 			}
-			found = true
-			if yaml.UnmarshalStrict([]byte(m.Value.Raw()), &value) != nil {
-				value = ""
+		}
+		switch key {
+		case "apiVersion":
+			if apiSeen {
+				apiDuplicate = true
+				continue
+			}
+			apiSeen = true
+			if yaml.UnmarshalStrict([]byte(member.Value.Raw()), &api) != nil {
+				api = ""
+			}
+		case "kind":
+			if kindSeen {
+				kindDuplicate = true
+				continue
+			}
+			kindSeen = true
+			if yaml.UnmarshalStrict([]byte(member.Value.Raw()), &kind) != nil {
+				kind = ""
 			}
 		}
 	}
-	return value
+	if apiDuplicate {
+		api = ""
+	}
+	if kindDuplicate {
+		kind = ""
+	}
+	return api, kind
 }
 
 func locate(n yamlview.Node, parts []string) yamlview.Node {
