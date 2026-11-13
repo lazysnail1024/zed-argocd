@@ -41,7 +41,7 @@ def run(name,ws,count,cancel=False):
   if cancel:
    checks={'exit3':proc.returncode==3,'cancelReason':'ANALYSIS_CANCELLED' in codes,'notComplete':report['analysisComplete'] is False,'notAllCounted':report['filesAnalyzed']<count and report['resourcesAnalyzed']<count}
   else:
-   checks={'exit0':proc.returncode==0,'exactFiles':report['filesAnalyzed']==count+1,'exactResources':report['resourcesAnalyzed']==count,'configuration':codes==[],'exactDiagnostics':len(report['diagnostics'])==count and all(d['code']=='CD_PROJECT_UNRESOLVED' and d['severity']==3 for d in report['diagnostics']),'complete':report['analysisComplete'] is True,'deadline':time.monotonic()-start<=5}
+   checks={'exit0':proc.returncode==0,'exactFiles':report['filesAnalyzed']==count+1,'exactResources':report['resourcesAnalyzed']==count,'configuration':codes==[],'exactDiagnostics':len(report['diagnostics'])==count and all(d['code']=='CD_PROJECT_NAMESPACE_UNBOUND' and d['severity']==3 for d in report['diagnostics']),'complete':report['analysisComplete'] is True,'deadline':time.monotonic()-start<=5}
   checks['processEnded']=status=='completed'
   row={'name':name,'command':argv,'exit':proc.returncode,'elapsedSeconds':time.monotonic()-start,'peakRSSKiB':rss,'status':status,'assertions':checks,'passed':all(checks.values())}
  except Exception as e:

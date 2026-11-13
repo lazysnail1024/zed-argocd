@@ -63,7 +63,7 @@ try:
     else:p.write_text(padded(size))
     remaining-=size;n+=1
    actual=sum(p.stat().st_size for p in work.iterdir());assert actual==LIMIT+delta;cmd=[str(binary),'check','--root',str(work),'--format','json'];p=subprocess.run(cmd,capture_output=True,timeout=12);(folder/'stdout').write_bytes(p.stdout);(folder/'stderr').write_bytes(p.stderr);d=json.loads(p.stdout)
-   if delta<=0:checks={'exit':p.returncode==0,'resources':d['resourcesAnalyzed']==1,'files':d['filesAnalyzed']==n+2,'configuration':d['configurationErrors']==[],'diagnostics':[(x['code'],x['severity']) for x in d['diagnostics']]==[('CD_PROJECT_UNRESOLVED',3)]}
+   if delta<=0:checks={'exit':p.returncode==0,'resources':d['resourcesAnalyzed']==1,'files':d['filesAnalyzed']==n+2,'configuration':d['configurationErrors']==[],'diagnostics':[(x['code'],x['severity']) for x in d['diagnostics']]==[('CD_PROJECT_NAMESPACE_UNBOUND',3)]}
    else:checks={'exit':p.returncode==2,'resources':d['resourcesAnalyzed']==0,'files':d['filesAnalyzed']==0,'reason':[x['code'] for x in d['configurationErrors']]==['INPUT_BUDGET_EXCEEDED']}
    checks['complete']=d['analysisComplete']==(delta<=0);record('aggregate-'+str(delta),checks,{'inputBytes':actual,'command':cmd,'report':d})
  else:
@@ -78,13 +78,13 @@ try:
   extra=work/'overflow.yaml';client.open(extra,'#');ds=client.diag(extra,1,'INPUT_BUDGET_EXCEEDED');record('owner-overflow-open',{'reason':any(d['code']=='INPUT_BUDGET_EXCEEDED' for d in ds)},ds)
   client.change(app,2,[{'text':APP+'#'}]);ds=client.diag(app,2,'INPUT_BUDGET_EXCEEDED');hover=client.request('textDocument/hover',{'textDocument':{'uri':app.as_uri()},'position':{'line':5,'character':12}});record('refusal-hides-old-buffer-and-disk',{'reason':any(d['code']=='INPUT_BUDGET_EXCEEDED' for d in ds),'noOldHover':'error' in hover},{'diagnostics':ds,'hover':hover})
   client.close(extra);client.close(paths[0]);client.change(app,3,[{'range':{'start':{'line':0,'character':0},'end':{'line':0,'character':0}},'text':'#'}]);ds=client.diag(app,3,'INPUT_BUDGET_EXCEEDED');record('incremental-cannot-restore-refused',{'reason':bool(ds)},ds)
-  client.change(app,4,[{'text':APP}]);ds=client.diag(app,4);record('full-replacement-recovers',{'onlyExpectedDiagnostic':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_UNRESOLVED',3)]},ds)
+  client.change(app,4,[{'text':APP}]);ds=client.diag(app,4);record('full-replacement-recovers',{'onlyExpectedDiagnostic':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_NAMESPACE_UNBOUND',3)]},ds)
   samples=[]
   for version in range(5,10):
-   client.change(app,version,[{'text':APP}]);ds=client.diag(app,version);samples.append(rss(client.p.pid));record('same-size-replacement-'+str(version),{'current':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_UNRESOLVED',3)]})
+   client.change(app,version,[{'text':APP}]);ds=client.diag(app,version);samples.append(rss(client.p.pid));record('same-size-replacement-'+str(version),{'current':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_NAMESPACE_UNBOUND',3)]})
   metadata['replacementRSS']=samples
   for p in paths[1:]:client.close(p)
-  client.close(config);client.close(app);client.open(app,APP,20);ds=client.diag(app,20);record('close-reopen-clears-state',{'restored':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_UNRESOLVED',3)]},ds)
+  client.close(config);client.close(app);client.open(app,APP,20);ds=client.diag(app,20);record('close-reopen-clears-state',{'restored':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_NAMESPACE_UNBOUND',3)]},ds)
 except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
 finally:
  if client:
