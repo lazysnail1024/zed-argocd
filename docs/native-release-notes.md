@@ -11,6 +11,6 @@ This prerelease reduces configuration for local navigation and adds explicit Hel
 
 The compatibility window remains **2.0.0–3.6.1**; no cluster version is inferred.
 
-Native archives target Linux amd64/arm64, macOS amd64/arm64 and Windows amd64, with build/source records, original legal notices and `SHA256SUMS`. The forthcoming independently versioned `zed-v0.0.1-alpha.5` adapter will pin native `v0.0.1-alpha.5`.
+Native archives target Linux amd64/arm64, macOS amd64/arm64 and Windows amd64, with build/source records, original legal notices and `SHA256SUMS`. The independently versioned `zed-v0.0.1-alpha.5` adapter pins native `v0.0.1-alpha.5`.
 
 Native, editor and distribution evidence remain separate acceptance boundaries. This prerelease does not claim publication to the Zed extension store. Previous prerelease tags and downloads remain unchanged.

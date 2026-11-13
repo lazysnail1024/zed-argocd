@@ -4,17 +4,18 @@
 
 | Component | Tag | Download |
 | --- | --- | --- |
-| Native LSP / CLI | `v0.0.1-alpha.4` | Platform executable and archive, source/build records, `SHA256SUMS` |
-| Zed adapter | `zed-v0.0.1-alpha.4` | `zed-argocd-0.0.1-alpha.4.zip`, adapter record, `SHA256SUMS` |
+| Native LSP / CLI | `v0.0.1-alpha.5` | Platform executable and archive, source/build records, `SHA256SUMS` |
+| Zed adapter | `zed-v0.0.1-alpha.5` | `zed-argocd-0.0.1-alpha.5.zip`, adapter record, `SHA256SUMS` |
 
 Both are GitHub **prereleases** before the first `0.0.1`. The adapter uses its
 explicit `native-server-version` pin and direct release URL; it never relies on
 GitHub's latest-stable-release endpoint. Published versions are not overwritten.
 Corrections receive a new alpha number.
 
-The published alpha.4 native release protects current-file diagnostics when
-workspace analysis times out or encounters malformed sibling YAML. Its bundled
-compatibility window is 2.0.0–3.6.1; see the [native release notes](native-release-notes.md).
+The alpha.5 native release adds configuration-free project navigation, static
+Helm-source navigation, and explicit chart rendering while preserving bounded
+current-file analysis. Its bundled compatibility window is 2.0.0–3.6.1; see the
+[native release notes](native-release-notes.md).
 The [current source architecture](architecture.md) can include later changes.
 An unchanged `VERSION` or adapter pin does not put those changes into an existing
 published binary. Check `argocd-ls version --json` for the actual source identity.
@@ -132,8 +133,8 @@ Use a Windows absolute path and `.exe` suffix on Windows. Restore execute bits
 with `chmod +x argocd-ls` after ZIP extraction on POSIX systems when necessary.
 Existing custom `serverPath` or PATH installations retain priority on upgrades.
 When upgrading from older alpha versions, replace those separately installed
-executables with the alpha.3 native release as well. Managed downloads use the
-new adapter's alpha.3 pin automatically and preserve the older cache.
+executables with the alpha.5 native release as well. Managed downloads use the
+new adapter's alpha.5 pin automatically and preserve the older cache.
 
 ## Troubleshooting and acceptance boundary
 
