@@ -289,19 +289,19 @@
   },
   {
     "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-    "version": "v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25",
+    "version": "v0.0.1-alpha.1.0.20261113141015-d87d9a2c13e5",
     "path": "vendor/github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser/grammar/tree_sitter/alloc.h",
     "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
   },
   {
     "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-    "version": "v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25",
+    "version": "v0.0.1-alpha.1.0.20261113141015-d87d9a2c13e5",
     "path": "vendor/github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser/grammar/tree_sitter/array.h",
     "sha256": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94"
   },
   {
     "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-    "version": "v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25",
+    "version": "v0.0.1-alpha.1.0.20261113141015-d87d9a2c13e5",
     "path": "vendor/github.com/lazysnail1024/k8s-crd-toolkit/yamlview/internal/parser/grammar/tree_sitter/parser.h",
     "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
   }

@@ -41,7 +41,7 @@
 
 ## 公共依赖及状态归属
 
-The shared dependency is `github.com/lazysnail1024/k8s-crd-toolkit`, pinned to `v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25` at commit `497c5d8d6a253399ca72019c643ec9ec4761d8dd`. [go.mod](../go.mod) and [go.sum](../go.sum) identify the Go module and checksums; [toolkit.lock.json](../contracts/toolkit.lock.json) and [toolkit-snapshot.json](../contracts/toolkit-snapshot.json) bind contract 6 and runtime source hashes. Builds use committed [vendor sources](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/) without a neighboring checkout or local `replace`.
+The shared dependency is `github.com/lazysnail1024/k8s-crd-toolkit`, pinned to `v0.0.1-alpha.1.0.20261113141015-d87d9a2c13e5` at commit `d87d9a2c13e51263994db58df4385d76140e8c86`. [go.mod](../go.mod) and [go.sum](../go.sum) identify the Go module and checksums; [toolkit.lock.json](../contracts/toolkit.lock.json) and [toolkit-snapshot.json](../contracts/toolkit-snapshot.json) bind contract 6 and runtime source hashes. Builds use committed [vendor sources](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/) without a neighboring checkout or local `replace`.
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |

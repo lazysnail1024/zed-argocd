@@ -142,7 +142,8 @@ func copyNode(ctx context.Context, n *sitter.Node, depth int) (Node, error) {
 		return Node{}, fmt.Errorf("yamlview: depth exceeds 256")
 	}
 	r := Node{Kind: k, Start: int(n.StartByte()), End: int(n.EndByte()), Damaged: n.HasError() || n.IsError() || n.IsMissing(), Missing: n.IsMissing()}
-	for i := uint(0); i < n.NamedChildCount(); i++ {
+	namedChildren := n.NamedChildCount()
+	for i := uint(0); i < namedChildren; i++ {
 		c, e := copyNode(ctx, n.NamedChild(i), depth)
 		if e != nil {
 			return Node{}, e
@@ -152,11 +153,16 @@ func copyNode(ctx context.Context, n *sitter.Node, depth int) (Node, error) {
 	}
 	// Missing punctuation is anonymous in Tree-sitter, but still represents
 	// observable syntax damage and must survive the copied tree for Issues.
-	for i := uint(0); i < n.ChildCount(); i++ {
-		child := n.Child(i)
-		if child.IsMissing() && !child.IsNamed() {
-			r.Children = append(r.Children, Node{Kind: child.Kind(), Start: int(child.StartByte()), End: int(child.EndByte()), Damaged: true, Missing: true})
-			r.Fields = append(r.Fields, "")
+	// Missing children contribute to the parent error cost. A clean subtree
+	// cannot contain one, so avoid a second C traversal for valid YAML.
+	if r.Damaged {
+		children := n.ChildCount()
+		for i := uint(0); i < children; i++ {
+			child := n.Child(i)
+			if child.IsMissing() && !child.IsNamed() {
+				r.Children = append(r.Children, Node{Kind: child.Kind(), Start: int(child.StartByte()), End: int(child.EndByte()), Damaged: true, Missing: true})
+				r.Fields = append(r.Fields, "")
+			}
 		}
 	}
 	return r, nil

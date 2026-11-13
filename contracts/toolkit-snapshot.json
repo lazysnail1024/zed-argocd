@@ -1,11 +1,11 @@
 {
   "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-  "version": "v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25",
+  "version": "v0.0.1-alpha.1.0.20261113141015-d87d9a2c13e5",
   "origin": "go-module-commit",
   "published": false,
-  "sourceSHA256": "da2e5546492094182468fd5179efe9f177aceca53db6a7048f8218d75381d043",
+  "sourceSHA256": "f4de0c0466a594e7b91be21fbe106c7344c035b451308efbc85c7e0c2e51ead8",
   "contractSHA256": "38734de00a5a44f0c9d9bf81be7599c3f45016f9b7928d040815e7c252967aca",
-  "zipSHA256": "6a503bc2305dad05f65851ddf855440652f9c3ffb5c2d237e3ef4490db8519e8",
+  "zipSHA256": "2d97bc4ecda37531c29342c927002b6126426698bf31b6245e388b388725b275",
   "files": {
     "CONTRACT.md": "38734de00a5a44f0c9d9bf81be7599c3f45016f9b7928d040815e7c252967aca",
     "LICENSE": "265ef4492c50a2720eb5897c1f8a196f6170396115c90517ec40cd89c1549a26",
@@ -39,7 +39,7 @@
     "yamlview/internal/parser/grammar/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
     "yamlview/internal/parser/grammar/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
     "yamlview/internal/parser/grammar/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
-    "yamlview/internal/parser/parser.go": "64b55bc6dbc427b1f6c3d9608090b821a7784823da7a9b7f52163180d2b32a67",
+    "yamlview/internal/parser/parser.go": "e952006529e7c7926acad535ed6f69b2777ea5536276229c417d34cb7936d8a7",
     "yamlview/view.go": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   },
   "commit": "497c5d8d6a253399ca72019c643ec9ec4761d8dd",
