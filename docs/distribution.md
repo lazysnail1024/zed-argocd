@@ -16,7 +16,7 @@ The alpha.5 native release adds configuration-free project navigation, static
 Helm-source navigation, and explicit chart rendering while preserving bounded
 current-file analysis. Its bundled compatibility window is 2.0.0–3.6.1; see the
 [native release notes](native-release-notes.md).
-The [current source architecture](architecture.md) can include later changes.
+The checked-out source and [development instructions](../DEVELOPMENT.md) can include later changes.
 An unchanged `VERSION` or adapter pin does not put those changes into an existing
 published binary. Check `argocd-ls version --json` for the actual source identity.
 

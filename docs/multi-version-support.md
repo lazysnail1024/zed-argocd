@@ -1,58 +1,58 @@
-# 版本目录与自动兼容
+# Version catalog and automatic compatibility
 
-默认 target 为 `auto`，不要求用户创建配置文件。显式 exact target 使用该版本采集到的 CRD 和本仓静态规则。配置入口见[配置说明](configuration.md)。
+The default target is `auto`; no configuration file is required. An explicit exact target uses that version's collected CRDs and the implemented local static rules. See [configuration](configuration.md).
 
-## 当前离线目录
+## Bundled offline catalog
 
-以下数据来自已提交的 [compat/catalog.lock.json](../compat/catalog.lock.json)，采集截止为 **2026-11-05T23:59:59Z**；它描述该快照，不表示今天上游的最新发布状态。
+The committed [catalog lock](../compat/catalog.lock.json) has a collection cutoff of **2026-11-05T23:59:59Z**. These figures describe that snapshot, not the latest upstream releases.
 
-| 项目 | 当前内容 |
+| Item | Coverage |
 | --- | --- |
-| 版本窗口 | Argo CD 2.0.0–3.6.1，major 2 与 3 |
-| 数字稳定 tag | 370 |
-| Application / AppProject | 各 370 个 target |
-| ApplicationSet | 330 个 target：312 个 bundled CRD，18 个固定 addon 引用 |
-| 不同源 Schema | 59 |
+| Version window | Argo CD 2.0.0–3.6.1, majors 2 and 3 |
+| Numeric stable tags | 370 |
+| Application and AppProject | 370 targets each |
+| ApplicationSet | 330 targets: 312 bundled CRDs and 18 pinned addon references |
+| Distinct source schemas | 59 |
 
-采集器用官方 Release 列表确定截止时的最新稳定版本与相邻两个 major，再用 tag 列表补全该窗口内的数字稳定 tag。预发布后缀不进入窗口；没有匹配 Release 记录的数字 tag 仍可进入目录，不据此推测缺失 Release 的原因。annotated tag 解析到不可变 commit，来源响应、tag object、CRD 和规范化 Schema 都记录 SHA-256。
+The collector uses official releases to determine the newest stable major and the preceding major at the cutoff, then uses tags to complete the numeric stable versions in that window. Prerelease suffixes are excluded. A numeric stable tag may be included without a matching release record. Annotated tags resolve to immutable commits; source responses, tag objects, CRDs and normalized schemas have recorded SHA-256 identities.
 
-ApplicationSet 覆盖包括 Argo CD 2.3.x 固定引用的独立 addon：2.3.0 指向 ApplicationSet v0.4.0，其余采集到的 2.3.x 指向 v0.4.1。安装引用、commit 和 CRD digest 留在来源记录中。没有 bundled CRD 或固定独立安装引用的 exact target 不借用新版本 Schema；自动模式汇集已证明的来源，并不提供一个独立的 standalone ApplicationSet 产品版本目录。
+ApplicationSet coverage includes pinned standalone addon references in Argo CD 2.3.x: 2.3.0 references ApplicationSet v0.4.0, and the other collected 2.3.x versions reference v0.4.1. Installation references, commits and CRD digests remain in the source records. Exact targets without either a bundled CRD or a pinned installation reference do not borrow a newer schema. Automatic mode combines verified sources; it does not expose a separate standalone ApplicationSet version catalog.
 
-### 文件职责
+## Catalog inputs
 
-| 路径 | 用途 |
+| Path | Purpose |
 | --- | --- |
-| [compat/catalog.lock.json](../compat/catalog.lock.json) | 版本、tag/commit、CRD 与规范化资产的完整来源和 readiness |
-| [compat/upstream](../compat/upstream/) | 采集的上游响应与 tag object |
-| [compat/local-rules-sources.json](../compat/local-rules-sources.json) | 已实现本地规则对应的 controller 源码证据；领域矩阵据此选取版本 |
-| [schemas](../schemas/) | 以内容身份存储的采集/规范化输入 |
-| [internal/assets/catalog.json](../internal/assets/catalog.json) | 编译进运行时的精简目录 |
-| [internal/assets/schemas](../internal/assets/schemas/) | 运行时 exact 和自动兼容 Schema 资产 |
-| [tools/collect_catalog.py](../tools/collect_catalog.py)、[tools/normalize_schemas.py](../tools/normalize_schemas.py) | 来源采集、Schema 生成、报告接纳与 readiness 生成 |
+| [compat/catalog.lock.json](../compat/catalog.lock.json) | Versions, immutable tag/commit identities, CRDs, normalized assets and readiness |
+| [compat/upstream](../compat/upstream/) | Collected upstream responses and tag objects |
+| [compat/local-rules-sources.json](../compat/local-rules-sources.json) | Controller source references for implemented local rules and domain matrix selection |
+| [schemas](../schemas/) | Collected and normalized inputs stored by content identity |
+| [internal/assets/catalog.json](../internal/assets/catalog.json) | Runtime catalog embedded in the executable |
+| [internal/assets/schemas](../internal/assets/schemas/) | Exact-target and automatic-compatibility schemas |
+| [tools/collect_catalog.py](../tools/collect_catalog.py) and [tools/normalize_schemas.py](../tools/normalize_schemas.py) | Collection, schema generation, report acceptance and readiness generation |
 
-这些是版本支持的构建和验证数据，不是可随文档清理删除的历史附件。
+These files are required build and verification inputs.
 
-## 自动模式的判断
+## Automatic mode
 
-Argo CD 各产品版本共享 `argoproj.io/v1alpha1`，文件不能据此识别实际 controller 版本。自动模式要求文档满足至少一个已覆盖版本的**完整 Schema**，通过根 `anyOf` 组织；不会将不同版本字段合成宽松的并集。
+Argo CD product versions share `argoproj.io/v1alpha1`, so this API version cannot identify the installed controller version. Automatic validation requires a document to satisfy at least one **complete supported schema**, represented by a root `anyOf`. It does not merge unrelated version fields into a permissive union.
 
-例如旧 `ksonnet` 与新的 `syncPolicy.automated.enabled` 分别被支持，但一个从未同时包含两者的版本组合报告 `SCHEMA_VERSION_COMBINATION`。已知字段类型错误仍为 `SCHEMA_TYPE`，必需值缺失仍为 `SCHEMA_REQUIRED`。
+For example, older `ksonnet` fields and newer `syncPolicy.automated.enabled` fields are individually supported, but a combination that never existed in one supported version produces `SCHEMA_VERSION_COMBINATION`. Known field type errors remain `SCHEMA_TYPE`; missing required values remain `SCHEMA_REQUIRED`.
 
-自动 Schema 对结构化对象设置额外字段边界，防止旧分支因不认识新字段而放过新字段中的错误。上游声明的 preserve-unknown 对象和开放 map 保留扩展行为；所有分支都不认识的字段报告 `SCHEMA_UNKNOWN_FIELD` warning。exact target 的原始 Schema 不因此被改写。
+Automatic schemas enforce additional-field boundaries on structured objects. An older branch cannot silently accept invalid values within a newer field it does not recognize. Upstream preserve-unknown objects and open maps retain their extension behavior. Fields unknown to every branch produce a `SCHEMA_UNKNOWN_FIELD` warning. Exact-target upstream schemas are not rewritten by these automatic-mode rules.
 
-补全和悬停根据已有字段名筛选完整版本分支，排除正在编辑的字段；缺少 required 字段或普通值错误不阻塞修复建议。已有名称无法匹配任何完整分支时，查询回退到覆盖声明帮助修复，验证仍独立报告不兼容。查询与校验共用编译后的 Schema，不维护第二套约束解释器。实现见 [schema_queries.go](../internal/analysis/schema_queries.go)。
+Completion and hover select complete version branches using existing field names, excluding the field currently being edited. Missing required fields and ordinary value errors do not block repair suggestions. If existing names match no complete branch, queries fall back to the coverage declarations to support repair; validation still reports incompatibility. Queries and validation share compiled schemas. See [schema queries](../internal/analysis/schema_queries.go).
 
-生成数据用本地 `$defs` 共享重复结构，运行时按实际 kind 准备 Schema，遍历去重；不在启动时编译 370 套独立 Schema，也不在打开文件时请求网络。身份响应提供 `defaultTargetVersion: "auto"` 和 `supportedVersions: {min, max, majors, releaseCount}`；auto 目标没有 pin action，显式 scope 目标仍支持经验证的 pin。
+Generated schemas share repeated structures through local `$defs`. The runtime prepares schemas by resource kind and deduplicates traversal; it does not compile 370 separate schemas at startup or fetch schemas when opening a file. The identity response exposes `defaultTargetVersion: "auto"` and `supportedVersions: {min, max, majors, releaseCount}`. Automatic targets have no pin action; explicit scope targets retain verified pin actions.
 
-## 覆盖声明的边界
+## Scope of support
 
-覆盖指采集 CRD、编辑器 Schema 查询和本仓已实现的静态检查。动态 ApplicationSet 表达式、远程渲染、controller 执行、Kubernetes admission 和完整运行时策略不是这些结果的证明范围；不确定项通过诊断及报告 `notEvaluated` 保留。
+Coverage means collected CRDs, editor schema queries and implemented local static checks. It does not establish controller execution, Kubernetes admission, remote rendering, dynamic ApplicationSet expression evaluation or complete runtime policy behavior. Reports retain unknown behavior through diagnostics and `notEvaluated` entries.
 
-`semanticsVerified` 是本地验证合同的 readiness 字段，不表示每个版本的 controller 行为均已复现。针对 controller 源码的领域矩阵与覆盖整个目录的 CRD/查询矩阵分别运行。当前文档索引的完整性也与版本目录 readiness 分开，见[当前架构](architecture.md)。
+`semanticsVerified` is a readiness field for the local verification contract. It does not mean every controller behavior was reproduced for every release. The controller-source domain matrix and the catalog-wide CRD/query matrix are separate checks. Workspace completeness and edit authority remain subject to the [capability limits](../README.md#capabilities-in-the-current-source).
 
-## 更新与接纳
+## Updating the catalog
 
-使用项目规定的 Go/C 工具链以及 Python/PyYAML，从仓库根目录执行。先将 `catalog_cutoff` 设为本次采集明确采用的 UTC 截止时间；重新采集当前快照可用 `2026-11-05T23:59:59Z`。
+Use the Go/C toolchain specified by the repository and Python with PyYAML. From the repository root, set an explicit UTC collection cutoff. To reproduce the current snapshot:
 
 ```sh
 catalog_cutoff=2026-11-05T23:59:59Z
@@ -66,14 +66,14 @@ go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
 python3 tests/multi_version_e2e.py build/argocd-ls artifacts/catalog-final
 ```
 
-每次验证使用新的输出目录。采集主动清除 readiness，只有覆盖全部 exact tag、digest 匹配且通过的 bootstrap 报告可以接纳；之后重新构建，再验证完整公开报告和零配置 LSP。改变 Schema 会撤销旧验证标记。
+Use fresh output directories for each verification. Collection clears readiness. Only a passing bootstrap report covering every exact tag with matching digests can restore it. Rebuild afterward, then verify the complete public report and configuration-free LSP behavior. Schema changes invalidate earlier verification markers.
 
-| 验证入口 | 覆盖方式 |
+| Verification entry | Scope |
 | --- | --- |
-| [multi_version_e2e.py](../tests/multi_version_e2e.py) | 默认执行每个 exact tag、inventory、auto 和 LSP；Linux CI 使用完整目录 |
-| 同一入口的 `--representatives` | 其他原生平台按不同 Schema bundle 选代表，同时保留 inventory、auto 和 LSP 检查 |
-| [multi_version_test.go](../internal/analysis/multi_version_test.go) | 已声明字段的自动查询覆盖 |
-| [appset_overrides_e2e.py](../tests/appset_overrides_e2e.py)的 `--all-targets` | 对具备所测字段的 target 按确切 AppSet Schema hash 与完整 localRules 分组，深入场景每组一次，auto 独立执行；报告记录每组所有覆盖版本 |
-| [ablate_multi_version.py](../tests/ablate_multi_version.py) | 编译受控删除变体，对照历史分支、对象边界、共享定义和查询分支的行为 |
+| [multi_version_e2e.py](../tests/multi_version_e2e.py) | Every exact tag, inventory, automatic mode and LSP; Linux CI uses the complete catalog |
+| The same entry with `--representatives` | Other native platforms select representatives by distinct schema bundle, retaining inventory, automatic mode and LSP checks |
+| [multi_version_test.go](../internal/analysis/multi_version_test.go) | Automatic queries for declared fields |
+| [appset_overrides_e2e.py](../tests/appset_overrides_e2e.py) with `--all-targets` | Groups eligible targets by exact ApplicationSet schema hash and complete local-rule set; runs deep scenarios once per group and automatic mode separately; records every covered version |
+| [ablate_multi_version.py](../tests/ablate_multi_version.py) | Compiles controlled variants that remove historical branches, object boundaries, shared definitions or query branch selection |
 
-`multi_version_e2e.py` 没有 `--all-targets` 选项。AppSet 深层场景的分组不替代全 tag 兼容矩阵；具体 CI 命令以 [native_ci.py](../tests/native_ci.py)和 [native.yml](../.github/workflows/native.yml)为准。已发生的漏采来源和重复执行问题见[经验教训](lessons-learned.md)。
+`multi_version_e2e.py` has no `--all-targets` option. Grouped deep ApplicationSet scenarios do not replace the full-tag compatibility matrix. See the actual commands in [native_ci.py](../tests/native_ci.py) and [native.yml](../.github/workflows/native.yml).

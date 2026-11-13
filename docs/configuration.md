@@ -57,4 +57,4 @@ Use `argocd-ls explain-config --root .` for the effective configuration,
 `argocd-ls check --help` for CLI options. See the catalog lock and schema generation
 tools for the exact upstream sources and hashes. The checked-in catalog's cutoff
 and inventory are in [version support](multi-version-support.md); current file
-indexing, completeness and edit boundaries are in [architecture](architecture.md).
+indexing, completeness and edit boundaries are in the [capability table](../README.md#capabilities-in-the-current-source).

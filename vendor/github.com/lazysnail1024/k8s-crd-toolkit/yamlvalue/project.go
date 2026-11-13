@@ -185,6 +185,11 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 	// Preserve the existing strict scalar/JSON path for ordinary documents.
 	// Alias and merge graphs alone need value-path provenance and expansion.
 	var graph bool
+	// yaml.v3 does not mark a nonspecific ! tag as TaggedStyle. Its
+	// decoded value also omits anchor and tag properties. Require the
+	// original decoder input to rule those properties out before using
+	// the plain mapping-key proof below.
+	plainKeys := !strings.ContainsAny(raw, "!&")
 	syntaxNodes := 0
 	var inspect func(*yamlv3.Node) error
 	inspect = func(n *yamlv3.Node) error {
@@ -210,13 +215,19 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 				if child.Kind != yamlv3.ScalarNode {
 					return projectionFailure("Only string mapping keys are supported")
 				}
-				key, err := scalar(child)
-				if err != nil {
-					return err
+				name, ok := "", false
+				if plainKeys {
+					name, ok = plainIdentifierKey(child)
 				}
-				name, ok := key.(string)
 				if !ok {
-					return projectionFailure("Only string mapping keys are supported")
+					key, err := scalar(child)
+					if err != nil {
+						return err
+					}
+					name, ok = key.(string)
+					if !ok {
+						return projectionFailure("Only string mapping keys are supported")
+					}
 				}
 				if keys[name] {
 					return projectionFailure("duplicate mapping key " + name)

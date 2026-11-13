@@ -65,7 +65,7 @@ lock identities together. Regenerate vendor with `go mod vendor`, then run
 Keep `go.sum`, vendored sources and provenance records in the same change.
 The contract snapshot is hash-checked build input, not an editable architecture
 note. State ownership and the boundary between toolkit and Argo CD policy are
-documented in [the current architecture](docs/architecture.md).
+defined by the [shared toolkit API contract](contracts/toolkit-design-6.md).
 
 ## Zed adapter
 
@@ -124,7 +124,7 @@ compile each variant, then require a named protocol or real-index assertion to f
 compile errors or runner failures are not evidence of detection.
 [native.yml](.github/workflows/native.yml) and
 [tests/native_ci.py](tests/native_ci.py) are the executable gate definitions.
-Specific regressions map to their consumers in [lessons learned](docs/lessons-learned.md).
+The [test inventory](tests/inventory.json) maps existing consumers to their acceptance gates.
 
 Use the existing real-process E2E consumers for changed behavior. Keep raw failure
 output and reject timeouts, missing reports and unexpected successful mutants.

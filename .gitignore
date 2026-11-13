@@ -22,3 +22,6 @@ __pycache__/
 /vendor/github.com/santhosh-tekuri/jsonschema/v6/.swp
 
 /native/
+
+/docs/architecture.md
+/docs/lessons-learned.md

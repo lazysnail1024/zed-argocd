@@ -411,8 +411,19 @@ func locate(n yamlview.Node, parts []string) yamlview.Node {
 		found := false
 		if n.Kind() == yamlview.Mapping {
 			for _, m := range n.Members() {
+				raw := m.Key.Raw()
 				var k string
-				if yaml.UnmarshalStrict([]byte(m.Key.Raw()), &k) == nil && k == part {
+				switch raw {
+				case "apiVersion", "kind", "metadata", "spec", "status", "project":
+					// These exact spellings decode to the same string. All other
+					// keys retain strict decoding, including quoted spellings.
+					k = raw
+				default:
+					if yaml.UnmarshalStrict([]byte(raw), &k) != nil {
+						continue
+					}
+				}
+				if k == part {
 					n = m.Value
 					if n.Kind() == yamlview.Empty {
 						n = m.Key

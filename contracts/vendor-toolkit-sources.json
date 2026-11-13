@@ -57,7 +57,7 @@
   },
   {
     "path": "yamlvalue/fields.go",
-    "sha256": "4d91d6f66d8012c465d583c40aed6b38f0551cc23ddbd34172dd5dd0e6b8a3a3"
+    "sha256": "585055ced5c28979eb7f9f5292da8f78e48129a7f118765527c994af666a2629"
   },
   {
     "path": "yamlvalue/limits.go",
@@ -69,7 +69,7 @@
   },
   {
     "path": "yamlvalue/project.go",
-    "sha256": "e03c06a2074a986121fe7786e00bed6d1510d1bffe7be24637c0a68f62e6f63a"
+    "sha256": "90a58e5cb811e22b129b3bef9385307fc292a72a94bceade49af07ddc185ab10"
   },
   {
     "path": "yamlview/internal/parser/grammar/LICENSE",

@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// plainIdentifierKey proves that an unadorned, plain ASCII identifier
+// survives the pinned yaml.v2 scalar and JSON decoders as the same string.
+// In yaml.v2 resolve.go, only a sign, digit, or dot can enter numeric or
+// timestamp resolution. This alphabet also excludes merge and YAML syntax;
+// the remaining possible implicit types are the boolean and null spellings.
+// Uncertain cases still use strictScalar, including mixed-case spellings
+// that yaml.v2 actually treats as strings.
+func plainIdentifierKey(n *yamlv3.Node) (string, bool) {
+	key := n.Value
+	if n.Kind != yamlv3.ScalarNode || n.Tag != "!!str" || n.Style != 0 || n.Anchor != "" || len(key) == 0 || len(key) > 128 {
+		return "", false
+	}
+	for i := 0; i < len(key); i++ {
+		c := key[i]
+		if c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || i > 0 && (c == '-' || c >= '0' && c <= '9') {
+			continue
+		}
+		return "", false
+	}
+	if len(key) <= 5 {
+		switch strings.ToLower(key) {
+		case "y", "n", "yes", "no", "on", "off", "true", "false", "null":
+			return "", false
+		}
+	}
+	return key, true
+}
+
 // Selected root fields are bounded scalar facts, never a partial value tree.
 // Unrelated recursive values do not erase independently known fields.
 // strictScalar preserves the pinned strict YAML scalar semantics for values
