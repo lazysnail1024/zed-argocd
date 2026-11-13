@@ -164,6 +164,59 @@ def worker(path):
     return child.returncode
 
 
+def capture_unit_evidence(unit, logs, control=("sudo", "-n", "systemctl"),
+                          journal=("sudo", "-n", "journalctl")):
+    """Capture outside the constrained worker before stopping its unique unit."""
+    logs.mkdir(parents=True, exist_ok=True)
+    receipt = {"unit": unit, "capturedAtUnixNs": time.time_ns(), "causeAvailable": False}
+
+    def query(name, command):
+        result = {"command": command}
+        try:
+            child = subprocess.run(command, capture_output=True, timeout=15)
+            result["exit"] = child.returncode
+            stdout, stderr = child.stdout, child.stderr
+        except (OSError, subprocess.SubprocessError) as error:
+            result["error"] = repr(error)
+            stdout = getattr(error, "stdout", None) or b""
+            stderr = getattr(error, "stderr", None) or b""
+        (logs / (name + ".stdout")).write_bytes(stdout)
+        (logs / (name + ".stderr")).write_bytes(stderr)
+        return result, stdout.decode("utf-8", errors="replace")
+
+    properties = ("Id,LoadState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,"
+                  "ExecMainStartTimestamp,ExecMainExitTimestamp,OOMPolicy,MemoryPeak,"
+                  "MemoryCurrent,CPUUsageNSec,ControlGroup,CollectMode")
+    receipt["systemctl"], text = query("unit-show", [*control, "show", unit, "--property=" + properties])
+    values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+    receipt["properties"] = values
+    receipt["causeAvailable"] = (receipt["systemctl"].get("exit") == 0
+                                 and values.get("LoadState") == "loaded" and bool(values.get("Result")))
+    if not receipt["causeAvailable"]:
+        receipt["causeUnavailableReason"] = "Unit result was unavailable; a reclaimed unit is not evidence of success."
+    group = values.get("ControlGroup", "")
+    if not group:
+        before = logs / "limits" / "before.json"
+        try:
+            group = json.loads(before.read_text())["cgroup"].removeprefix("0::")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            receipt["cgroupLookupError"] = repr(error)
+    cgroup = {"path": group, "files": {}, "errors": {}}
+    if group.startswith("/") and ".." not in Path(group).parts:
+        folder = Path("/sys/fs/cgroup") / group.lstrip("/")
+        for name in ("memory.events", "memory.events.local", "memory.current", "memory.peak", "memory.stat"):
+            try:
+                cgroup["files"][name] = (folder / name).read_text()
+            except OSError as error:
+                cgroup["errors"][name] = repr(error)
+    else:
+        cgroup["unavailableReason"] = "No valid task cgroup path was available."
+    receipt["cgroup"] = cgroup
+    receipt["journal"], _ = query("unit-journal", [*journal, "--unit=" + unit, "--no-pager", "--output=short-precise"])
+    save(logs / "unit-evidence.json", receipt)
+    return receipt
+
+
 def execute(case, binary, output):
     name, script, extra, memory, timeout = case
     destination, logs = output / name, output / "logs" / name
@@ -175,7 +228,7 @@ def execute(case, binary, output):
     spec_path = output / "specs" / (name + ".json")
     save(spec_path, spec)
     unit = "argocd-resource-" + uuid.uuid4().hex
-    command = ["sudo", "-n", "systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=" + unit,
+    command = ["sudo", "-n", "systemd-run", "--quiet", "--wait", "--pipe", "--unit=" + unit,
                "--uid=" + str(os.getuid()), "--gid=" + str(os.getgid()), "--working-directory=" + str(ROOT),
                "--property=MemoryMax=" + str(memory * 1024 ** 2), "--property=MemorySwapMax=0",
                "--property=CPUQuota=400%", "--property=AllowedCPUs=" + ",".join(map(str, cpus)),
@@ -203,9 +256,18 @@ def execute(case, binary, output):
             if (logs / name).exists():
                 print((logs / name).read_text(encoding="utf-8", errors="replace")[-4000:], flush=True)
     finally:
-        # Always stop the complete process group, including an orphaned server.
+        # Failed units must survive until this unconstrained parent records the
+        # termination cause. Worker-side finally blocks cannot survive SIGKILL.
+        try:
+            receipt = capture_unit_evidence(unit, logs)
+            row["unitEvidence"] = str(logs / "unit-evidence.json")
+            row["unitCauseAvailable"] = receipt["causeAvailable"]
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            row["unitEvidenceError"] = repr(error)
+        # Stop/reset only this invocation's unique unit after preserving evidence.
         try:
             subprocess.run(["sudo", "-n", "systemctl", "stop", unit], capture_output=True, timeout=30, check=False)
+            subprocess.run(["sudo", "-n", "systemctl", "reset-failed", unit], capture_output=True, timeout=30, check=False)
         except (OSError, subprocess.SubprocessError) as error:
             row.update(passed=False, cleanupError=str(error))
         row["seconds"] = round(time.monotonic() - started, 3)
