@@ -1,13 +1,13 @@
 {
   "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-  "version": "v0.0.0-20261112033740-db4adba0093e",
+  "version": "v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25",
   "origin": "go-module-commit",
   "published": false,
-  "sourceSHA256": "bd7fb7b096e8f8e899feffe4504e30fced08da86df796f21d8bcc479b6239250",
-  "contractSHA256": "964e6c4be583a7fa7b0853331592a01a515c92a2b7b72bb7c34c44fe31609fdf",
-  "zipSHA256": "12de0fa23fb2b20a4b010518972242967fe7629bd063320cb7bef08814b9f857",
+  "sourceSHA256": "da2e5546492094182468fd5179efe9f177aceca53db6a7048f8218d75381d043",
+  "contractSHA256": "38734de00a5a44f0c9d9bf81be7599c3f45016f9b7928d040815e7c252967aca",
+  "zipSHA256": "6a503bc2305dad05f65851ddf855440652f9c3ffb5c2d237e3ef4490db8519e8",
   "files": {
-    "CONTRACT.md": "964e6c4be583a7fa7b0853331592a01a515c92a2b7b72bb7c34c44fe31609fdf",
+    "CONTRACT.md": "38734de00a5a44f0c9d9bf81be7599c3f45016f9b7928d040815e7c252967aca",
     "LICENSE": "265ef4492c50a2720eb5897c1f8a196f6170396115c90517ec40cd89c1549a26",
     "edit/plan.go": "92636f55c083e0ab62a1f76a75e279e204dee41793ca0706fd506cc021c40564",
     "go.mod": "25b15cd147c60bff1558782a5d7463b6060532dde40f851b06138426775cd77c",
@@ -39,9 +39,9 @@
     "yamlview/internal/parser/grammar/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
     "yamlview/internal/parser/grammar/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
     "yamlview/internal/parser/grammar/tree_sitter/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
-    "yamlview/internal/parser/parser.go": "7408f0a822df4438d8cc827c53ff54c452552d984f7da67ba8dd09451f2c661c",
+    "yamlview/internal/parser/parser.go": "64b55bc6dbc427b1f6c3d9608090b821a7784823da7a9b7f52163180d2b32a67",
     "yamlview/view.go": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
   },
-  "commit": "db4adba0093ee2a709356aa1c2517e6d62644745",
+  "commit": "497c5d8d6a253399ca72019c643ec9ec4761d8dd",
   "sourceSHA256Scope": "listed runtime and contract files"
 }

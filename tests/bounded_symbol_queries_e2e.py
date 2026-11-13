@@ -132,6 +132,18 @@ try:
         # A large-file batch may outlive 16 requests: observe a completed batch,
         # not a fixed number of sleeps. Per-request latency bounds stay intact.
         time.sleep(.13)
+    # Schema fields remain local when an unrelated Project buffer changes
+    # after the request was accepted. Its name and the expected symbol set stay
+    # unchanged; only the cross-file dependency generation changes.
+    client.open(project, wire.PROJECT)
+    client.request('textDocument/hover', {'textDocument': {'uri': focus.as_uri()}, 'position': position(focus_text, 'apiVersion')})
+    for number in range(8):
+        ident = 30000 + number
+        started = time.monotonic()
+        client.send('textDocument/completion', {'textDocument': {'uri': focus.as_uri()}, 'position': position(focus_text, 'syncPol')}, ident)
+        client.change(project, wire.PROJECT + f'# unrelated revision {number}\n', number + 2)
+        response = client.wait(lambda message: message.get('id') == ident)
+        local.append({'phase': 'project-buffer-change', 'seconds': time.monotonic() - started, 'error': response.get('error'), 'labels': [item['label'] for item in completion_items(response)]})
     progress = traces.since(progress_mark)
     record('local-completion-during-index-commits', {'minimumQueriesObserved': len(local) >= 16, 'everyLocalFieldAvailable': all(row['error'] is None and 'syncPolicy' in row['labels'] for row in local), 'localLatencyBound': max(row['seconds'] for row in local) <= args.max_local_seconds, 'backgroundReadsObserved': any(row['stats'].get('diskReads', 0) > 0 for row in progress)}, {'requests': local, 'backgroundBatches': len(progress)})
 
@@ -139,6 +151,7 @@ try:
     # processed every other file. Require the real terminal discovery signal.
     ready = wait_ready(client, traces, progress_mark, args.files + 4, 120, False)
     settle(client, last_name, [last_name])
+    settle(client, 'team', ['team'])
     timings = []
     for query, names in [('no-declaration-can-match-this', []), (last_name, [last_name])]:
         for _ in range(4):

@@ -55,7 +55,7 @@ The toolkit dependency is pinned to the full source commit recorded in
 It does not require a toolkit release tag. The vendored `source`, `yamlview`,
 `yamlvalue`, `schemaquery`, `edit`, `index`, and `workspace` packages match that
 commit; builds need no sibling checkout or local `replace` directive.
-[contracts/toolkit-design-5.md](contracts/toolkit-design-5.md) is the byte-identical
+[contracts/toolkit-design-6.md](contracts/toolkit-design-6.md) is the byte-identical
 API contract, with its implementation and content identities in `contracts/toolkit.lock.json` and
 `contracts/toolkit-snapshot.json`.
 

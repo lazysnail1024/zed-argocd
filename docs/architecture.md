@@ -41,7 +41,7 @@
 
 ## 公共依赖及状态归属
 
-公共依赖为 `github.com/lazysnail1024/k8s-crd-toolkit`，当前源码 pin 为 `v0.0.0-20261112033740-db4adba0093e`，完整提交为 `db4adba0093ee2a709356aa1c2517e6d62644745`。[go.mod](../go.mod)和 [go.sum](../go.sum)固定官方 Go module 来源及校验值，[toolkit.lock.json](../contracts/toolkit.lock.json)与 [toolkit-snapshot.json](../contracts/toolkit-snapshot.json)固定 design-5 合同及运行时文件摘要。构建使用已提交的 [vendor](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/)，无需发布 tag、相邻 checkout 或本地 `replace`。
+The shared dependency is `github.com/lazysnail1024/k8s-crd-toolkit`, pinned to `v0.0.1-alpha.1.0.20261113133250-497c5d8d6a25` at commit `497c5d8d6a253399ca72019c643ec9ec4761d8dd`. [go.mod](../go.mod) and [go.sum](../go.sum) identify the Go module and checksums; [toolkit.lock.json](../contracts/toolkit.lock.json) and [toolkit-snapshot.json](../contracts/toolkit-snapshot.json) bind contract 6 and runtime source hashes. Builds use committed [vendor sources](../vendor/github.com/lazysnail1024/k8s-crd-toolkit/) without a neighboring checkout or local `replace`.
 
 | 公共模块 | 本仓调用位置与边界 |
 | --- | --- |
@@ -57,9 +57,9 @@
 
 `Index.Reuse` 的调用点在 `incremental.go`：本仓先确认字节 hash、target/配置解释和客户端 URI 均未变化，再给新的有效票据复用已保留事实。公共 Index 不推断“内容未变”，也不替本仓判断解释是否相同。内容/位置变化走重新分析和 Commit；只有语义相同并不意味着旧位置仍然正确。
 
-[toolkit-design-5.md](../contracts/toolkit-design-5.md)是构建核对的合同快照，其 SHA-256 由 [toolkit.lock.json](../contracts/toolkit.lock.json)记录；锁文件、[toolkit-snapshot.json](../contracts/toolkit-snapshot.json)、[vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json)及 [vendor-c-sources.json](../contracts/vendor-c-sources.json)连接模块提交、合同字节、运行源码与 native parser 来源。合同和来源清单属于可执行构建约束，不能随说明文字改写。
+[toolkit-design-6.md](../contracts/toolkit-design-6.md) is the byte-exact contract snapshot checked by the build. [toolkit.lock.json](../contracts/toolkit.lock.json), [toolkit-snapshot.json](../contracts/toolkit-snapshot.json), [vendor-toolkit-sources.json](../contracts/vendor-toolkit-sources.json), and [vendor-c-sources.json](../contracts/vendor-c-sources.json) bind the module commit, contract bytes, runtime sources, and native parser provenance. These files are executable build constraints.
 
-公共层提供有界的数据结构和有效性规则；worker、timer、watcher 注册、配置、Argo 领域语义、LSP 消息和发布策略由本仓持有。Argo CD 与 `zed-argo-workflows` 各自编译引用公共源码，两者没有直接模块依赖；各个原生进程分别实例化 Documents、Index 和 WorkQueue，不共享运行时索引或缓存，也不因此自动提供跨插件跳转。
+The shared layer provides bounded data structures and validity rules. Under contract 6, it also owns two private pinned native parser workers that schedule individual parse slices. Application analysis workers, timers, watcher registration, configuration, Argo semantics, LSP messages, and publication policy remain owned by this repository. Argo CD and `zed-argo-workflows` independently compile the shared sources; each native process owns its Documents, Index, and WorkQueue instances. They share no runtime index or cache and do not automatically provide cross-plugin navigation.
 
 ## 从启动到可用结果
 
@@ -173,7 +173,7 @@ Linux 原生 CI 的参考负载是 50,000 个填充 YAML 加 100,000 个非 YAML
 
 原生构建只依赖 Go/C、vendor、版本数据与 native 工具；删除编辑器目录后仍可独立构建和打包。Rust 适配器目录可独立构建 WASM，不编译 Go，不包含 Argo CD 分析或原生 executable。`serverPath`、Zed worktree PATH、固定 native release pin 依序决定启动对象；managed 下载先校验 SHA-256，再校验产品、`adapterContractVersion=1`、分析资产 readiness 和确切 release 身份，成功后激活完整 cache generation。
 
-适配器协议版本与公共源码合同 `toolkit-design-5` 是两个边界；前者由 [identity.rs](../editors/zed/src/identity.rs)核对，后者由原生构建来源链核对。身份中的 `analysisReady` 表示内置分析资产可用，不表示某个已打开工作区的索引到达 Ready。
+The adapter protocol and shared source contract `toolkit-design-6` are separate boundaries: [identity.rs](../editors/zed/src/identity.rs) checks the former, while native build provenance checks the latter. `analysisReady` means bundled analysis assets are available; it does not mean an open workspace index is Ready.
 
 原生版本来自根 `VERSION`，适配器版本来自自身 manifest/Cargo，native pin 来自 `native-server-version`，三者分别有用途。`native.yml` / `release.yml` 验证原生平台产物；`zed.yml` / `zed-release.yml` 验证 WASM、适配器包和确切 native pin；发布输入分别是 [native-release-notes.md](native-release-notes.md)与 [editors/zed/release-notes.md](../editors/zed/release-notes.md)。
 

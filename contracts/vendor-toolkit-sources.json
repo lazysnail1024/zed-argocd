@@ -117,7 +117,7 @@
   },
   {
     "path": "yamlview/internal/parser/parser.go",
-    "sha256": "7408f0a822df4438d8cc827c53ff54c452552d984f7da67ba8dd09451f2c661c"
+    "sha256": "64b55bc6dbc427b1f6c3d9608090b821a7784823da7a9b7f52163180d2b32a67"
   },
   {
     "path": "yamlview/view.go",

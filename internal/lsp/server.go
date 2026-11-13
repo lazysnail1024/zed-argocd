@@ -994,11 +994,17 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						}
 					} else {
 						fresh := workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
-						answer, code, why = readRequest(ctx, m, fresh, current, queryRoots)
+						var localAnswer bool
+						answer, code, why, localAnswer = readRequest(ctx, m, fresh, current, queryRoots)
 						if code == 0 {
 							// The proof must describe the very scopes used by this
 							// answer, including configuration changes refreshed above.
 							proof = newReadProof(m, fresh, copied, queryRoots, selected, queryDisk)
+							if _, opened := copied[queryURI(m)]; proof != nil && localAnswer && opened {
+								// Schema completion uses only this buffer and its target.
+								// Optional Project discovery cannot invalidate that answer.
+								proof.localize(queryURI(m))
+							}
 						}
 						traceReadRequest(&trace, m, fresh, proof)
 					}
@@ -1669,9 +1675,9 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 	return nil, 0, ""
 }
 
-func readRequest(ctx context.Context, m message, latest completed, epoch uint64, roots []string) (answer any, code int, why string) {
+func readRequest(ctx context.Context, m message, latest completed, epoch uint64, roots []string) (answer any, code int, why string, localAnswer bool) {
 	if latest.epoch != epoch || latest.err != nil {
-		return nil, -32801, "analysis input changed; retry after current diagnostics"
+		return nil, -32801, "analysis input changed; retry after current diagnostics", false
 	}
 	var p struct {
 		TextDocument struct {
@@ -1683,12 +1689,12 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		} `json:"context"`
 	}
 	if json.Unmarshal(m.Params, &p) != nil {
-		return nil, -32602, "invalid query params"
+		return nil, -32602, "invalid query params", false
 	}
 	file, err := workspace.PathFromURI(p.TextDocument.URI)
 	if err == nil {
 		if failure := latest.failures[workspace.Owner(roots, file)]; failure != nil {
-			return nil, -32801, "analysis input unavailable: " + failure.Error()
+			return nil, -32801, "analysis input unavailable: " + failure.Error(), false
 		}
 	}
 	answer = []any{}
@@ -1728,7 +1734,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 			answer = analysis.Definition(scope.documents, scope.options, p.TextDocument.URI, p.Position)
 		case "textDocument/references":
 			if !scope.options.Complete {
-				return nil, -32801, "workspace discovery is incomplete; target uniqueness is unproved"
+				return nil, -32801, "workspace discovery is incomplete; target uniqueness is unproved", false
 			}
 			answer = analysis.References(scope.documents, scope.options, p.TextDocument.URI, p.Position, p.Context.IncludeDeclaration)
 		case "textDocument/documentSymbol":
@@ -1760,11 +1766,11 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 			for _, f := range scope.files {
 				if string(f.Snapshot.URI()) == p.TextDocument.URI {
 					if items := analysis.FieldCompletions(ctx, f.Snapshot, f.Target.Version, scope.documents, p.Position); len(items) > 0 {
-						answer = items
+						answer, localAnswer = items, true
 					} else if latest.documentOnly {
 						// An empty field result can be a reference-value request.
 						// Do not claim that a partial index has no candidates.
-						return nil, -32801, "workspace reference candidates are not ready; retry after workspace analysis"
+						return nil, -32801, "workspace reference candidates are not ready; retry after workspace analysis", false
 					}
 					break
 				}
@@ -1772,7 +1778,7 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 		}
 		break
 	}
-	if m.Method == "textDocument/completion" && latest.candidatesTruncated {
+	if m.Method == "textDocument/completion" && !localAnswer && latest.candidatesTruncated {
 		answer = map[string]any{"isIncomplete": true, "items": answer}
 	}
 	return

@@ -27,8 +27,8 @@ for mode in ['parent-exit','output','nonzero','deadline']:
 # Successful rendering must preserve the same public analysis as checking the
 # generated file directly, including severity exits and readable diagnostics.
 for name, mode, flags, expected_exit, diagnostics in [
- ('render-warning', 'application', [], 0, [('SCHEMA_UNKNOWN_FIELD', 2), ('CD_PROJECT_UNRESOLVED', 3)]),
- ('render-warning-strict', 'application', ['--warnings-as-errors'], 1, [('SCHEMA_UNKNOWN_FIELD', 2), ('CD_PROJECT_UNRESOLVED', 3)]),
+ ('render-warning', 'application', [], 0, [('SCHEMA_UNKNOWN_FIELD', 2), ('CD_PROJECT_NAMESPACE_UNBOUND', 3)]),
+ ('render-warning-strict', 'application', ['--warnings-as-errors'], 1, [('SCHEMA_UNKNOWN_FIELD', 2), ('CD_PROJECT_NAMESPACE_UNBOUND', 3)]),
  ('render-schema-error', 'application-error', [], 1, [('SCHEMA_TYPE', 1)]),
 ]:
  folder = out / name

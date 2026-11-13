@@ -17,6 +17,7 @@ import sys
 from urllib.parse import urlsplit
 
 import audit_repair_e2e as wire
+from persistent_workspace_e2e import Client, Traces, wait_ready
 
 
 REPO_A = "https://example.invalid/repo-a"
@@ -234,11 +235,16 @@ class Suite:
         quoted = wire.APP.replace("project: team", 'project: "{{ .Values.project }}"')
         app = write(root, "chart/templates/app.yaml", plain)
         disk_bytes = app.read_bytes()
-        client = wire.LSP(folder, [root])
+        client = Client(folder, [root])
         transitions = []
         try:
             client.open(app, plain, language_id=language_id)
             diagnostics = client.diag(app, 1)
+            # A focused publication may arrive during initial discovery. The
+            # hot-edit work contract starts only after that membership is Ready.
+            progress = Traces(client)
+            wait_ready(client, progress, 0, 0, 30, False)
+            hot_start = progress.mark()
             self.record(prefix + "pure-yaml-control", {"schemaStillChecked": any(d["code"] == "SCHEMA_TYPE" and d["severity"] == 1 for d in diagnostics)}, diagnostics)
             for version, text, skipped in [(2, template, True), (3, plain, False), (4, quoted, True), (5, plain, False)]:
                 marker = len(client.messages)
@@ -255,7 +261,7 @@ class Suite:
                 transitions.append(diagnostics)
         finally:
             client.close()
-        hot = [row for row in traces(folder) if not row["fullScan"]]
+        hot = [row["stats"] for row in progress.since(hot_start) if row["delivered"] and not row["stats"]["fullScan"]]
         self.record(prefix + "transitions-no-acquisition", {"fourCompletedEdits": len(hot) == 4, "noUnrelatedReads": all(row["diskReads"] == 0 for row in hot),
                     "noFallback": all(row.get("acquisitionFallbacks") == 0 for row in hot)}, hot)
 
@@ -327,11 +333,16 @@ class Suite:
                     raise
                 self.record(name, {"canonicalControlStillRequired": True}, {"reason": str(error)}, skipped="Windows runner does not permit creating symlinks")
                 return
-        client = wire.LSP(folder, [root])
+        client = Client(folder, [root])
         try:
             client.open(project, wire.PROJECT)
             client.open(app, wire.APP)
             initial = client.diag(app, 1)
+            # A focused publication may arrive during initial discovery. The
+            # hot-edit work contract starts only after that membership is Ready.
+            progress = Traces(client)
+            wait_ready(client, progress, 0, 0, 30, False)
+            hot_start = progress.mark()
             self.record(name + "-initial", {"diagnosticsUseClientURI": all(d["uri"] == app.as_uri() for d in initial), "validApp": not initial}, initial)
             text = wire.APP + "# comment-only edit\n"
             client.change(app, text, 2)
@@ -358,7 +369,7 @@ class Suite:
                 self.record("uri-real-windows-drive", {"actualDriveURI": bool(re.match(r"^/[A-Za-z]:/", urlsplit(app.as_uri()).path))}, {"uri": app.as_uri(), "platform": platform.platform()})
         finally:
             client.close()
-        hot = [row for row in traces(folder) if not row["fullScan"]]
+        hot = [row["stats"] for row in progress.since(hot_start) if row["delivered"] and not row["stats"]["fullScan"]]
         self.record(name + "-incremental-work", {"threeCompletedEdits": len(hot) == 3, "noDiskReads": all(row["diskReads"] == 0 for row in hot),
                     "oneParsedFile": all(row["parsedFiles"] == 1 for row in hot), "onlyAppAndProjectDomain": [row["domainDocuments"] for row in hot] == [2, 1, 2],
                     "noHiddenFallback": all(row.get("acquisitionFallbacks") == 0 for row in hot)}, hot)
@@ -377,10 +388,15 @@ class Suite:
                 raise
             self.record("uri-retarget", {"canonicalControlStillRequired": True}, {"reason": str(error)}, skipped="Windows runner does not permit creating symlinks")
             return
-        client = wire.LSP(folder, [root])
+        client = Client(folder, [root])
         try:
             client.open(alias, wire.APP)
             client.diag(alias, 1)
+            # A focused publication may arrive during initial discovery. The
+            # hot-edit work contract starts only after that membership is Ready.
+            progress = Traces(client)
+            wait_ready(client, progress, 0, 0, 30, False)
+            hot_start = progress.mark()
             before = client.request("textDocument/definition", {"textDocument": {"uri": alias.as_uri()}, "position": position(wire.APP, "team")})
             alias.unlink()
             alias.symlink_to(second)
@@ -392,7 +408,7 @@ class Suite:
                         "newScope": [v["uri"] for v in after.get("result", [])] == [second_project.as_uri()], "noStaleDiagnostics": not diagnostics}, {"before": before, "after": after})
         finally:
             client.close()
-        hot = [row for row in traces(folder) if not row["fullScan"]]
+        hot = [row["stats"] for row in progress.since(hot_start) if row["delivered"] and not row["stats"]["fullScan"]]
         self.record("uri-retarget-invalidates-membership", {"oneCompletedEdit": len(hot) == 1, "identityReassignedWithoutRootScan": len(hot) == 1 and hot[0].get("acquisitionFallbacks") == 0,
                     "oldIdentityRestoredFromDisk": len(hot) == 1 and hot[0]["diskReads"] == 1 and hot[0]["parsedFiles"] == 2}, hot)
 
