@@ -39,15 +39,17 @@ jobs:
         run: python tests/resource_ci.py --suite "${{ matrix.suite }}" --binary artifacts/resource-build/argocd-ls --output artifacts/resources
       - name: Pack complete resource evidence
         if: always()
-        run: python tools/ci_evidence.py pack --root artifacts --output resource-evidence
+        run: |
+          mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
+          python tools/ci_evidence.py pack --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
       - name: Verify archived resource evidence
         if: always()
-        run: python tools/ci_evidence.py verify --manifest resource-evidence/manifest.json
+        run: python tools/ci_evidence.py verify --manifest artifacts/resource-evidence/manifest.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: argocd-resources-${{ matrix.suite }}
-          path: resource-evidence/
+          path: artifacts/resource-evidence/
           compression-level: 0
           if-no-files-found: error
           retention-days: 30
