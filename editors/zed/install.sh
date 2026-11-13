@@ -4,7 +4,7 @@ set -eu
 
 repo=lazysnail1024/zed-argocd
 extension=argocd-lsp
-version=0.0.1-alpha.5
+version=0.0.1-alpha.6
 assets_dir=
 rollback=false
 

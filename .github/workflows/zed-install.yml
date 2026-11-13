@@ -1,11 +1,9 @@
 name: Zed alpha installer E2E (filesystem only)
 
 on:
-  pull_request:
-    paths: ['editors/zed/install.*', 'editors/zed/tests/install_e2e.py', '.github/workflows/zed-install.yml', 'README.md', 'docs/distribution.md']
-  push:
-    branches: [main]
-    paths: ['editors/zed/install.*', 'editors/zed/tests/install_e2e.py', '.github/workflows/zed-install.yml', 'README.md', 'docs/distribution.md']
+  workflow_run:
+    workflows: ['Release independent Zed adapter']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -13,6 +11,7 @@ permissions:
 
 jobs:
   install:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     name: Real Release file-install E2E (${{ matrix.runner }})
     strategy:
       fail-fast: false
@@ -24,6 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14.0'
