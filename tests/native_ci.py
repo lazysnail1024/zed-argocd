@@ -17,6 +17,8 @@ def audit_consumers(platform):
  cases=[
   ('multi-version-compatibility','multi_version_e2e.py',[] if full_catalog else ['--representatives'],600),
   ('lsp-lifecycle','lsp_e2e.py',[],90),
+  ('navigation-defaults','navigation_defaults_e2e.py',[],90),
+  ('helm-source','helm_source_e2e.py',[],120),
   ('parent-workspace','parent_workspace_lsp_e2e.py',[],90),
   ('mixed-parent-index','mixed_parent_index_e2e.py',[],90),
   ('persistent-workspace','persistent_workspace_e2e.py',['--count','1000','--padding','4096'],150),
@@ -176,7 +178,10 @@ def save():
 def security_suite(suite):
  global security_cases
  if suite=='provenance':
-  if run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=420):builds.append(build_evidence(out/'packaging/development-build/manifest.json'))
+  # Five intentional builds each retain their own 180-second limit; Windows
+  # also needs bounded time for fixture copies, inventories and package checks.
+  provenance_timeout = 1200 if a.platform == 'windows/amd64' else 420
+  if run('provenance-and-archive',[sys.executable,str(ROOT/'tests/native_package_e2e.py'),str(out/'packaging'),'--platform',a.platform],timeout=provenance_timeout):builds.append(build_evidence(out/'packaging/development-build/manifest.json'))
  else:
   if run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900):
    builds.extend(build_evidence(out/'environment'/(name+'-build')/'manifest.json') for name in COMPILER_CASES)

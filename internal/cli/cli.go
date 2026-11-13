@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,7 +14,9 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
@@ -88,7 +91,23 @@ func Run(args []string, out, errOut io.Writer) int {
 			fmt.Fprintln(errOut, "serve requires --stdio")
 			return 2
 		}
-		return lsp.Run(os.Stdin, out, errOut)
+		return lsp.Run(os.Stdin, out, errOut, func(ctx context.Context, root, file, target string) (lsp.RenderResult, error) {
+			var output, errors bytes.Buffer
+			args := []string{"--root", root, "--file", file, "--format", "json"}
+			if target != "" {
+				args = append(args, "--target-version", target)
+			}
+			exit := renderCheckContext(ctx, args, &output, &errors)
+			var report Report
+			if err := json.Unmarshal(output.Bytes(), &report); err != nil || exit >= 2 || report.Renderer == nil {
+				message := strings.TrimSpace(errors.String())
+				if message == "" {
+					message = fmt.Sprintf("render-check failed with exit %d: %s", exit, output.String())
+				}
+				return lsp.RenderResult{}, fmt.Errorf("%s", message)
+			}
+			return lsp.RenderResult{Output: report.Renderer.Output, Report: filepath.Join(filepath.Dir(report.Renderer.Output), "report.json"), Message: fmt.Sprintf("Argo CD render-check: analysisComplete=%v, %d diagnostics. Generated YAML: %s; report: %s", report.AnalysisComplete, len(report.Diagnostics), report.Renderer.Output, filepath.Join(filepath.Dir(report.Renderer.Output), "report.json"))}, nil
+		})
 	default:
 		fmt.Fprintf(errOut, "Unknown or unimplemented command %q. Run argocd-ls help.\n", args[0])
 		return 2

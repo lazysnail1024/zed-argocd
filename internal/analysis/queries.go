@@ -57,7 +57,7 @@ func Symbols(documents []Document, uri string) []Symbol {
 }
 func Definition(documents []Document, options DomainOptions, uri string, p Position) []Location {
 	result := []Location{}
-	documents = queryDocuments(documents)
+	documents = definitionDocuments(documents)
 	for _, doc := range documents {
 		if string(doc.Snapshot.URI()) == uri {
 			if name, definitions, _, found := sourceReferences(doc, p); found {
@@ -77,12 +77,12 @@ func Definition(documents []Document, options DomainOptions, uri string, p Posit
 			continue
 		}
 		project := literal(object(doc.Value["spec"])["project"])
-		if project == "" || options.ControlPlaneNamespace == "" {
+		if project == "" {
 			continue
 		}
 		for _, candidate := range documents {
 			meta := object(candidate.Value["metadata"])
-			if candidate.Kind == "AppProject" && candidate.exact([]string{"metadata", "name"}) && literal(meta["name"]) == project && literal(meta["namespace"]) == options.ControlPlaneNamespace {
+			if candidate.Kind == "AppProject" && candidate.exact([]string{"metadata", "name"}) && literal(meta["name"]) == project && (options.ControlPlaneNamespace == "" || literal(meta["namespace"]) == options.ControlPlaneNamespace) {
 				result = append(result, Location{string(candidate.Snapshot.URI()), candidate.rangeAt([]string{"metadata", "name"})})
 			}
 		}
@@ -294,6 +294,33 @@ func queryDocuments(documents []Document) []Document {
 	}
 	return result
 }
+
+// Definition inspects physical generator template leaves without claiming that
+// their partial template is a fully merged controller-generated Application.
+// Policy and reverse references continue using the authoritative projection.
+func definitionDocuments(documents []Document) []Document {
+	result := queryDocuments(documents)
+	for _, doc := range documents {
+		if doc.Kind != "ApplicationSet" {
+			continue
+		}
+		for i, generator := range objectSlice(object(doc.Value["spec"])["generators"]) {
+			for kind, body := range object(generator) {
+				if kind == "selector" {
+					continue
+				}
+				parts := []string{"spec", "generators", fmt.Sprint(i), kind, "template"}
+				value := object(object(body)["template"])
+				if value == nil {
+					continue
+				}
+				result = append(result, Document{Snapshot: doc.Snapshot, Root: locate(doc.Root, parts), Value: value, Origin: doc.originBelow(parts), Kind: "Application", Target: doc.Target})
+			}
+		}
+	}
+	return result
+}
+
 func sourceReferences(doc Document, p Position) (string, map[string][]Location, map[string][]Location, bool) {
 	definitions, uses := map[string][]Location{}, map[string][]Location{}
 	selected := ""

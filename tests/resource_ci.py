@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Execute existing resource contracts in verified Linux cgroup v2 scopes."""
 import argparse
+from collections import deque
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import time
+import threading
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,6 +167,191 @@ def worker(path):
     return child.returncode
 
 
+class UnitObserver:
+    """Bounded, read-only observations from outside the task's memory cgroup."""
+
+    def __init__(self, unit, logs, binary, consumer, worker_argv):
+        self.unit, self.logs = unit, logs
+        self.binary = str(Path(binary).resolve())
+        self.expected = {"consumer": consumer, "worker": worker_argv}
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self.observe, daemon=True)
+        self.samples = deque(maxlen=200)
+        self.maxima, self.identities = {}, {}
+        self.errors = deque(maxlen=20)
+        self.group = ""
+        self.started = time.time_ns()
+        self.count = 0
+
+    def start(self):
+        self.thread.start()
+
+    def sample(self):
+        if not self.group:
+            membership = json.loads((self.logs / "limits/before.json").read_text())["cgroup"]
+            group = membership.removeprefix("0::")
+            require(group.startswith("/") and ".." not in Path(group).parts
+                    and Path(group).name == self.unit + ".service", "observer cgroup is not the owned unit")
+            self.group = group
+        folder = Path("/sys/fs/cgroup") / self.group.lstrip("/")
+        row = {"unixNs": time.time_ns(), "cgroup": {}, "processes": [], "errors": []}
+        for name in ("memory.current", "memory.peak", "memory.events", "memory.events.local", "memory.stat"):
+            try:
+                row["cgroup"][name] = (folder / name).read_text().strip()
+            except OSError as error:
+                row["errors"].append(name + ": " + repr(error))
+        try:
+            pids = (folder / "cgroup.procs").read_text().split()
+        except OSError as error:
+            pids = []
+            row["errors"].append(repr(error))
+        for pid in pids[:128]:
+            proc = Path("/proc") / pid
+            try:
+                stat = (proc / "stat").read_text()
+                start = stat.rsplit(")", 1)[1].split()[19]
+                # Membership and start time must still match after reading metadata.
+                exe = str((proc / "exe").resolve(strict=True))
+                with (proc / "cmdline").open("rb") as stream:
+                    raw = stream.read(65537)
+                argv = [x.decode("utf-8", errors="replace") for x in raw.rstrip(b"\0").split(b"\0")]
+                status = dict(line.split(":", 1) for line in (proc / "status").read_text().splitlines() if ":" in line)
+                if ((proc / "cgroup").read_text().strip() != "0::" + self.group
+                        or (proc / "stat").read_text().rsplit(")", 1)[1].split()[19] != start):
+                    continue
+                role = "other"
+                if len(raw) <= 65536:
+                    if exe == self.binary and argv and str(Path(argv[0]).resolve()) == self.binary:
+                        role = "server"
+                    else:
+                        role = next((name for name, expected in self.expected.items() if argv == expected), "other")
+                identity = {"pid": int(pid), "startTimeTicks": start, "exe": exe, "argv": argv,
+                            "argvTruncated": len(raw) > 65536, "role": role}
+                key = pid + ":" + start
+                if len(self.identities) < 128 or key in self.identities:
+                    self.identities[key] = identity
+                row["processes"].append(identity | {"status": {k: status[k].strip() for k in
+                    ("PPid", "VmRSS", "RssAnon", "RssFile", "VmSwap") if k in status}})
+            except (OSError, ValueError, IndexError) as error:
+                row["errors"].append(pid + ": " + repr(error))
+        self.count += 1
+        self.samples.append(row)
+        metrics = {}
+        for name in ("memory.current", "memory.peak"):
+            if name in row["cgroup"]:
+                metrics[name] = int(row["cgroup"][name])
+        for line in row["cgroup"].get("memory.stat", "").splitlines():
+            key, value = line.split()
+            if key in ("anon", "file", "file_dirty", "file_writeback"):
+                metrics[key] = int(value)
+        for proc in row["processes"]:
+            rss = int(proc["status"].get("VmRSS", "0 kB").split()[0]) * 1024
+            key = "rss:" + proc["role"]
+            metrics[key] = max(metrics.get(key, 0), rss)
+        for key, value in metrics.items():
+            if value > self.maxima.get(key, {}).get("value", -1):
+                self.maxima[key] = {"value": value, "sample": row}
+
+    def observe(self):
+        while not self.stop_event.is_set():
+            try:
+                self.sample()
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                self.errors.append({"unixNs": time.time_ns(), "error": repr(error)})
+            self.stop_event.wait(.05)
+
+    def finish(self, journal=("sudo", "-n", "journalctl")):
+        ended = time.time_ns()
+        self.stop_event.set()
+        self.thread.join(timeout=1)
+        if self.thread.is_alive():
+            receipt = {"unit": self.unit, "observerStopped": False,
+                       "unavailableReason": "Observer did not stop within one second; mutable samples were not read."}
+            save(self.logs / "unit-observations.json", receipt)
+            return receipt
+        receipt = {"unit": self.unit, "startUnixNs": self.started, "endUnixNs": ended,
+                   "intervalSeconds": .05, "sampleCount": self.count, "cgroup": self.group,
+                   "lastSamples": list(self.samples), "maxima": self.maxima,
+                   "identities": list(self.identities.values()), "errors": list(self.errors),
+                   "observerStopped": not self.thread.is_alive()}
+        command = [*journal, "--dmesg", "--since=@" + str(self.started // 10**9),
+                   "--until=@" + str(ended // 10**9 + 1), "--lines=2000", "--no-pager", "--output=json"]
+        kernel = {"command": command, "matches": [], "classification": "Not performed; matching records require interpretation."}
+        try:
+            child = subprocess.run(command, capture_output=True, timeout=15)
+            kernel.update(exit=child.returncode, stderr=child.stderr.decode("utf-8", errors="replace"))
+            pids = {str(x["pid"]) for x in self.identities.values()}
+            for line in child.stdout.decode("utf-8", errors="replace").splitlines():
+                item = json.loads(line)
+                message = item.get("MESSAGE", "")
+                group_match = self.group and re.search(re.escape(self.group) + r"(?=$|[\s,:;)])", message)
+                pid_match = any(re.search(r"(?:Killed process |pid=|task_pid=)" + pid + r"(?![0-9])", message) for pid in pids)
+                if group_match or pid_match:
+                    kernel["matches"].append(item)
+            kernel["availability"] = "matching records" if kernel["matches"] else "no matching records; victim unavailable"
+            if child.returncode != 0:
+                kernel["availability"] = "kernel journal query failed; victim unavailable"
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            kernel["error"] = repr(error)
+            kernel["availability"] = "kernel journal unavailable"
+        receipt["kernelJournal"] = kernel
+        save(self.logs / "unit-observations.json", receipt)
+        return receipt
+
+
+def capture_unit_evidence(unit, logs, control=("sudo", "-n", "systemctl"),
+                          journal=("sudo", "-n", "journalctl")):
+    """Capture outside the constrained worker before stopping its unique unit."""
+    logs.mkdir(parents=True, exist_ok=True)
+    receipt = {"unit": unit, "capturedAtUnixNs": time.time_ns(), "causeAvailable": False}
+
+    def query(name, command):
+        result = {"command": command}
+        try:
+            child = subprocess.run(command, capture_output=True, timeout=15)
+            result["exit"] = child.returncode
+            stdout, stderr = child.stdout, child.stderr
+        except (OSError, subprocess.SubprocessError) as error:
+            result["error"] = repr(error)
+            stdout = getattr(error, "stdout", None) or b""
+            stderr = getattr(error, "stderr", None) or b""
+        (logs / (name + ".stdout")).write_bytes(stdout)
+        (logs / (name + ".stderr")).write_bytes(stderr)
+        return result, stdout.decode("utf-8", errors="replace")
+
+    properties = ("Id,LoadState,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,"
+                  "ExecMainStartTimestamp,ExecMainExitTimestamp,OOMPolicy,MemoryPeak,"
+                  "MemoryCurrent,CPUUsageNSec,ControlGroup,CollectMode")
+    receipt["systemctl"], text = query("unit-show", [*control, "show", unit, "--property=" + properties])
+    values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+    receipt["properties"] = values
+    receipt["causeAvailable"] = (receipt["systemctl"].get("exit") == 0
+                                 and values.get("LoadState") == "loaded" and bool(values.get("Result")))
+    if not receipt["causeAvailable"]:
+        receipt["causeUnavailableReason"] = "Unit result was unavailable; a reclaimed unit is not evidence of success."
+    group = values.get("ControlGroup", "")
+    if not group:
+        before = logs / "limits" / "before.json"
+        try:
+            group = json.loads(before.read_text())["cgroup"].removeprefix("0::")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            receipt["cgroupLookupError"] = repr(error)
+    cgroup = {"path": group, "files": {}, "errors": {}}
+    if group.startswith("/") and ".." not in Path(group).parts:
+        folder = Path("/sys/fs/cgroup") / group.lstrip("/")
+        for name in ("memory.events", "memory.events.local", "memory.current", "memory.peak", "memory.stat"):
+            try:
+                cgroup["files"][name] = (folder / name).read_text()
+            except OSError as error:
+                cgroup["errors"][name] = repr(error)
+    else:
+        cgroup["unavailableReason"] = "No valid task cgroup path was available."
+    receipt["cgroup"] = cgroup
+    receipt["journal"], _ = query("unit-journal", [*journal, "--unit=" + unit, "--no-pager", "--output=short-precise"])
+    save(logs / "unit-evidence.json", receipt)
+    return receipt
+
+
 def execute(case, binary, output):
     name, script, extra, memory, timeout = case
     destination, logs = output / name, output / "logs" / name
@@ -175,7 +363,7 @@ def execute(case, binary, output):
     spec_path = output / "specs" / (name + ".json")
     save(spec_path, spec)
     unit = "argocd-resource-" + uuid.uuid4().hex
-    command = ["sudo", "-n", "systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=" + unit,
+    command = ["sudo", "-n", "systemd-run", "--quiet", "--wait", "--pipe", "--unit=" + unit,
                "--uid=" + str(os.getuid()), "--gid=" + str(os.getgid()), "--working-directory=" + str(ROOT),
                "--property=MemoryMax=" + str(memory * 1024 ** 2), "--property=MemorySwapMax=0",
                "--property=CPUQuota=400%", "--property=AllowedCPUs=" + ",".join(map(str, cpus)),
@@ -185,6 +373,8 @@ def execute(case, binary, output):
     command += [sys.executable, str(Path(__file__).resolve()), "_worker", str(spec_path)]
     logs.mkdir(parents=True, exist_ok=False)
     row = {"id": name, "command": command, "passed": False, "started": False}
+    observer = UnitObserver(unit, logs, binary, argv, command[-4:])
+    observer.start()
     started = time.monotonic()
     try:
         with (logs / "stdout").open("wb") as stdout, (logs / "stderr").open("wb") as stderr:
@@ -203,9 +393,24 @@ def execute(case, binary, output):
             if (logs / name).exists():
                 print((logs / name).read_text(encoding="utf-8", errors="replace")[-4000:], flush=True)
     finally:
-        # Always stop the complete process group, including an orphaned server.
+        try:
+            observer.finish()
+            row["unitObservations"] = str(logs / "unit-observations.json")
+        except Exception as error:
+            # Optional observations must never prevent termination receipts or cleanup.
+            row["unitObservationError"] = repr(error)
+        # Failed units must survive until this unconstrained parent records the
+        # termination cause. Worker-side finally blocks cannot survive SIGKILL.
+        try:
+            receipt = capture_unit_evidence(unit, logs)
+            row["unitEvidence"] = str(logs / "unit-evidence.json")
+            row["unitCauseAvailable"] = receipt["causeAvailable"]
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            row["unitEvidenceError"] = repr(error)
+        # Stop/reset only this invocation's unique unit after preserving evidence.
         try:
             subprocess.run(["sudo", "-n", "systemctl", "stop", unit], capture_output=True, timeout=30, check=False)
+            subprocess.run(["sudo", "-n", "systemctl", "reset-failed", unit], capture_output=True, timeout=30, check=False)
         except (OSError, subprocess.SubprocessError) as error:
             row.update(passed=False, cleanupError=str(error))
         row["seconds"] = round(time.monotonic() - started, 3)

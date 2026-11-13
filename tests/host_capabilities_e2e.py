@@ -24,6 +24,7 @@ def initialize_contract(client,label):
  }
  if client.edit:
   expected['codeActionProvider']={'resolveProvider':True}
+  expected['executeCommandProvider']={'commands':['argocd.renderCheck']}
   expected['renameProvider']={'prepareProvider':True}
  info=result.get('serverInfo',{})
  # JSON booleans and integers have different protocol types (Python == aliases them).

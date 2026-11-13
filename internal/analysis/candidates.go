@@ -135,7 +135,7 @@ func ReferenceCandidates(ctx context.Context, snapshot source.Snapshot, target s
 					detail = fmt.Sprintf("AppProject %s/%s; %s:%d", ns, name, candidate.Snapshot.URI(), location.Start.Line+1)
 				}
 				if options.ControlPlaneNamespace == "" {
-					detail += "; candidate only: configure controlPlaneNamespace in .argocd-ls.yaml for navigation"
+					detail += "; navigation candidate; policy and reverse references require controlPlaneNamespace"
 				}
 				add(name, detail, source.Span{Start: start, End: start + len(raw)})
 			}

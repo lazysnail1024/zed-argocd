@@ -23,6 +23,7 @@ import (
 )
 
 type RenderInfo struct {
+	Output       string   `json:"output"`
 	Binary       string   `json:"binary"`
 	BinarySHA256 string   `json:"binarySHA256"`
 	Version      string   `json:"version"`
@@ -69,14 +70,19 @@ func (b *boundedOutput) Write(p []byte) (int, error) {
 }
 
 func renderCheck(args []string, out, errOut io.Writer) int {
+	return renderCheckContext(context.Background(), args, out, errOut)
+}
+
+func renderCheckContext(parent context.Context, args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("render-check", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	root := fs.String("root", ".", "source workspace")
 	scope := fs.String("scope", "", "source scope")
 	target := fs.String("target-version", "", "exact target")
-	chart := fs.String("chart", "", "local chart")
+	chart := fs.String("chart", "", "local chart (default: nearest Chart.yaml)")
+	file := fs.String("file", "", "current source file for chart discovery")
 	values := fs.String("values", "", "local values file")
-	helm := fs.String("helm-binary", "", "explicit Helm 3 binary")
+	helm := fs.String("helm-binary", "", "Helm 3 or 4 binary (default: helm on PATH)")
 	output := fs.String("output", "", "generated directory")
 	format := fs.String("format", "human", "json or human")
 	warningsAsErrors := fs.Bool("warnings-as-errors", false, "treat warnings as errors")
@@ -110,8 +116,48 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 		}
 		return 3
 	}
-	if *chart == "" || *helm == "" || *output == "" {
-		return fail(fmt.Errorf("render-check requires --chart, --helm-binary and --output"))
+	if *helm == "" {
+		found, e := exec.LookPath("helm")
+		if e != nil {
+			return fail(fmt.Errorf("Helm is unavailable on PATH: %w", e))
+		}
+		*helm = found
+	}
+	if *chart == "" {
+		explicitRoot := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == "root" {
+				explicitRoot = true
+			}
+		})
+		if !explicitRoot {
+			start := *file
+			if start == "" {
+				start = "."
+			}
+			start, e := filepath.Abs(start)
+			if e != nil {
+				return fail(e)
+			}
+			boundary := filepath.VolumeName(start) + string(filepath.Separator)
+			found, e := workspace.FindChart(boundary, start)
+			if e != nil {
+				return fail(e)
+			}
+			*root = found
+			if *file != "" {
+				*file = start
+			}
+		}
+		start := *file
+		if start == "" {
+			start = "."
+		}
+		found, e := workspace.FindChart(*root, start)
+		if e != nil {
+			return fail(e)
+		}
+		*chart = found
 	}
 	if *format != "json" && *format != "human" {
 		return fail(fmt.Errorf("format must be json or human"))
@@ -119,12 +165,12 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 	if !filepath.IsAbs(*helm) {
 		return fail(fmt.Errorf("helm binary must be an explicit absolute path"))
 	}
-	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt)
+	signalCtx, stopSignal := signal.NotifyContext(parent, os.Interrupt)
 	defer stopSignal()
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(signalCtx, 30*time.Second)
 	defer cancel()
-	input, e := workspace.Load(ctx, *root, *scope, "", *target)
+	input, e := workspace.Load(ctx, *root, *scope, *file, *target)
 	if e != nil {
 		return fail(e)
 	}
@@ -259,8 +305,8 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 		return renderFailure(versionArgs, versionBytes, versionStderr, versionCode, e)
 	}
 	version := strings.TrimSpace(string(versionBytes))
-	if !strings.HasPrefix(version, "v3.") {
-		return fail(fmt.Errorf("Helm 3 is required; found %s", version))
+	if !strings.HasPrefix(version, "v3.") && !strings.HasPrefix(version, "v4.") {
+		return fail(fmt.Errorf("Helm 3 or 4 is required; found %s", version))
 	}
 	command := []string{"template", *release, chartPath, "--namespace", *namespace, "--kube-version", *kube, "--include-crds"}
 	if valuesPath != "" {
@@ -276,6 +322,12 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 	}
 	if e := ctx.Err(); e != nil {
 		return fail(e)
+	}
+	if *output == "" {
+		*output, e = os.MkdirTemp("", "argocd-render-")
+		if e != nil {
+			return fail(e)
+		}
 	}
 	outputPath, e := filepath.Abs(*output)
 	if e != nil {
@@ -295,8 +347,20 @@ func renderCheck(args []string, out, errOut io.Writer) int {
 		return fail(e)
 	}
 	report, exit := checkReport(outputPath, "", generated, input.Targets[0].Version, *warningsAsErrors)
-	report.Renderer = &RenderInfo{Binary: *helm, BinarySHA256: binaryHash, Version: version, Command: append([]string{*helm}, command...), ReleaseName: *release, Namespace: *namespace, KubeVersion: *kube, APIVersions: apis, Chart: chartPath, Values: valuesPath, Stdout: string(rendered), Stderr: string(stderr), Exit: code}
+	report.Renderer = &RenderInfo{Output: generated, Binary: *helm, BinarySHA256: binaryHash, Version: version, Command: append([]string{*helm}, command...), ReleaseName: *release, Namespace: *namespace, KubeVersion: *kube, APIVersions: apis, Chart: chartPath, Values: valuesPath, Stdout: string(rendered), Stderr: string(stderr), Exit: code}
 	report.InputSource = "helm-generated"
+	// Keep an inspectable report beside the generated YAML for editor actions.
+	reportBytes, reportErr := json.MarshalIndent(report, "", "  ")
+	if reportErr != nil {
+		return fail(reportErr)
+	}
+	reportPath := filepath.Join(outputPath, "report.json")
+	if info, e := os.Lstat(reportPath); e == nil && (!info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) {
+		return fail(fmt.Errorf("report output must be a regular file"))
+	}
+	if e := os.WriteFile(reportPath, append(reportBytes, '\n'), 0644); e != nil {
+		return fail(e)
+	}
 	if *format == "human" {
 		if _, e = fmt.Fprintf(out, "Helm %s generated %s; analysisComplete=%v\n", version, generated, report.AnalysisComplete); e != nil {
 			fmt.Fprintln(errOut, e)

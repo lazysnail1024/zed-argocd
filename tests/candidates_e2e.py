@@ -21,7 +21,7 @@ def projects(out,root):
  return c,{'candidates':items}
 run('project-visible-prefix-no-default',projects)
 def namespaces(out,root):
- e.write(root,'.argocd-ls.yaml','schemaVersion: 1\ntargetVersion: "3.0.0"\n');e.write(root,'a.yaml',project('team','one'));e.write(root,'b.yaml',project('team','two'));file=e.write(root,'app.yaml',e.APP);c=e.LSP(out,[root]);c.open(file,e.APP);c.diag(file,1);items=query(c,file,e.APP,'project: team');assert len(items)==2 and all(x['label']=='team' for x in items);assert 'one' in items[0]['detail'] and 'two' in items[1]['detail'];defs=c.request('textDocument/definition',{'textDocument':{'uri':file.as_uri()},'position':at(e.APP,'project: team')});assert defs.get('result')==[]
+ e.write(root,'.argocd-ls.yaml','schemaVersion: 1\ntargetVersion: "3.0.0"\n');e.write(root,'a.yaml',project('team','one'));e.write(root,'b.yaml',project('team','two'));file=e.write(root,'app.yaml',e.APP);c=e.LSP(out,[root]);c.open(file,e.APP);c.diag(file,1);items=query(c,file,e.APP,'project: team');assert len(items)==2 and all(x['label']=='team' for x in items);assert 'one' in items[0]['detail'] and 'two' in items[1]['detail'];defs=c.request('textDocument/definition',{'textDocument':{'uri':file.as_uri()},'position':at(e.APP,'project: team')});assert len(defs.get('result',[]))==2
  return c,{'candidates':items,'definition':defs}
 run('namespace-unknown-keeps-origin-without-guess',namespaces)
 SOURCES='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  sources:\n    - {repoURL: x, ref: values}\n    - repoURL: chart\n      helm:\n        valueFiles: ["$va/values.yaml"] # keep\n  destination: {server: x, namespace: default}\n'

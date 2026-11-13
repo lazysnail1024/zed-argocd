@@ -704,7 +704,10 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 		} else if err == nil {
 			var checked analysis.Result
 			if workspace.IsHelmTemplate(rootPath, path, snapshot) {
-				checked.Diagnostics = []analysis.Diagnostic{{URI: spelling, Code: "HELM_UNRENDERED", Source: "argocd-ls", Severity: 3, Message: "Helm template is not rendered; static Argo CD checks are incomplete. Run the explicit render-check task and inspect its generated YAML diagnostics."}}
+				checked.Incomplete = true
+				if analysis.HelmSourceOwned(ctx, snapshot) {
+					checked.Diagnostics = []analysis.Diagnostic{{URI: spelling, Code: "HELM_UNRENDERED", Source: "argocd-ls", Severity: 3, Message: "Helm template is not rendered; static Argo CD checks are incomplete. Run the explicit render-check task and inspect its generated YAML diagnostics."}}
+				}
 			} else {
 				s.analyzer.BeginFile()
 				checked, err = s.analyzer.Analyze(ctx, snapshot, target.Version)

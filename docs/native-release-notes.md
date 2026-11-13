@@ -1,15 +1,16 @@
-# Argo CD language server — 0.0.1-alpha.4
+# Argo CD language server — 0.0.1-alpha.5
 
-This prerelease distributes the shared CRD editing, bounded current-file analysis and navigation improvements merged into main after alpha.3.
+This prerelease reduces configuration for local navigation and adds explicit Helm rendering from the editor.
 
-- Shared toolkit YAML value/source projection and Schema queries replace duplicate private implementations; Argo CD resource/version semantics and safety proofs remain in the language server.
-- Current-file diagnostics and light queries use bounded scheduling, independent of slow or incomplete workspace indexing. Per-file input budgets avoid false errors when other open YAML buffers are large.
-- Workspace symbols and source-aware navigation are expanded. Versioned field/enum code actions and multi-source Application references can be resolved and edited.
-- Static AppProject names and their Application/ApplicationSet references can be renamed together only with a complete, closed scope, explicit namespace, unique sources, current document versions and validated binding preservation. Ambiguous or incomplete edits are refused.
-- Incremental workspace readiness and stable diagnostic publication reduce unnecessary full-file rescans and transient errors in parent workspaces containing many Git repositories.
+- Project definitions return matching local namespace candidates without a control-plane namespace setting. Explicit namespace pins continue filtering candidates; policy, reverse references and edits still require authoritative bindings.
+- Physical ApplicationSet generator templates support project and `$values` definitions at their original source locations.
+- Helm sources support conservative navigation of static project and source-reference fields. Dynamic scalar values remain unknown; structural directives, includes and dynamic mapping keys are refused for navigation. Plain YAML in charts retains normal analysis, and foreign resources do not receive Argo CD Helm notices.
+- The explicit **Render chart and check Argo CD (saved files)** action discovers the nearest chart, uses Helm from PATH and default chart values, and opens generated YAML. It refuses unsaved chart/configuration buffers and derives the configured target scope from the selected source file. Helm 3 and 4 are supported. A report is saved beside generated YAML; rendering never runs on save or during action collection.
+- Repeated large-buffer edits keep parser memory bounded while small foreground queries remain responsive during background parsing.
+- Schema field completions remain available while unrelated project files are indexed or edited; cross-file answers retain dependency checks.
 
-The zero-configuration Argo CD compatibility window remains **2.0.0–3.6.1**. No target cluster version is inferred.
+The compatibility window remains **2.0.0–3.6.1**; no cluster version is inferred.
 
-Native binaries and archives cover Linux amd64/arm64, macOS amd64/arm64 and Windows amd64, with source/build records, original legal notices and `SHA256SUMS`. Independently versioned `zed-v0.0.1-alpha.4` pins this `v0.0.1-alpha.4` server.
+Native archives target Linux amd64/arm64, macOS amd64/arm64 and Windows amd64, with build/source records, original legal notices and `SHA256SUMS`. The forthcoming independently versioned `zed-v0.0.1-alpha.5` adapter will pin native `v0.0.1-alpha.5`.
 
-These CLI/LSP, resource, and distribution tests do **not** constitute real Zed GUI acceptance or publication to the Zed extension store. Previous prerelease tags and downloads remain unchanged.
+Native, editor and distribution evidence remain separate acceptance boundaries. This prerelease does not claim publication to the Zed extension store. Previous prerelease tags and downloads remain unchanged.
