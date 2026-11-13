@@ -26,9 +26,9 @@ def run(name,ws,count,cancel=False):
  folder=out/name;folder.mkdir(exist_ok=True);argv=[str(a.binary),'check','--root',str(ws),'--format','json'];start=time.monotonic();proc=None;stdout=stderr=b'';status='completed';rss=0
  try:
   with (folder/'stdout.raw').open('wb') as so,(folder/'stderr.raw').open('wb') as se:
-   proc=subprocess.Popen(argv,stdout=so,stderr=se);sent=False
+   process_start=time.monotonic();proc=subprocess.Popen(argv,stdout=so,stderr=se);sent=False
    while proc.poll() is None:
-    elapsed=time.monotonic()-start
+    elapsed=time.monotonic()-process_start
     try:
      stats=pathlib.Path(f'/proc/{proc.pid}/status').read_text();rss=max(rss,int(next(x.split()[1] for x in stats.splitlines() if x.startswith('VmRSS:'))))
     except (OSError,StopIteration):pass
@@ -36,14 +36,17 @@ def run(name,ws,count,cancel=False):
     if elapsed>12:status='harness-timeout';proc.kill();break
     time.sleep(.005)
    proc.wait(timeout=3)
+   process_end=time.monotonic()
   stdout=(folder/'stdout.raw').read_bytes();stderr=(folder/'stderr.raw').read_bytes();report=json.loads(stdout)
+  decoded_end=time.monotonic()
   codes=[e['code'] for e in report['configurationErrors']]
   if cancel:
    checks={'exit3':proc.returncode==3,'cancelReason':'ANALYSIS_CANCELLED' in codes,'notComplete':report['analysisComplete'] is False,'notAllCounted':report['filesAnalyzed']<count and report['resourcesAnalyzed']<count}
   else:
-   checks={'exit0':proc.returncode==0,'exactFiles':report['filesAnalyzed']==count+1,'exactResources':report['resourcesAnalyzed']==count,'configuration':codes==[],'exactDiagnostics':len(report['diagnostics'])==count and all(d['code']=='CD_PROJECT_NAMESPACE_UNBOUND' and d['severity']==3 for d in report['diagnostics']),'complete':report['analysisComplete'] is True,'deadline':time.monotonic()-start<=5}
+   checks={'exit0':proc.returncode==0,'exactFiles':report['filesAnalyzed']==count+1,'exactResources':report['resourcesAnalyzed']==count,'configuration':codes==[],'exactDiagnostics':len(report['diagnostics'])==count and all(d['code']=='CD_PROJECT_NAMESPACE_UNBOUND' and d['severity']==3 for d in report['diagnostics']),'complete':report['analysisComplete'] is True,'deadline':process_end-process_start<=5}
   checks['processEnded']=status=='completed'
-  row={'name':name,'command':argv,'exit':proc.returncode,'elapsedSeconds':time.monotonic()-start,'peakRSSKiB':rss,'status':status,'assertions':checks,'passed':all(checks.values())}
+  verified_end=time.monotonic()
+  row={'name':name,'command':argv,'exit':proc.returncode,'elapsedSeconds':verified_end-start,'totalElapsedSeconds':verified_end-start,'processElapsedSeconds':process_end-process_start,'readDecodeSeconds':decoded_end-process_end,'verificationSeconds':verified_end-process_end,'phaseSeconds':{'processStarted':process_start-start,'processObservedEnd':process_end-start,'decoded':decoded_end-start,'verified':verified_end-start},'peakRSSKiB':rss,'status':status,'assertions':checks,'passed':all(checks.values())}
  except Exception as e:
   row={'name':name,'command':argv,'error':repr(e),'status':status,'passed':False}
  finally:

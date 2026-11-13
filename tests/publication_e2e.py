@@ -57,8 +57,11 @@ try:
  # Independent workers can finish in either order. Both must restore the
  # current error after the close clear; observing one phase must not close the
  # buffer and cancel the other phase before its actual result is inspected.
- restored_phases={p.get('x-argocd-analysis-scope') for p in phases[1:] if p.get('version')==1 and any(d['code']=='SCHEMA_TYPE' for d in p['diagnostics'])}
- record('document-reopen-restores-diagnostics',{'localClearThenRestore':[p.get('version') for p in local]==[None,1],'clearPayload':bool(local) and local[0]['diagnostics']==[],'bothPhasesRestoredAfterClear':bool(phases) and phases[0].get('version') is None and phases[0]['diagnostics']==[] and restored_phases=={'document','workspace'},'workspaceRestored':any(d['code']=='SCHEMA_TYPE' for d in restored)},phases)
+ # A workspace notification already in flight can precede the close clear.
+ # Keep that prefix in the evidence, but require restoration after the clear.
+ clear_index=next((i for i,p in enumerate(phases) if p.get('x-argocd-analysis-scope')=='document' and p.get('version') is None and p['diagnostics']==[]),None)
+ restored_phases={p.get('x-argocd-analysis-scope') for p in (phases[clear_index+1:] if clear_index is not None else []) if p.get('version')==1 and any(d['code']=='SCHEMA_TYPE' for d in p['diagnostics'])}
+ record('document-reopen-restores-diagnostics',{'localClearThenRestore':[p.get('version') for p in local]==[None,1],'clearPayload':bool(local) and local[0]['diagnostics']==[],'bothPhasesRestoredAfterClear':clear_index is not None and restored_phases=={'document','workspace'},'workspaceRestored':any(d['code']=='SCHEMA_TYPE' for d in restored)},phases)
  local_mark=document_passes();client.send('textDocument/didClose',{'textDocument':{'uri':reopened.as_uri()}});until(reopened,None,[]);document_pass(local_mark)
  # Ordinary LSP clients replace a URI's whole diagnostic list. After a full
  # workspace result, a late Schema-only empty list must not erase its domain
