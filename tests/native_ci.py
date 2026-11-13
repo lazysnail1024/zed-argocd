@@ -17,6 +17,8 @@ def audit_consumers(platform):
  cases=[
   ('multi-version-compatibility','multi_version_e2e.py',[] if full_catalog else ['--representatives'],600),
   ('lsp-lifecycle','lsp_e2e.py',[],90),
+  ('navigation-defaults','navigation_defaults_e2e.py',[],90),
+  ('helm-source','helm_source_e2e.py',[],120),
   ('parent-workspace','parent_workspace_lsp_e2e.py',[],90),
   ('mixed-parent-index','mixed_parent_index_e2e.py',[],90),
   ('persistent-workspace','persistent_workspace_e2e.py',['--count','1000','--padding','4096'],150),

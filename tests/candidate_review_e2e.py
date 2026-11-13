@@ -8,7 +8,7 @@ os.environ['CD_AUDIT_BINARY']=str(BINARY)
 spec=importlib.util.spec_from_file_location('client',HERE/'audit_repair_e2e.py');e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 CONFIG='schemaVersion: 1\ntargetVersion: "3.0.0"\ncontrolPlaneNamespace: argocd\nreferencePolicy: closed\n'
 APP='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: te\n  source: {repoURL: https://example.test/repo}\n  destination: {server: https://kubernetes.default.svc, namespace: default}\n'
-SOURCES='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  sources:\n    - {repoURL: values, ref: values}\n    - repoURL: chart\n      helm:\n        valueFiles: ["$va/path😀.yaml"] # keep\n  destination: {server: x, namespace: default}\n'
+SOURCES='apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: app}\nspec:\n  project: team\n  sources:\n    - {repoURL: values, ref: values}\n    - repoURL: chart\n      helm:\n        valueFiles: ["$va/path\U0001f600.yaml"] # keep\n  destination: {server: x, namespace: default}\n'
 def project(name='team',ns='argocd'):
     return 'apiVersion: argoproj.io/v1alpha1\nkind: AppProject\nmetadata:\n  name: '+json.dumps(name,ensure_ascii=False)+'\n  namespace: '+ns+'\nspec:\n  sourceRepos: ["*"]\n  destinations: [{server: "*", namespace: "*"}]\n'
 def write(root,name,text):
@@ -55,7 +55,7 @@ def run(name,expected,fn):
     (out/'result.json').write_text(json.dumps(row,ensure_ascii=False,indent=2)+'\n');ROWS.append(row);print(json.dumps({'id':name,'passed':row['passed'],'exception':error},ensure_ascii=False),flush=True)
 
 def quoted(out,root):
-    text=APP.replace('metadata: {name: app}','metadata: {name: app, labels: {note: "😀"}}').replace('  project: te','  project: "texxx" # \u4e2d\u6587 😀').replace('\n','\r\n')
+    text=APP.replace('metadata: {name: app}','metadata: {name: app, labels: {note: "\U0001f600"}}').replace('  project: te','  project: "texxx" # \u4e2d\u6587 \U0001f600').replace('\n','\r\n')
     c,f=begin(out,root,text,{'p1.yaml':project(),'p2.yaml':project('team-blue'),'foreign.yaml':project('team-other','elsewhere')})
     items=query(c,f,text,'"te');assert [i['label'] for i in items]==['team','team-blue']
     applied(c,f,text,items[0],text.replace('"texxx"','"team"'))
@@ -70,7 +70,7 @@ def empty_case(suffix,needle,expected_line):
         text=APP.replace('  project: te','  project:'+suffix);c,f=begin(out,root,text);items=query(c,f,text,needle);assert [i['label'] for i in items]==['team'];applied(c,f,text,items[0],text.replace('  project:'+suffix,expected_line))
     return fn
 run('empty-project-no-separator','Cursor immediately after project: inserts a value with required YAML separation.',empty_case('','project:','  project: team'))
-run('empty-project-comment','Cursor before comment inserts team and retains comment as a comment with separation.',empty_case(' # keep 😀','project: ','  project: team # keep 😀'))
+run('empty-project-comment','Cursor before comment inserts team and retains comment as a comment with separation.',empty_case(' # keep \U0001f600','project: ','  project: team # keep \U0001f600'))
 
 def empty_names(out,root):
     for index,(suffix,name,expected) in enumerate([(' ', 'team', ' team'), ('', 'true', ' "true"'), (' # keep', 'true', ' "true" # keep')]):
@@ -85,8 +85,8 @@ def empty_names(out,root):
 run('empty-project-string-and-whitespace-controls','Empty insertions retain ordinary spacing and quoted Boolean-looking Project names, including adjacent comments.',empty_names)
 
 def source_edit(out,root):
-    text=SOURCES.replace('valueFiles: [','valueFiles: [').replace('"$va/path😀.yaml"','"$vaZZ/path😀.yaml"').replace('\n','\r\n')+'---\r\n'+SOURCES.replace('ref: values','ref: vault').replace('\n','\r\n')
-    c,f=begin(out,root,text);items=query(c,f,text,'$va');assert [i['label'] for i in items]==['values'];applied(c,f,text,items[0],text.replace('$vaZZ/path😀.yaml','$values/path😀.yaml',1),clean=False)
+    text=SOURCES.replace('valueFiles: [','valueFiles: [').replace('"$va/path\U0001f600.yaml"','"$vaZZ/path\U0001f600.yaml"').replace('\n','\r\n')+'---\r\n'+SOURCES.replace('ref: values','ref: vault').replace('\n','\r\n')
+    c,f=begin(out,root,text);items=query(c,f,text,'$va');assert [i['label'] for i in items]==['values'];applied(c,f,text,items[0],text.replace('$vaZZ/path\U0001f600.yaml','$values/path\U0001f600.yaml',1),clean=False)
     # The unchanged second document still has a missing ref; the first must now resolve.
     defs=request(c,f,'definition',pos(OBS['actualApplied'],'$values'))
     assert len(defs)==1 and defs[0]['uri']==f.as_uri() and defs[0]['range']['start']['line']==6,defs
@@ -101,8 +101,12 @@ def unknown_ns(out,root):
     c,f=begin(out,root,APP,{'b.yaml':project('team','two'),'a.yaml':project('team','one')},CONFIG.replace('controlPlaneNamespace: argocd\n',''))
     items=query(c,f,APP,'project: te');assert [i['label'] for i in items]==['team','team'] and len({i['detail'] for i in items})==2
     edited=applied(c,f,APP,items[0],APP.replace('project: te','project: team'))
-    assert request(c,f,'definition',pos(edited,'project: team'))==[]
-run('unknown-namespace-no-guessed-definition','Qualified duplicates remain visible, applied text remains legal, no topology guessed.',unknown_ns)
+    definitions=request(c,f,'definition',pos(edited,'project: team'))
+    assert {d['uri'] for d in definitions}=={(root/'a.yaml').as_uri(),(root/'b.yaml').as_uri()},definitions
+    for include in [False,True]:
+        response=c.request('textDocument/references',{'textDocument':{'uri':f.as_uri()},'position':pos(edited,'project: team'),'context':{'includeDeclaration':include}})
+        assert response.get('result')==[],response
+run('unknown-namespace-candidate-definitions','Qualified duplicates remain visible and navigable; reverse references remain unbound.',unknown_ns)
 
 def exclusion(out,root):
     cfg=CONFIG+'exclude: ["excluded/**"]\nscopes:\n  - name: apps\n    include: ["apps/**"]\n  - name: other\n    include: ["other/**"]\n'

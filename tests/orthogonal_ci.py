@@ -35,6 +35,9 @@ CASES = {
         ('snippets', 'editors/zed/tests/snippets_e2e.py', ['{binary}', '{case}'], 'results.json', 60),
     ],
     'boundaries': [
+        ('render-defaults-helm3', 'tests/render_defaults_e2e.py', ['--helm', '{helm}'], 'report.json', 120),
+        ('render-defaults-helm4', 'tests/render_defaults_e2e.py', ['--helm', '{helm4}'], 'report.json', 120),
+        ('render-selected-scope', 'tests/render_scope_e2e.py', ['--helm', '{helm}'], 'report.json', 120),
         ('completed-work', 'tests/bounded_accounting_e2e.py', ['{binary}', '{case}'], 'report.json', 60),
         ('renderer-input', 'tests/renderer_input_e2e.py', ['{binary}', '{case}'], 'report.json', 60),
         ('renderer-process-tree', 'tests/bounded_process_e2e.py', ['{binary}', '{case}'], 'report.json', 180),
@@ -45,6 +48,7 @@ CASES = {
         ('output-failures', 'tests/output_failure_e2e.py', ['{binary}', '{helm}', '{case}'], 'report.json', 180),
     ],
     'mutations': [
+        ('config-helm-guards', 'tests/ablate_config_helm.py', ['--run', '--binary', '{binary}', '--helm', '{helm}', '--output', '{case}'], 'report.json', 600),
         ('consumer-oracles', 'tests/oracle_repair_mutation.py', ['{binary}', '{case}'], 'report.json', 180),
         ('named-guards', 'tests/legacy_mutations.py', ['--output', '{case}'], 'report.json', 600),
         ('schema-constraints', 'tests/schema_constraints_ablation.py', ['--output', '{case}'], 'report.json', 300),
@@ -85,6 +89,7 @@ def main():
     parser.add_argument('suite', choices=CASES)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--helm', type=Path)
+    parser.add_argument('--helm4', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     out = args.output.resolve()
@@ -96,13 +101,15 @@ def main():
     for ident, script, arguments, report_path, timeout in CASES[args.suite]:
         folder = out / ident
         substitutions = {'root': str(ROOT), 'output': str(out), 'binary': str(binary), 'case': str(folder),
-                         'helm': str(args.helm.resolve()) if args.helm else ''}
+                         'helm': str(args.helm.resolve()) if args.helm else '', 'helm4':str(args.helm4.resolve()) if args.helm4 else ''}
         command = [sys.executable, str(ROOT / script), *[item.format(**substitutions) for item in arguments]]
         environment = dict(os.environ, CD_AUDIT_BINARY=str(binary), CD_AUDIT_OUTPUT=str(folder), CD_MATRIX_LSP_OUT=str(folder), PYTHONUTF8='1')
         row = {'id': ident, 'command': command, 'passed': False}
         started = time.monotonic()
         process = close = None
         try:
+            if '{helm4}' in arguments and not args.helm4:
+                raise ValueError('The pinned real Helm4 executable is required')
             if '{helm}' in arguments and not args.helm:
                 raise ValueError('The pinned real Helm executable is required for renderer acceptance')
             process, close = start_command(command, environment)
@@ -114,7 +121,8 @@ def main():
             result = json.loads(evidence.read_text())
             row['reportSHA256'] = hashlib.sha256(evidence.read_bytes()).hexdigest()
             if args.suite != 'mutations' and ident != 'catalog-integrity' and script != 'tests/schema_fixture_e2e.py':
-                helm_sha = hashlib.sha256(args.helm.resolve().read_bytes()).hexdigest() if '{helm}' in arguments else None
+                selected_helm=args.helm4 if '{helm4}' in arguments else args.helm if '{helm}' in arguments else None
+                helm_sha=hashlib.sha256(selected_helm.resolve().read_bytes()).hexdigest() if selected_helm else None
                 verify_consumer_identity(result, folder, report['binarySHA256'], helm_sha)
             row['passed'] = process.returncode == 0 and evidence_passed(result)
         except Exception as error:

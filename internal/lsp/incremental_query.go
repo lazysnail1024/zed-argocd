@@ -192,11 +192,19 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 		result.err = err
 		return result
 	}
-	if !included || skipped {
+	if !included {
 		return result
 	}
 	var checked analysis.Result
 	reused := false
+	if skipped {
+		if m.Method != "textDocument/definition" && m.Method != "textDocument/documentSymbol" {
+			return result
+		}
+		checked.Documents = analysis.HelmSourceDocuments(ctx, snapshot, file.Target.Version)
+		checked.Incomplete = true
+		reused = true
+	}
 	for _, scope := range local.scopes {
 		for _, previous := range scope.files {
 			if previous.Snapshot.URI() == snapshot.URI() && previous.Target == file.Target && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
@@ -217,7 +225,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 			return result
 		}
 	}
-	if m.Method == "textDocument/definition" && checked.Incomplete {
+	if m.Method == "textDocument/definition" && checked.Incomplete && !skipped {
 		var params struct {
 			Position analysis.Position `json:"position"`
 		}

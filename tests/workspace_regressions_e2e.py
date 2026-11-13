@@ -245,7 +245,7 @@ class Suite:
                 client.change(app, text, version)
                 symbols = client.request("textDocument/documentSymbol", {"textDocument": {"uri": app.as_uri()}})
                 diagnostics = diagnostics_since(client, app, version, marker)
-                checks = {"queryUsesCurrentClass": "error" not in symbols and (symbols.get("result") == [] if skipped else any(s["name"] == "app" for s in symbols.get("result", []))),
+                checks = {"queryUsesCurrentClass": "error" not in symbols and (len(symbols.get("result", [])) == 1 and symbols["result"][0]["name"] == "app" and symbols["result"][0]["selectionRange"] == {"start": {"line": 3, "character": 8}, "end": {"line": 3, "character": 11}}),
                           "sourceUnchanged": app.read_bytes() == disk_bytes}
                 if skipped:
                     checks["onlyUnrenderedInfo"] = len(diagnostics) == 1 and diagnostics[0]["code"] == "HELM_UNRENDERED" and diagnostics[0]["severity"] == 3

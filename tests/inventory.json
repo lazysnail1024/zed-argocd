@@ -31,7 +31,10 @@
         "tests/schema_query_comment_e2e.py",
         "tests/scope_glob_e2e.py",
         "tests/scope_refresh_e2e.py",
-        "tests/shared_lifecycle_mutations.py"
+        "tests/shared_lifecycle_mutations.py",
+        "tests/render_defaults_e2e.py",
+        "tests/render_scope_e2e.py",
+        "tests/ablate_config_helm.py"
       ]
     },
     "aliases": {
@@ -127,7 +130,9 @@
         "tests/semantic_regressions_e2e.py",
         "tests/shared_schemaquery_e2e.py",
         "tests/target_e2e.py",
-        "tests/workspace_regressions_e2e.py"
+        "tests/workspace_regressions_e2e.py",
+        "tests/navigation_defaults_e2e.py",
+        "tests/helm_source_e2e.py"
       ]
     },
     "resources": {

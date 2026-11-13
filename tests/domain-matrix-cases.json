@@ -176,8 +176,8 @@
       "files": {},
       "expected": [
         [
-          "CD_PROJECT_AMBIGUOUS",
-          2
+          "CD_PROJECT_NAMESPACE_UNBOUND",
+          3
         ]
       ],
       "expected35": null

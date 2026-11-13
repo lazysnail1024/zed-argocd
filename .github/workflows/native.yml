@@ -175,10 +175,13 @@ jobs:
     - name: Build the exact source for the independent semantic axes
       run: python tools/native.py build --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/orthogonal-ci/build
     - name: Install the checksum-pinned real Helm consumer
-      if: matrix.suite == 'boundaries'
+      if: matrix.suite == 'boundaries' || matrix.suite == 'mutations'
       run: python tools/install_test_helm.py --output artifacts/orthogonal-ci/tools
+    - name: Install the checksum-pinned Helm 4 consumer
+      if: matrix.suite == 'boundaries'
+      run: python tools/install_test_helm.py --major 4 --output artifacts/orthogonal-ci/tools4
     - name: Execute complementary consumers with named evidence
-      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --output artifacts/orthogonal-ci/tests
+      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --helm4 artifacts/orthogonal-ci/tools4/helm --output artifacts/orthogonal-ci/tests
     - name: Archive complete success and failure evidence
       if: always()
       run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence

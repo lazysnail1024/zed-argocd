@@ -3,7 +3,7 @@
 Local YAML diagnostics, completion, hover, navigation and safe edits for Argo CD.
 The Go language server works independently; the Zed extension is a thin adapter.
 
-**Alpha `0.0.1-alpha.4`:** default support covers **2.0.0–3.6.1**, including stable patch releases.
+**Alpha `0.0.1-alpha.5`:** default support covers **2.0.0–3.6.1**, including stable patch releases.
 No project configuration or target version is needed. Current-file diagnostics
 remain available when a large, multi-repository workspace scan is incomplete.
 
@@ -74,7 +74,7 @@ above does not automatically acquire changes merged into the source repository.
 | Identify | Recognizes Argo CD `Application`, `AppProject` and `ApplicationSet`, including effective YAML alias/merge values; unrelated CRDs stay outside Argo CD rules. |
 | Understand | Embedded CRD schemas, automatic or exact release selection, field/enum completion, hover and static domain constraints. Dynamic ApplicationSet expressions remain unknown where they cannot be evaluated safely. |
 | Relate | Resolves configured-scope AppProject bindings, Application multi-source references and supported static ApplicationSet variants. Namespace, workspace ownership and exclusion rules remain explicit. |
-| Navigate | Definitions, references, document symbols and bounded workspace symbol search. Available symbols can appear during discovery; a partial result does not prove that a missing resource is absent. |
+| Navigate | Project definitions return local namespace-labelled candidates without configuration; an explicit control-plane namespace still filters candidates. Definitions include physical generator list templates and their `$values` uses. References and policy require authoritative bindings. Document symbols and bounded workspace symbol search. Available symbols can appear during discovery; a partial result does not prove that a missing resource is absent. |
 | Modify | Versioned field/enum fixes, Project replacement and configuration actions; private source-ref rename updates its Helm uses. Cross-file AppProject rename requires a complete closed scope, an explicit control-plane namespace, unique exact bindings and all affected files open at accepted versions. |
 | Report | Current-buffer diagnostics are independent of background discovery. Source revisions and dependency proofs reject stale answers and edits. |
 | Scale | Persistent compact facts, prioritized file work and bounded foreground workers. Four light reads and one heavy operation may run at once; discovery, input or result limits remain visible rather than being treated as complete analysis. |
@@ -86,13 +86,60 @@ semantics, configuration, scheduling and LSP delivery remain in this server.
 
 ## Standalone CLI / other editors
 
-Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.4),
+Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.5),
 extract it, and run:
 
 ```sh
 argocd-ls check --root . --format json
 argocd-ls serve --stdio
 ```
+
+## Helm sources and explicit rendering
+
+Plain YAML inside a chart receives normal analysis. For Helm sources, literal
+project and source-reference fields can navigate when the surrounding YAML
+structure is static. Dynamic scalar values remain unknown. Structural template
+control flow, includes, dynamic keys and unsafe source projections return no
+navigation results; source navigation never claims rendered validation or offers
+semantic edits. Escaped ApplicationSet tags can coexist with static neighbors.
+
+In Zed, open the command palette, choose **editor: toggle code actions**, then
+**Render chart and check Argo CD (saved files)** on an owned chart document. It uses Helm from `PATH`, finds the nearest ancestor
+`Chart.yaml`, renders with the chart's default values, and opens generated YAML.
+Save all open chart/configuration buffers first. The action runs only when
+selected; collecting actions, opening a file and saving never render a chart.
+The result message includes a durable `report.json` path beside generated YAML.
+
+For Helm language mode, install Zed's Helm extension and add a one-time global
+language configuration. Use globs restricted to your actual chart paths:
+
+```json
+{
+  "file_types": { "Helm": ["**/charts/my-chart/templates/**/*.yaml"] },
+  "languages": {
+    "Helm": { "language_servers": ["helm", "argocd-ls", "..."] }
+  }
+}
+```
+
+Adapt the chart name/path to your repository. Avoid a generic `**/templates/**`
+association, which also matches ordinary resource directories. If both Argo
+extensions are installed, add `"argo-workflows-ls"` to that server list. No
+`.zed/tasks.json` is required. Opening a common parent directory lets the server
+index multiple Git repositories beneath it; separately added visible project
+roots remain separate server indexes in Zed 1.28.1.
+
+The same operation is available from a chart directory, or for a selected file:
+
+```sh
+argocd-ls render-check --format json
+argocd-ls render-check --root . --file chart/templates/app.yaml --format json
+```
+
+Helm 3 and 4 are accepted. `--chart`, `--helm-binary`, `--values`, `--output`,
+`--release-name`, `--namespace`, `--kube-version` and `--api-version` remain explicit
+overrides. Automatic output uses a fresh temporary directory; preserve it if you
+need a lasting report. Rendered diagnostic locations refer to generated YAML.
 
 Analysis is local: it does not access a cluster, execute controllers or render Helm
 implicitly. The alpha includes automated CLI/LSP and package checks; real Zed GUI

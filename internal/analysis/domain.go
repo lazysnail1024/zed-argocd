@@ -70,8 +70,10 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 		project := literal(spec["project"])
 		if project != "" && options.Complete {
 			candidates := projects[project]
-			if len(candidates) > 1 || (len(candidates) > 0 && options.ControlPlaneNamespace == "") {
-				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project navigation and references require an unambiguous control-plane namespace. Set controlPlaneNamespace in .argocd-ls.yaml (for example, controlPlaneNamespace: argocd); use the namespace containing AppProject, not the Application namespace")
+			if options.ControlPlaneNamespace == "" {
+				emit([]string{"spec", "project"}, "CD_PROJECT_NAMESPACE_UNBOUND", 3, "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml")
+			} else if len(candidates) > 1 {
+				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project policy and reverse references require an unambiguous control-plane namespace. Set controlPlaneNamespace in .argocd-ls.yaml (for example, controlPlaneNamespace: argocd); use the namespace containing AppProject, not the Application namespace")
 			} else if len(candidates) == 0 {
 				severity := 3
 				if options.ReferencePolicy == "closed" && options.Complete {

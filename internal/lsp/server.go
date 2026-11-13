@@ -123,7 +123,13 @@ type completed struct {
 	err             error
 }
 
-func Run(in io.Reader, out, errOut io.Writer) int {
+func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
+	var renderer Renderer
+	if len(renderers) > 0 {
+		renderer = renderers[0]
+	}
+	rendered := make(chan renderResponse, 1)
+	renderBusy := false
 	messages := make(chan incoming)
 	done := make(chan struct{})
 	defer close(done)
@@ -352,6 +358,20 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				launch(false)
 			}
+		case r := <-rendered:
+			renderBusy = false
+			if request, ok := requests[string(r.id)]; ok && request.ctx == r.ctx {
+				request.stop()
+				delete(requests, string(r.id))
+				if r.err != nil {
+					reject(r.id, -32803, r.err.Error())
+				} else {
+					reply(r.id, r.result)
+					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": r.result.Message}})
+					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-render-output", "method": "window/showDocument", "params": map[string]any{"uri": workspace.FileURI(r.result.Output), "takeFocus": true}})
+				}
+			}
+
 		case q := <-queries:
 			if q.trace != "" {
 				fmt.Fprint(errOut, q.trace)
@@ -470,6 +490,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				return 2
 			}
 			m := event.message
+			if m.Method == "" && string(m.ID) == `"argocd-render-output"` {
+				continue
+			}
 			if m.Method == "" && string(m.ID) == `"argocd-watch-unregister"` {
 				continue
 			}
@@ -545,6 +568,9 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 				}
 				if canEdit {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+					if renderer != nil {
+						capabilities["executeCommandProvider"] = map[string]any{"commands": []string{renderCommand}}
+					}
 					capabilities["renameProvider"] = map[string]any{"prepareProvider": true}
 				}
 				reply(m.ID, map[string]any{
@@ -840,6 +866,40 @@ func Run(in io.Reader, out, errOut io.Writer) int {
 					}
 					launch(changed)
 				}
+
+			case "workspace/executeCommand":
+				var params struct {
+					Command   string           `json:"command"`
+					Arguments []renderArgument `json:"arguments"`
+				}
+				if renderer == nil || json.Unmarshal(m.Params, &params) != nil || params.Command != renderCommand || len(params.Arguments) != 1 {
+					reject(m.ID, -32602, "unsupported render command")
+					continue
+				}
+				if renderBusy {
+					reject(m.ID, -32803, "render-check is already running")
+					continue
+				}
+				if _, exists := requests[string(m.ID)]; exists {
+					reject(m.ID, -32600, "duplicate request id")
+					continue
+				}
+				ctx, stop := context.WithTimeout(context.Background(), 30*time.Second)
+				requests[string(m.ID)] = pendingQuery{ctx, stop}
+				renderBusy = true
+				copied := map[string]buffer{}
+				for uri, b := range buffers {
+					copied[uri] = b
+				}
+				selectedRoots := append([]string(nil), roots...)
+				target := override
+				go func() {
+					result, err := renderSaved(ctx, renderer, params.Arguments[0], copied, selectedRoots, target)
+					select {
+					case rendered <- renderResponse{ctx, m.ID, result, err}:
+					case <-done:
+					}
+				}()
 
 			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
@@ -1143,7 +1203,7 @@ rootLoop:
 		result.inputs = append(result.inputs, input)
 		for _, snapshot := range input.Skipped {
 			uri := string(snapshot.URI())
-			if b, ok := buffers[uri]; ok {
+			if b, ok := buffers[uri]; ok && analysis.HelmSourceOwned(ctx, snapshot) {
 				v := b.version
 				result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "HELM_UNRENDERED", Source: "argocd-ls", Severity: 3, Message: "Helm template is not rendered; static Argo CD checks are incomplete. Run the explicit render-check task and inspect its generated YAML diagnostics."}}})
 			}
@@ -1502,6 +1562,28 @@ func replacementEdit(snapshot source.Snapshot, span source.Span, text string) an
 }
 
 func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string) (any, int, string) {
+	if m.Method == "codeAction/resolve" {
+		var action struct {
+			Command struct {
+				Command   string           `json:"command"`
+				Arguments []renderArgument `json:"arguments"`
+			} `json:"command"`
+		}
+		if json.Unmarshal(m.Params, &action) == nil && action.Command.Command == renderCommand {
+			if len(action.Command.Arguments) != 1 {
+				return nil, -32602, "invalid render action"
+			}
+			arg := action.Command.Arguments[0]
+			b, open := buffers[arg.URI]
+			if !open || b.version != arg.Version {
+				return nil, -32801, "render action is stale"
+			}
+			if fresh, ok := renderAction(ctx, arg.URI, buffers, roots); ok {
+				return fresh, 0, ""
+			}
+			return nil, -32801, "render source is no longer available"
+		}
+	}
 	if result, status, message, handled := pinRequest(ctx, m, latest, buffers, epoch, canEdit, roots, override); handled {
 		return result, status, message
 	}
@@ -1527,6 +1609,9 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 			return []any{}, 0, ""
 		}
 		actions := []any{}
+		if action, ok := renderAction(ctx, p.TextDocument.URI, buffers, roots); ok {
+			actions = append(actions, action)
+		}
 		for _, scope := range latest.scopes {
 			for _, doc := range scope.documents {
 				if string(doc.Snapshot.URI()) != p.TextDocument.URI {

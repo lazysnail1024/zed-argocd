@@ -28,6 +28,26 @@ commands and retained evidence. Merging a changed `VERSION` into `main` starts
 and publishes the native assets. An exact version-tag push or a manual run on
 `main` or that tag can also start the same workflow.
 
+## Navigation and Helm acceptance
+
+The native platform consumers include `navigation_defaults_e2e.py` and
+`helm_source_e2e.py`; each takes a binary path and a dedicated evidence directory.
+The orthogonal boundary suite installs checksum-pinned Helm 3 and 4 through
+`tools/install_test_helm.py` and checks explicit render actions, saved-buffer
+refusal, chart discovery and selected-file scope. Run it locally with:
+
+```sh
+python tools/install_test_helm.py --output artifacts/helm3
+python tools/install_test_helm.py --major 4 --output artifacts/helm4
+python tests/orthogonal_ci.py boundaries --binary build/argocd-ls --helm artifacts/helm3/helm --helm4 artifacts/helm4/helm --output artifacts/helm-boundaries
+```
+
+Use fresh output directories. `ablate_config_helm.py` prepares source snapshots by
+default; its explicit `--run --binary PATH --helm PATH --output DIR` mode verifies
+passing controls before compiling three isolated behavior-guard deletions. The
+orthogonal mutation suite runs that same consumer. It never modifies the
+candidate binary or working implementation.
+
 ## Shared toolkit source
 
 The toolkit dependency is pinned to the full source commit recorded in
