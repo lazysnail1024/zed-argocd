@@ -16469,6 +16469,99 @@
             ]
           },
           "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "render-warning"
+          },
+          "checks": {
+            "keys": [
+              "checkHumanComplete",
+              "checkHumanDelivery",
+              "checkHumanDiagnostics",
+              "checkHumanExit",
+              "complete",
+              "configurationErrors",
+              "counts",
+              "diagnosticSeverity",
+              "diagnosticURI",
+              "exit",
+              "inputSource",
+              "jsonStderrEmpty",
+              "noChild",
+              "renderHumanComplete",
+              "renderHumanDelivery",
+              "renderHumanDiagnostics",
+              "renderHumanExit",
+              "renderedBytes",
+              "renderer",
+              "sameAnalysisReport",
+              "target"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "render-warning-strict"
+          },
+          "checks": {
+            "keys": [
+              "checkHumanComplete",
+              "checkHumanDelivery",
+              "checkHumanDiagnostics",
+              "checkHumanExit",
+              "complete",
+              "configurationErrors",
+              "counts",
+              "diagnosticSeverity",
+              "diagnosticURI",
+              "exit",
+              "inputSource",
+              "jsonStderrEmpty",
+              "noChild",
+              "renderHumanComplete",
+              "renderHumanDelivery",
+              "renderHumanDiagnostics",
+              "renderHumanExit",
+              "renderedBytes",
+              "renderer",
+              "sameAnalysisReport",
+              "target"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "render-schema-error"
+          },
+          "checks": {
+            "keys": [
+              "checkHumanComplete",
+              "checkHumanDelivery",
+              "checkHumanDiagnostics",
+              "checkHumanExit",
+              "complete",
+              "configurationErrors",
+              "counts",
+              "diagnosticSeverity",
+              "diagnosticURI",
+              "exit",
+              "inputSource",
+              "jsonStderrEmpty",
+              "noChild",
+              "renderHumanComplete",
+              "renderHumanDelivery",
+              "renderHumanDiagnostics",
+              "renderHumanExit",
+              "renderedBytes",
+              "renderer",
+              "sameAnalysisReport",
+              "target"
+            ]
+          },
+          "passKey": "passed"
         }
       ],
       "passKey": "passed",
@@ -16496,24 +16589,6 @@
         {
           "identity": {
             "id": "real-development-identity"
-          },
-          "passKey": "passed"
-        },
-        {
-          "identity": {
-            "id": "repeat-development"
-          },
-          "checks": {
-            "keys": [
-              "exit",
-              "structured"
-            ]
-          },
-          "passKey": "passed"
-        },
-        {
-          "identity": {
-            "id": "repeat-native-bytes"
           },
           "passKey": "passed"
         },
@@ -16588,6 +16663,12 @@
         },
         {
           "identity": {
+            "id": "repeat-native-bytes"
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
             "id": "ignored-go-not-compiled"
           },
           "passKey": "passed"
@@ -16611,6 +16692,8 @@
           "checks": {
             "keys": [
               "exit",
+              "failedGoBuild",
+              "missingDependencyReason",
               "structured"
             ]
           },
@@ -16623,6 +16706,8 @@
           "checks": {
             "keys": [
               "exit",
+              "failedGoBuild",
+              "missingDependencyReason",
               "structured"
             ]
           },
@@ -16706,6 +16791,19 @@
         {
           "identity": {
             "id": "deterministic-archive"
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "conflicting-crd-legal-declaration"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "failureReason",
+              "structured"
+            ]
           },
           "passKey": "passed"
         },
@@ -16913,6 +17011,7 @@
               "binary",
               "buildExit0",
               "identity",
+              "initialBuildCacheEmpty",
               "nativeExit0",
               "noMarker",
               "packageExit0",
@@ -16931,6 +17030,7 @@
               "binary",
               "buildExit0",
               "identity",
+              "initialBuildCacheEmpty",
               "nativeExit0",
               "noMarker",
               "packageExit0",
@@ -16949,6 +17049,7 @@
               "binary",
               "buildExit0",
               "identity",
+              "initialBuildCacheEmpty",
               "nativeExit0",
               "noMarker",
               "packageExit0",
@@ -16967,6 +17068,7 @@
               "binary",
               "buildExit0",
               "identity",
+              "initialBuildCacheEmpty",
               "nativeExit0",
               "noMarker",
               "packageExit0",
@@ -16985,6 +17087,7 @@
               "binary",
               "buildExit0",
               "identity",
+              "initialBuildCacheEmpty",
               "nativeExit0",
               "noMarker",
               "packageExit0",
@@ -19930,6 +20033,116 @@
           {
             "identity": {
               "id": "patch-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-project-protected",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "dynamic-patch-unknown",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-list-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-map-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-scalar-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-empty-list-clears",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-null-list-deletes",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-removes-policy",
               "version": "auto"
             },
             "passKey": "passed",
@@ -20151,6 +20364,116 @@
             "identity": {
               "id": "patch-null-list-deletes",
               "version": "3.0.0"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-project-protected",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "dynamic-patch-unknown",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-list-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-map-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-scalar-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-empty-list-clears",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-null-list-deletes",
+              "version": "3.6.1"
             },
             "passKey": "passed",
             "empty": [
@@ -20390,6 +20713,116 @@
           {
             "identity": {
               "id": "patch-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-project-protected",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "dynamic-patch-unknown",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-list-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-map-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-scalar-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-empty-list-clears",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-null-list-deletes",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-removes-policy",
               "version": "auto"
             },
             "passKey": "passed",
@@ -20611,6 +21044,116 @@
             "identity": {
               "id": "patch-null-list-deletes",
               "version": "3.0.0"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-removes-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-adds-policy",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-project-protected",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "dynamic-patch-unknown",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-list-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-map-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "generator-empty-scalar-inherits",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-empty-list-clears",
+              "version": "3.6.1"
+            },
+            "passKey": "passed",
+            "empty": [
+              "error"
+            ]
+          },
+          {
+            "identity": {
+              "id": "patch-null-list-deletes",
+              "version": "3.6.1"
             },
             "passKey": "passed",
             "empty": [
@@ -20816,6 +21359,99 @@
               ]
             },
             "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning-strict"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-schema-error"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
           }
         ],
         "passKey": "passed",
@@ -20902,6 +21538,99 @@
                 "prompt",
                 "rawOutput",
                 "reason"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning-strict"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-schema-error"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
               ]
             },
             "passKey": "passed"
@@ -20994,6 +21723,99 @@
               ]
             },
             "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning-strict"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-schema-error"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
           }
         ],
         "passKey": "passed",
@@ -21083,6 +21905,99 @@
               ]
             },
             "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning-strict"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-schema-error"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
           }
         ],
         "passKey": "passed",
@@ -21169,6 +22084,99 @@
                 "prompt",
                 "rawOutput",
                 "reason"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-warning-strict"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "render-schema-error"
+            },
+            "checks": {
+              "keys": [
+                "checkHumanComplete",
+                "checkHumanDelivery",
+                "checkHumanDiagnostics",
+                "checkHumanExit",
+                "complete",
+                "configurationErrors",
+                "counts",
+                "diagnosticSeverity",
+                "diagnosticURI",
+                "exit",
+                "inputSource",
+                "jsonStderrEmpty",
+                "noChild",
+                "renderHumanComplete",
+                "renderHumanDelivery",
+                "renderHumanDiagnostics",
+                "renderHumanExit",
+                "renderedBytes",
+                "renderer",
+                "sameAnalysisReport",
+                "target"
               ]
             },
             "passKey": "passed"
@@ -21748,24 +22756,6 @@
           },
           {
             "identity": {
-              "id": "repeat-development"
-            },
-            "checks": {
-              "keys": [
-                "exit",
-                "structured"
-              ]
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
-              "id": "repeat-native-bytes"
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
               "id": "real-release-refused"
             },
             "checks": {
@@ -21835,6 +22825,12 @@
           },
           {
             "identity": {
+              "id": "repeat-native-bytes"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
               "id": "ignored-go-not-compiled"
             },
             "passKey": "passed"
@@ -21858,6 +22854,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -21870,6 +22868,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -21953,6 +22953,19 @@
           {
             "identity": {
               "id": "deterministic-archive"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "conflicting-crd-legal-declaration"
+            },
+            "checks": {
+              "keys": [
+                "exit",
+                "failureReason",
+                "structured"
+              ]
             },
             "passKey": "passed"
           },
@@ -22171,24 +23184,6 @@
           },
           {
             "identity": {
-              "id": "repeat-development"
-            },
-            "checks": {
-              "keys": [
-                "exit",
-                "structured"
-              ]
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
-              "id": "repeat-native-bytes"
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
               "id": "real-release-refused"
             },
             "checks": {
@@ -22258,6 +23253,12 @@
           },
           {
             "identity": {
+              "id": "repeat-native-bytes"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
               "id": "ignored-go-not-compiled"
             },
             "passKey": "passed"
@@ -22281,6 +23282,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -22293,6 +23296,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -22376,6 +23381,19 @@
           {
             "identity": {
               "id": "deterministic-archive"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "conflicting-crd-legal-declaration"
+            },
+            "checks": {
+              "keys": [
+                "exit",
+                "failureReason",
+                "structured"
+              ]
             },
             "passKey": "passed"
           },
@@ -22594,24 +23612,6 @@
           },
           {
             "identity": {
-              "id": "repeat-development"
-            },
-            "checks": {
-              "keys": [
-                "exit",
-                "structured"
-              ]
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
-              "id": "repeat-native-bytes"
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
               "id": "real-release-refused"
             },
             "checks": {
@@ -22681,6 +23681,12 @@
           },
           {
             "identity": {
+              "id": "repeat-native-bytes"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
               "id": "ignored-go-not-compiled"
             },
             "passKey": "passed"
@@ -22704,6 +23710,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -22716,6 +23724,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -22799,6 +23809,19 @@
           {
             "identity": {
               "id": "deterministic-archive"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "conflicting-crd-legal-declaration"
+            },
+            "checks": {
+              "keys": [
+                "exit",
+                "failureReason",
+                "structured"
+              ]
             },
             "passKey": "passed"
           },
@@ -23017,24 +24040,6 @@
           },
           {
             "identity": {
-              "id": "repeat-development"
-            },
-            "checks": {
-              "keys": [
-                "exit",
-                "structured"
-              ]
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
-              "id": "repeat-native-bytes"
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
               "id": "real-release-refused"
             },
             "checks": {
@@ -23104,6 +24109,12 @@
           },
           {
             "identity": {
+              "id": "repeat-native-bytes"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
               "id": "ignored-go-not-compiled"
             },
             "passKey": "passed"
@@ -23127,6 +24138,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -23139,6 +24152,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -23222,6 +24237,19 @@
           {
             "identity": {
               "id": "deterministic-archive"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "conflicting-crd-legal-declaration"
+            },
+            "checks": {
+              "keys": [
+                "exit",
+                "failureReason",
+                "structured"
+              ]
             },
             "passKey": "passed"
           },
@@ -23440,24 +24468,6 @@
           },
           {
             "identity": {
-              "id": "repeat-development"
-            },
-            "checks": {
-              "keys": [
-                "exit",
-                "structured"
-              ]
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
-              "id": "repeat-native-bytes"
-            },
-            "passKey": "passed"
-          },
-          {
-            "identity": {
               "id": "real-release-refused"
             },
             "checks": {
@@ -23527,6 +24537,12 @@
           },
           {
             "identity": {
+              "id": "repeat-native-bytes"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
               "id": "ignored-go-not-compiled"
             },
             "passKey": "passed"
@@ -23550,6 +24566,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -23562,6 +24580,8 @@
             "checks": {
               "keys": [
                 "exit",
+                "failedGoBuild",
+                "missingDependencyReason",
                 "structured"
               ]
             },
@@ -23645,6 +24665,19 @@
           {
             "identity": {
               "id": "deterministic-archive"
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "conflicting-crd-legal-declaration"
+            },
+            "checks": {
+              "keys": [
+                "exit",
+                "failureReason",
+                "structured"
+              ]
             },
             "passKey": "passed"
           },
@@ -23872,6 +24905,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23890,6 +24924,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23908,6 +24943,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23926,6 +24962,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23944,6 +24981,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23972,6 +25010,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -23990,6 +25029,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24008,6 +25048,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24026,6 +25067,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24044,6 +25086,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24072,6 +25115,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24090,6 +25134,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24108,6 +25153,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24126,6 +25172,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24144,6 +25191,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24172,6 +25220,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24190,6 +25239,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24208,6 +25258,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24226,6 +25277,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24244,6 +25296,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24272,6 +25325,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24290,6 +25344,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24308,6 +25363,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24326,6 +25382,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
@@ -24344,6 +25401,7 @@
                 "binary",
                 "buildExit0",
                 "identity",
+                "initialBuildCacheEmpty",
                 "nativeExit0",
                 "noMarker",
                 "packageExit0",
