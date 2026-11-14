@@ -1,396 +1,146 @@
-name: Native LSP acceptance and distribution
+name: P02 Argo CD gate diagnostics (synthetic fixtures only)
+'on':
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [scenario, manual-green, cancel-upstream]
+        default: manual-green
+        description: Diagnostic override; never executes product tests
+      target_pr:
+        type: string
+        default: ''
+        description: Required for cancellation replacement; original PR number
 permissions:
   contents: read
-concurrency:
-  group: acceptance-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 jobs:
   prepare:
-    name: Resolve exact candidate source and version
+    name: P02 fix synthetic fixture plan
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      full: ${{ steps.plan.outputs.full }}
+      scenario: ${{ steps.plan.outputs.scenario }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
-        persist-credentials: false
         ref: ${{ github.sha }}
-        fetch-depth: 0
+        persist-credentials: false
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
-    - name: Validate the independent LSP VERSION and clean source
-      id: version
+    - id: plan
+      name: Invoke frozen gate planner
       env:
-        REQUESTED_VERSION: ${{ inputs.release_version }}
-        SOURCE_COMMIT: ${{ github.sha }}
-      run: python tools/release.py version --source-commit "$SOURCE_COMMIT" --requested-version "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
-    - name: Reject misidentified ordinary build receipts
-      run: python tests/build_receipt_e2e.py --output artifacts/build-receipt-controls
-    - name: Verify transport failure and cleanup evidence
-      run: python tests/session_transport_e2e.py --output artifacts/session-controls
-    - name: Verify conservative diff controls
-      run: python tests/ci_plan_e2e.py --output artifacts/plan-controls
-    - name: Freeze the execution plan before consumers
-      id: plan
-      run: python tools/ci_plan.py create --output artifacts/ci-plan.json
-    - name: Retain immutable same-attempt plan
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        P02_TARGET_PR: ${{ inputs.target_pr }}
+        P02_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        P02_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: python p02/harness.py prepare --mode "${{ inputs.mode || 'scenario' }}" --output p02-out
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-plan-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/ci-plan.json
+        name: p02-cd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-out/
         if-no-files-found: error
-    - name: Retain plan and transport controls on success or failure
-      if: always()
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-prepare-controls-${{ github.run_id }}-${{ github.run_attempt }}
-        path: 'artifacts/plan-controls/
-
-          artifacts/build-receipt-controls/
-
-          artifacts/session-controls/'
-        if-no-files-found: error
-  native:
-    name: Native ${{ matrix.host.platform }} / ${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-    needs:
-    - prepare
-    - ordinary
-    strategy:
-      fail-fast: false
-      matrix:
-        suite:
-        - consumers
-        - provenance
-        - compiler-environment
-        host:
-        - runner: ubuntu-24.04
-          platform: linux/amd64
-          artifact: linux-amd64
-          bundle: linux-amd64
-          cc: gcc-13
-          compiler: 13.3.0
-        - runner: ubuntu-24.04-arm
-          platform: linux/arm64
-          artifact: linux-arm64
-          bundle: linux-arm64
-          cc: gcc-13
-          compiler: 13.3.0
-        - runner: macos-15-intel
-          platform: darwin/amd64
-          artifact: macos-amd64
-          bundle: darwin-amd64
-          cc: clang
-          compiler: Apple clang version 17.0.0
-        - runner: macos-15
-          platform: darwin/arm64
-          artifact: macos-arm64
-          bundle: darwin-arm64
-          cc: clang
-          compiler: Apple clang version 17.0.0
-        - runner: windows-2025
-          platform: windows/amd64
-          artifact: windows-amd64
-          bundle: windows-amd64
-          cc: gcc
-          compiler: 15.2.0
-    runs-on: ${{ matrix.host.runner }}
-    timeout-minutes: ${{ matrix.host.platform == 'windows/amd64' && 45 || 30 }}
-    env:
-      CC: ${{ matrix.host.cc }}
-      CGO_ENABLED: '1'
-      GOWORK: 'off'
-      GOTOOLCHAIN: local
-      MACOSX_DEPLOYMENT_TARGET: '13.0'
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        persist-credentials: false
-        ref: ${{ github.sha }}
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-      with:
-        go-version-file: go.mod
-        check-latest: false
-        cache: false
-    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-      with:
-        python-version: 3.14.0
-    - name: Download same-attempt ordinary release build
-      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
-        path: artifacts/ordinary-release
-    - name: Execute the complete native lane with fresh build caches
-      run: python tests/native_ci.py --suite "${{ matrix.suite }}" --platform "${{ matrix.host.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.host.compiler
-        }}" --release-version "${{ needs.prepare.outputs.version }}" ${{ matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64' && '--build-directory artifacts/ordinary-release'
-        || '' }} --producer-receipt-sha "${{ needs.ordinary.outputs.receiptSHA256 }}"
-    - name: Check every schema constraint and automatic query field
-      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      shell: bash
-      run: 'set -o pipefail
-
-        go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis ./internal/cli 2>&1 | tee artifacts/native-ci/go-tests.log
-
-        '
-    - name: Check concurrent index and overlay delivery
-      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      shell: bash
-      run: 'go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
-
-        go build -mod=vendor -race -o artifacts/native-ci/build/argocd-ls-race ./cmd/argocd-ls
-
-        python tests/mixed_parent_index_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-mixed-parent --ordinary-files 1000
-
-        python tests/publication_delivery_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-publication-delivery
-
-        '
-    - name: Test release staging and complete-platform aggregation
-      if: matrix.suite == 'consumers'
-      run: python tests/release_e2e.py --platform "${{ matrix.host.platform }}" --output artifacts/native-ci/release-e2e
-    - name: Prove native release works without any editor checkout
-      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      run: python tests/native_isolation.py --output artifacts/native-ci/native-isolation
-    - name: Verify compatibility mechanisms by isolated removal
-      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
-      run: python tests/ablate_multi_version.py artifacts/native-ci/build/argocd-ls artifacts/native-ci/multi-version-ablation
-    - name: Stage verified release assets
-      if: matrix.suite == 'consumers'
-      run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}"
-        --source-commit "${{ github.sha }}"
-    - name: Retain per-platform release assets
-      if: matrix.suite == 'consumers'
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-release-${{ matrix.host.bundle }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/native-ci/release-assets/
-        if-no-files-found: error
-        retention-days: 30
-    - name: Retain the independently checked lane report
-      if: always()
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-acceptance-${{ matrix.host.bundle }}-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: |
-          artifacts/native-ci/report.json
-          artifacts/native-ci/child-evidence/*.json
-        if-no-files-found: error
-        retention-days: 30
-    - name: Archive complete replay evidence without disposable compiler caches
-      if: always()
-      run: python tools/ci_evidence.py pack --root artifacts/native-ci --output artifacts/native-evidence
-    - name: Verify archived bytes and metadata without extracting fixtures
-      if: always()
-      run: python tools/ci_evidence.py verify --manifest artifacts/native-evidence/manifest.json
-    - name: Retain successful and failed native evidence
-      if: always()
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-native-${{ matrix.host.artifact }}-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/native-evidence/
-        compression-level: 0
-        if-no-files-found: error
-        retention-days: 30
-    if: needs.prepare.outputs.full == 'true'
-  orthogonal:
-    name: Linux orthogonal ${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-    needs:
-    - prepare
-    - ordinary
-    strategy:
-      fail-fast: false
-      matrix:
-        suite:
-        - contracts
-        - boundaries
-        - mutations
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CC: gcc-13
-      CGO_ENABLED: '1'
-      GOWORK: 'off'
-      GOTOOLCHAIN: local
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        persist-credentials: false
-        ref: ${{ github.sha }}
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-      with:
-        go-version-file: go.mod
-        check-latest: false
-        cache: false
-    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-      with:
-        python-version: 3.14.0
-    - name: Require every first-party test to have an explicit execution boundary
-      run: python tests/test_inventory.py
-    - name: Download same-attempt ordinary release build
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
-        path: artifacts/orthogonal-ci/build
-    - name: Verify producer identity before fresh consumers
-      run: 'python tools/build_receipt.py verify --directory artifacts/orthogonal-ci/build --source-commit "${{ github.sha }}" --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version
-        }}" --receipt-sha "${{ needs.ordinary.outputs.receiptSHA256 }}" --check-source
-
-        chmod +x artifacts/orthogonal-ci/build/argocd-ls'
-    - name: Install the checksum-pinned real Helm consumer
-      if: matrix.suite == 'boundaries' || matrix.suite == 'mutations'
-      run: python tools/install_test_helm.py --output artifacts/orthogonal-ci/tools
-    - name: Install the checksum-pinned Helm 4 consumer
-      if: matrix.suite == 'boundaries'
-      run: python tools/install_test_helm.py --major 4 --output artifacts/orthogonal-ci/tools4
-    - name: Execute complementary consumers with named evidence
-      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --helm4 artifacts/orthogonal-ci/tools4/helm
-        --output artifacts/orthogonal-ci/tests
-    - name: Archive complete success and failure evidence
-      if: always()
-      run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence
-    - name: Verify archived evidence
-      if: always()
-      run: python tools/ci_evidence.py verify --manifest artifacts/orthogonal-evidence/manifest.json
-    - name: Retain orthogonal acceptance evidence
-      if: always()
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-orthogonal-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/orthogonal-evidence/
-        compression-level: 0
-        if-no-files-found: error
-        retention-days: 30
-    if: needs.prepare.outputs.full == 'true'
-  resources:
-    name: Constrained resource acceptance-${{ github.run_id }}-${{ github.run_attempt }}
-    uses: ./.github/workflows/resource.yml
+  upstream:
+    name: P02 synthetic upstream (no product executes)
     needs: prepare
-    if: needs.prepare.outputs.full == 'true'
-  candidate:
-    name: ${{ github.event_name == 'pull_request' && 'Verify complete native distribution' || 'Native distribution evidence' }}
-    if: always()
-    needs:
-    - prepare
-    - native
-    - orthogonal
-    - resources
-    - ordinary
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        persist-credentials: false
-        ref: ${{ github.sha }}
-        fetch-depth: 0
-    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-      with:
-        python-version: 3.14.0
-    - name: Download the pre-execution plan
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        name: argocd-plan-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/plan
-    - name: Verify selection and every same-graph dependency
-      env:
-        NEEDS_JSON: ${{ toJSON(needs) }}
-      run: python tools/ci_plan.py verify --plan artifacts/plan/ci-plan.json --needs "$NEEDS_JSON"
-    - name: Download native assets from this exact workflow run
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: argocd-release-*-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/candidate-inputs/native
-      if: needs.prepare.outputs.full == 'true'
-    - name: Download every lane report from this exact workflow run
-      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-      with:
-        pattern: argocd-acceptance-*-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/candidate-inputs/acceptance
-      if: needs.prepare.outputs.full == 'true'
-    - name: Require all fifteen native lanes and the exact tested release bytes
-      run: python tools/ci_gate.py --inputs artifacts/candidate-inputs/acceptance --assets artifacts/candidate-inputs/native --source-commit "${{ github.sha }}" --version "${{ needs.prepare.outputs.version
-        }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}" --jobs-result "${{ needs.native.result }}" --output artifacts/candidate-acceptance.json
-      if: needs.prepare.outputs.full == 'true'
-    - name: Verify all native platforms, original licenses, source identity and checksums
-      run: python tools/release.py collect --inputs artifacts/candidate-inputs/native --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/native-distribution
-      if: needs.prepare.outputs.full == 'true'
-    - name: Retain the complete verified native distribution
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-      with:
-        name: argocd-native-distribution-${{ needs.prepare.outputs.version }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/native-distribution/
-        if-no-files-found: error
-        retention-days: 30
-      if: needs.prepare.outputs.full == 'true'
-    - name: Summarize the native acceptance boundary
-      run: 'cat >> "$GITHUB_STEP_SUMMARY" <<''EOF''
-
-        ## Native LSP distribution verified
-
-
-        Five native hosts executed CLI/LSP consumers and verified the exact source identity,
-
-        original licenses, packaged bytes and SHA-256 inventories.
-
-        The Zed adapter has its own workflow and release lifecycle.
-
-        EOF'
-      if: needs.prepare.outputs.full == 'true'
-  ordinary:
-    name: Cold ordinary release producer-${{ github.run_id }}-${{ github.run_attempt }}
+    if: needs.prepare.outputs.scenario != 'unexpected-skip'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      CC: gcc-13
-      CGO_ENABLED: '1'
-      GOWORK: 'off'
-      GOTOOLCHAIN: local
+    concurrency:
+      group: p02-cd-upstream-${{ github.repository }}-${{ github.event.pull_request.number || inputs.target_pr || github.ref }}
+      cancel-in-progress: true
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
-        persist-credentials: false
         ref: ${{ github.sha }}
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-      with:
-        go-version-file: go.mod
-        cache: false
+        persist-credentials: false
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
-    - name: Build exact ordinary bytes with empty caches
-      run: python tools/build_receipt.py produce --directory artifacts/ordinary-release --source-commit "${{ github.sha }}" --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version
-        }}"
-      id: produce
-    - name: Upload immediately for same-attempt consumers
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: p02-cd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-out
+    - name: Create explicit positive fixture with real plan/start/receipt CLI
+      run: python p02/harness.py fixtures --output p02-out
+    - name: Retain fixture before intentional failure or cancellation
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
-        path: artifacts/ordinary-release/
-        compression-level: 0
+        name: p02-cd-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-out/
         if-no-files-found: error
-    - name: Retain failed producer evidence
-      if: failure()
+    - name: Wait for actual upstream job cancellation
+      if: needs.prepare.outputs.scenario == 'upstream-cancel'
+      run: python p02/harness.py wait-cancel --output p02-out
+    - name: Apply intentional upstream failure after artifact retention
+      run: python p02/harness.py finish --output p02-out
+  acceptance:
+    name: ${{ github.event_name == 'pull_request' && 'Verify complete native distribution' || 'Native distribution evidence' }}
+    if: always()
+    needs: [prepare, upstream]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: p02-cd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input
+    - name: Retrieve upstream evidence when it exists
+      continue-on-error: true
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: p02-cd-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input
+    - name: Run genuine frozen gate and preserve its actual exit
+      env:
+        P02_NEEDS_JSON: ${{ toJSON(needs) }}
+      run: python p02/harness.py native --output p02-gate-input
+    - if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-producer-failure-release-${{ github.run_id }}-${{ github.run_attempt }}
-        path: artifacts/ordinary-release/
+        name: p02-cd-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input/
         if-no-files-found: error
-    needs: prepare
-    if: needs.prepare.outputs.full == 'true'
-    outputs:
-      receiptSHA256: ${{ steps.produce.outputs.receiptSHA256 }}
-'on':
-  pull_request: null
-  push:
-    branches:
-    - main
-  workflow_dispatch: null
-  workflow_call:
-    inputs:
-      release_version:
-        description: Exact independent LSP version (including alpha releases)
-        type: string
-        required: false
-        default: ''
+
+  adapter_acceptance:
+    name: ${{ github.event_name == 'pull_request' && 'Zed acceptance gate' || 'Zed adapter evidence' }}
+    if: always()
+    needs: [prepare, upstream]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: p02-cd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input
+    - name: Retrieve upstream evidence when it exists
+      continue-on-error: true
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: p02-cd-fixture-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input
+    - name: Run genuine frozen gate and preserve its actual exit
+      env:
+        P02_NEEDS_JSON: ${{ toJSON(needs) }}
+      run: python p02/harness.py zed --output p02-gate-input
+    - if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: p02-cd-adapter-${{ github.run_id }}-${{ github.run_attempt }}
+        path: p02-gate-input/
+        if-no-files-found: error
