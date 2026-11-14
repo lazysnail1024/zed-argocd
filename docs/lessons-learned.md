@@ -31,6 +31,22 @@ It does not track PR progress, temporary audit results or CI run status.
   [reconciliation_e2e.py](../tests/reconciliation_e2e.py) and
   [shared_lifecycle_mutations.py](../tests/shared_lifecycle_mutations.py).
 
+## Partial-state tests must establish the intended batch boundary
+
+- **Problem:** The configuration-pin regression can reach `Ready` without
+  observing the intended earlier application publication.
+- **Cause:** Final domain work is queued from a Go map. File counts alone do not
+  determine which batch contains the application, and the time slice can also
+  change a batch's size.
+- **Correction:** After discovery and reads finish, verify that the real final
+  domain queue exceeds one batch and already contains the application. Promote
+  that existing job through the queue's normal priority API before advancing.
+  Keep the assertions that pin actions are absent while work remains and that
+  the completed root offers exactly the expected edit for both URI spellings.
+- **Regression:** `TestConfigPinWaitsForRootReady` in
+  [incremental_test.go](../internal/lsp/incremental_test.go), included in the
+  Linux consumer lane's `go test -race` step.
+
 ## A candidate is not a unique project binding
 
 - **Problem:** Identical AppProject names can exist in several namespaces, and
