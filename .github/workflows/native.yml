@@ -247,6 +247,15 @@ jobs:
     - name: Execute complementary consumers with named evidence
       run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --helm4 artifacts/orthogonal-ci/tools4/helm
         --output artifacts/orthogonal-ci/tests
+    - name: Replay orthogonal evidence rejection controls
+      if: matrix.suite == 'contracts'
+      run: python tests/acceptance_evidence_e2e.py --orthogonal artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/rejection-controls
+    - name: Replay ordinary observation rejection controls
+      if: matrix.suite == 'contracts'
+      run: python tests/observation_evidence_e2e.py --contracts artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
+    - name: Replay designated mutation rejection controls
+      if: matrix.suite == 'mutations'
+      run: python tests/observation_evidence_e2e.py --mutations artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
     - name: Archive complete success and failure evidence
       if: always()
       run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence

@@ -48,6 +48,15 @@ jobs:
         chmod +x artifacts/resource-build/argocd-ls'
     - name: Execute original performance and memory contracts in enforced cgroups
       run: python tests/resource_ci.py --suite "${{ matrix.suite }}" --binary artifacts/resource-build/argocd-ls --output artifacts/resources
+    - name: Replay measured resource evidence rejection controls
+      if: matrix.suite == 'lifecycle'
+      run: python tests/acceptance_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/rejection-controls
+    - name: Replay retained memory rejection controls
+      if: matrix.suite == 'boundaries'
+      run: python tests/observation_evidence_e2e.py --retained artifacts/resources/retained-boundary-multiroot/report.json --output artifacts/resources/observation-controls
+    - name: Replay CLI deadline rejection controls
+      if: matrix.suite == 'lifecycle'
+      run: python tests/observation_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/observation-controls
     - name: Pack complete resource evidence
       if: always()
       run: 'mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources

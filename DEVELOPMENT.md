@@ -189,3 +189,27 @@ do not relax product thresholds or certify the planned 5 warm/3 cold paired runs
 20 natural PR observations, or actual desktop acceptance.
 
 Native acceptance uploads the original consumer JSON reports separately from the lane summary. The aggregate validates their case and assertion inventories against `tests/child_contracts.json`, their recorded runner and binary hashes, and their artifact digests. Changes to consumer scenarios must update this acceptance contract in the same review. Full transcripts remain in the separate evidence archive. Reports with zero cases, missing assertions, or nonboolean success values cannot satisfy the gate.
+
+Linux orthogonal reports use the reviewed case and assertion inventories in
+`tests/orthogonal_contracts.py`, including the independent schema query fixtures
+and named mutation failures. Resource reports validate every raw timing and RSS
+sample before applying the original counts and thresholds. Both runners reject
+nonfinite JSON and duplicate object keys. The required orthogonal contracts and
+resource lifecycle jobs replay negative controls against their freshly produced
+reports before archiving evidence. To replay downloaded reports locally:
+
+```sh
+python tests/acceptance_evidence_e2e.py --orthogonal artifacts/orthogonal-ci/tests --output artifacts/orthogonal-controls
+python tests/acceptance_evidence_e2e.py --resources artifacts/resources --output artifacts/resource-controls
+```
+
+Use a new output directory for each replay. It retains each input, verifier and
+input hashes, command, exit status, stdout, stderr, and rejection reason. These
+controls establish evidence acceptance; they do not measure product performance.
+
+`tests/observation_evidence_e2e.py` additionally replays ordinary observations,
+mutation positive controls and designated raw failures, retained-budget RSS, and
+the CLI process deadline. Pass `--contracts` or `--mutations` with the respective
+orthogonal output directory, `--retained` with the multiroot retained-budget
+report, or `--resources` with the lifecycle output directory, plus a new
+`--output` directory. The corresponding required CI jobs run these controls.
