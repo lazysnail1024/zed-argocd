@@ -74,7 +74,9 @@
         "tests/test_inventory.py",
         "tests/build_receipt_e2e.py",
         "tests/session_transport_e2e.py",
-        "tests/ci_plan_e2e.py"
+        "tests/ci_plan_e2e.py",
+        "tests/acceptance_evidence_e2e.py",
+        "tests/observation_evidence_e2e.py"
       ],
       ".github/workflows/zed-install.yml": [
         "editors/zed/tests/install_e2e.py"
@@ -186,6 +188,9 @@
       ],
       "tests/native_ci.py": [
         "tests/child_evidence.py"
+      ],
+      "tests/orthogonal_ci.py": [
+        "tests/orthogonal_contracts.py"
       ]
     }
   }
