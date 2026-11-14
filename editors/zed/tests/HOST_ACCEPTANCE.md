@@ -22,9 +22,9 @@ Record each case as pass, fail or blocked:
 8. `cleanup`: close Zed and verify its owned native process exited; remove the
    isolated user data only after logs/screenshots/final diff are retained.
 
-Use host-smoke.schema.json as the record format. Evidence must identify the
+Use [host-smoke.schema.json](host-smoke.schema.json) as the record format. Evidence must identify the
 operator, time, exact candidate, display and each observation. Missing loaded-byte
 identity, missing cases or blocked observations cannot yield a passed result.
 Windows historical-cache activation is additionally required on Windows.
-Automating this procedure requires ten clean repetitions and detection of an
-activation or diagnostic defect before adding a permanent host workflow.
+The current workflows do not automate this desktop procedure. A passing file
+installer or adapter package check cannot be recorded as a host acceptance pass.

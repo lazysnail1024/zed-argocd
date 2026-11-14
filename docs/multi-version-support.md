@@ -76,4 +76,4 @@ Use fresh output directories for each verification. Collection clears readiness.
 | [appset_overrides_e2e.py](../tests/appset_overrides_e2e.py) with `--all-targets` | Groups eligible targets by exact ApplicationSet schema hash and complete local-rule set; runs deep scenarios once per group and automatic mode separately; records every covered version |
 | [ablate_multi_version.py](../tests/ablate_multi_version.py) | Compiles controlled variants that remove historical branches, object boundaries, shared definitions or query branch selection |
 
-`multi_version_e2e.py` has no `--all-targets` option. Grouped deep ApplicationSet scenarios do not replace the full-tag compatibility matrix. See the actual commands in [native_ci.py](../tests/native_ci.py) and [native.yml](../.github/workflows/native.yml).
+Grouped deep ApplicationSet scenarios and the full-tag compatibility matrix establish different boundaries. See the commands in [native_ci.py](../tests/native_ci.py) and [native.yml](../.github/workflows/native.yml), with the complete execution policy in [test contracts](../tests/README.md).

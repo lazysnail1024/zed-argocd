@@ -21,7 +21,7 @@ The inventory describes wiring; it does not replace execution evidence.
 | Workspace and lifecycle | `parent_workspace_lsp_e2e.py`, `mixed_parent_index_e2e.py`, `persistent_workspace_e2e.py`, `workspace_regressions_e2e.py`, `scope_glob_e2e.py`, `scope_refresh_e2e.py`, `repository_exclusion_e2e.py`, `reconciliation_e2e.py` | Root/scope ownership, exclusions, overlays, discovery, periodic repair and release of stale state. Larger Linux samples add workload scale without duplicating all semantic dimensions on every host. |
 | LSP delivery and concurrency | `lsp_e2e.py`, `lsp_regressions_e2e.py`, `publication_e2e.py`, `publication_delivery_e2e.py`, `query_delivery_e2e.py`, `candidate_concurrency_e2e.py`, `host_capabilities_e2e.py` | Actual ordered protocol events, current-version publications, cancellation, client capabilities and stale-result rejection. The lifecycle entry requires all 25 named cases; a successful prefix cannot pass. |
 | Navigation and verified edits | `navigation_editing_e2e.py`, `navigation_editing_guards_e2e.py`, `bounded_symbol_queries_e2e.py`, `project_rename_e2e.py`, `interaction_remediation_e2e.py`, `save_action_e2e.py`, `semantic_regressions_e2e.py`, `candidates_e2e.py`, `candidate_review_e2e.py`, `pin_e2e.py`, `pin_review_e2e.py`, `audit_repair_e2e.py lsp` | Exact text/ranges, UTF-16, version binding, named symbols, ownership and before/after semantic safety. Edit consumers apply returned edits. Pin stale-revision checks first prove a fresh pin action is currently available, so an unready index cannot mask a removed revision guard. |
-| Rendering and process boundaries | `renderer_input_e2e.py`, `render_acquisition_e2e.py`, `bounded_process_e2e.py`, `helm_e2e.py`, `readiness_render_e2e.py`, `output_failure_e2e.py`, `bounded_accounting_e2e.py` | Real Helm 3.19.0 with pinned archive SHA-256; separate controlled renderers for invalid input, blocked acquisition, descendant cleanup and output failures. Rendered paths/ranges and completed work are checked independently. |
+| Rendering and process boundaries | `renderer_input_e2e.py`, `render_acquisition_e2e.py`, `bounded_process_e2e.py`, `helm_e2e.py`, `readiness_render_e2e.py`, `output_failure_e2e.py`, `bounded_accounting_e2e.py` | Real Helm 3.19.0 and Helm 4.3.1 with pinned archive SHA-256; separate controlled renderers for invalid input, blocked acquisition, descendant cleanup and output failures. Rendered paths/ranges and completed work are checked independently. |
 | Performance and retention | Existing native performance consumers plus [resource.yml](../.github/workflows/resource.yml) and `resource_ci.py` | Work-count/incremental regressions remain in native Linux CI. The additional resource lanes enforce cgroup memory, no swap, four allowed CPUs and CPU quota, then check the original precise case sets and thresholds. See below. |
 | Go owner contracts | `go test` for `internal/assets`, `internal/analysis`, `internal/cli`; `-race -count=1` for `internal/lsp` and `internal/workspace` | Schema compile constraints, derived AppSet budgets, summary identity, CLI behavior, real index state transitions, rename proofs and document budgets. These supplement executable consumers where ownership/synchronization cannot be directly observed through the protocol. |
 | Zed adapter and package | Cargo tests plus `adapter_e2e.py`, `package_e2e.py`, `ablate_identity.py`, `ablate_distribution.py` in [zed.yml](../.github/workflows/zed.yml) | Rust distribution selection and runtime identity, compiled WASM and packaged assets, exact pin isolation, valid alternate-version packages, and named runtime rejection of single corruptions. The adapter builds without the native repository contents. |
@@ -53,8 +53,10 @@ requires exit zero and nonempty passing structured evidence. Ordinary native
 consumers must identify the supplied binary hash; real-renderer receipts must also
 identify the supplied Helm hash. A synthetic schema or source mutation records its
 own separate build, source and evidence instead of claiming the main binary.
-The candidate job explicitly requires successful native, orthogonal and resource
-jobs; skipped jobs cannot satisfy it.
+For a full execution plan, the candidate job requires successful native,
+orthogonal, resource and ordinary-producer jobs. Only the explicit prose-only
+plan permits those lanes to be skipped, after trusted plan recomputation; see
+[CI plans and replay](#ci-plans-build-receipts-and-replay).
 
 ## Fault controls must test the intended reason
 
@@ -118,9 +120,10 @@ mutations resolve Go from `GO`, `GOROOT` or `PATH`; no fixed local checkout is n
 go build -mod=vendor -o build/argocd-ls ./cmd/argocd-ls
 python3 tests/test_inventory.py
 python3 tests/orthogonal_ci.py contracts --binary build/argocd-ls --output artifacts/contracts
-python3 tools/install_test_helm.py --output artifacts/test-tools
-python3 tests/orthogonal_ci.py boundaries --binary build/argocd-ls --helm artifacts/test-tools/helm --output artifacts/boundaries
-python3 tests/orthogonal_ci.py mutations --binary build/argocd-ls --output artifacts/mutations
+python3 tools/install_test_helm.py --output artifacts/helm3
+python3 tools/install_test_helm.py --major 4 --output artifacts/helm4
+python3 tests/orthogonal_ci.py boundaries --binary build/argocd-ls --helm artifacts/helm3/helm --helm4 artifacts/helm4/helm --output artifacts/boundaries
+python3 tests/orthogonal_ci.py mutations --binary build/argocd-ls --helm artifacts/helm3/helm --output artifacts/mutations
 ```
 
 On the matching native host, `native_ci.py --platform <os/arch> --suite consumers`
@@ -136,3 +139,79 @@ CI packs and verifies complete evidence, including failure evidence, before uplo
 The source commit, workflow job results and controlled build are the trust boundary;
 a standalone JSON report or synthetic validator fixture is not proof that an
 arbitrary executable or published editor installation passed these contracts.
+
+## CI plans, build receipts and replay
+
+
+`python tools/ci_baseline.py --commit <full-sha> --output artifacts/baseline.json`
+exports immutable test inputs and lane contracts. It does not certify execution.
+Native acceptance keeps fifteen native dimensions, all orthogonal suites, race,
+source mutations and constrained resource consumers. The ordinary Linux release
+producer serves native consumers and orthogonal baselines; a separate ordinary
+development producer serves resource lanes. Both start with empty compilation
+and module caches. No warm compiler cache is enabled. Compressed evidence is
+uploaded without recompression.
+
+Consumers require the producer receipt digest from the same workflow dependency,
+run and attempt, then verify source inputs, bytes and the executable identity.
+A failed-only job rerun cannot certify inherited earlier-attempt producer bytes:
+rerun the producer and all dependent consumers together. Fault, provenance,
+synthetic-schema and race builds retain their independent execution paths.
+
+`tools/ci_plan.py` records base, head and tested SHA independently. Only modifications
+to README.md and DEVELOPMENT.md are eligible for the prose-only native plan.
+Mixed, renamed, deleted, unknown, schema, dependency, test or CI changes select
+full; an unavailable diff also selects full. Main and release always select full.
+The stable candidate gate recomputes the plan and rejects unexpected skips,
+missing jobs, wrong identities and unplanned blocking work. The Zed acceptance
+workflow always runs independently, including prose-only PRs.
+
+Transport controls run with `python tests/session_transport_e2e.py --output
+artifacts/session-controls`. Domain oracles remain in the real LSP consumers;
+the shared transport does not decide Argo semantics. Schema fixtures and their
+stable IDs live under `tests/fixtures/contracts/schema-query`; edit expectations
+explicitly and review the diff. CI never updates fixtures. Run
+`python tests/incremental_equivalence_e2e.py <binary> artifacts/equivalence` to
+compare incremental and fresh final states, including overlays and root identity.
+Repeated semantics alone do not prove a cache hit; existing incremental work-count
+and cancellation consumers remain required.
+
+Published file-install acceptance validates successful upstream identity, current
+adapter source/version/native pin, downloaded asset IDs and digests, then retains
+upgrade/rollback and fault controls. It is not real Zed host evidence. To replay:
+`python editors/zed/tests/install_e2e.py --source-commit <published-source-sha>
+--report artifacts/zed-installer`.
+
+For CI timing, save complete paginated Actions jobs JSON per run/attempt and use
+`python tools/ci_trends.py --jobs <jobs.json> --output artifacts/trends.json`.
+Keep first-attempt failures and diagnostic reruns separately. Pair only matching
+platform/toolchain/selection/cache groups and report missing samples. Timing
+summaries describe the supplied runs; they do not relax product thresholds, prove
+a performance improvement without comparable observations, or certify desktop
+acceptance.
+
+Native acceptance uploads the original consumer JSON reports separately from the lane summary. The aggregate validates their case and assertion inventories against `tests/child_contracts.json`, their recorded runner and binary hashes, and their artifact digests. Changes to consumer scenarios must update this acceptance contract in the same review. Full transcripts remain in the separate evidence archive. Reports with zero cases, missing assertions, or nonboolean success values cannot satisfy the gate.
+
+Linux orthogonal reports use the reviewed case and assertion inventories in
+`tests/orthogonal_contracts.py`, including the independent schema query fixtures
+and named mutation failures. Resource reports validate every raw timing and RSS
+sample before applying the original counts and thresholds. Both runners reject
+nonfinite JSON and duplicate object keys. The required orthogonal contracts and
+resource lifecycle jobs replay negative controls against their freshly produced
+reports before archiving evidence. To replay downloaded reports locally:
+
+```sh
+python tests/acceptance_evidence_e2e.py --orthogonal artifacts/orthogonal-ci/tests --output artifacts/orthogonal-controls
+python tests/acceptance_evidence_e2e.py --resources artifacts/resources --output artifacts/resource-controls
+```
+
+Use a new output directory for each replay. It retains each input, verifier and
+input hashes, command, exit status, stdout, stderr, and rejection reason. These
+controls establish evidence acceptance; they do not measure product performance.
+
+`tests/observation_evidence_e2e.py` additionally replays ordinary observations,
+mutation positive controls and designated raw failures, retained-budget RSS, and
+the CLI process deadline. Pass `--contracts` or `--mutations` with the respective
+orthogonal output directory, `--retained` with the multiroot retained-budget
+report, or `--resources` with the lifecycle output directory, plus a new
+`--output` directory. The corresponding required CI jobs run these controls.

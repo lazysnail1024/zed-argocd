@@ -196,12 +196,33 @@ func TestConfigPinWaitsForRootReady(t *testing.T) {
 				}
 				return actions
 			}
+			promoteFinalDomainApp := func() bool {
+				t.Helper()
+				state.mu.Lock()
+				defer state.mu.Unlock()
+				indexed := state.roots[root]
+				if indexed == nil || !indexed.discovered || indexed.readPending != 0 {
+					return false
+				}
+				waiting := state.queue.Waiting(source.URI(appURI))
+				if !indexed.scanComplete || indexed.finalDomain || indexed.pending <= indexBatchFiles || !waiting {
+					t.Fatalf("fixture did not queue multiple final-domain batches: scanComplete=%t finalDomain=%t pending=%d batch=%d appWaiting=%t", indexed.scanComplete, indexed.finalDomain, indexed.pending, indexBatchFiles, waiting)
+				}
+				// Promote an existing final-pass job so map iteration cannot put
+				// the app's workspace publication in the last bounded batch.
+				state.enqueue(source.URI(appURI), false, shared.Current)
+				return true
+			}
 			var latest completed
+			promotedFinalDomain := false
 			earlyPublication := false
 			for {
 				latest = state.advance(ctx, 1, []string{root}, buffers, "", workspaceEvents{})
 				if ctx.Err() != nil || len(latest.failures) != 0 {
 					t.Fatalf("index failed: context=%v failures=%v", ctx.Err(), latest.failures)
+				}
+				if !promotedFinalDomain {
+					promotedFinalDomain = promoteFinalDomainApp()
 				}
 				for _, publication := range latest.publications {
 					if !earlyPublication && publication.uri == appURI && publication.phase == "workspace" && latest.more {
@@ -215,8 +236,8 @@ func TestConfigPinWaitsForRootReady(t *testing.T) {
 					break
 				}
 			}
-			if !earlyPublication || !latest.stats.Complete {
-				t.Fatalf("fixture did not cover publication before Ready: early=%t stats=%+v", earlyPublication, latest.stats)
+			if !promotedFinalDomain || !earlyPublication || !latest.stats.Complete {
+				t.Fatalf("fixture did not cover publication before Ready: promoted=%t early=%t stats=%+v", promotedFinalDomain, earlyPublication, latest.stats)
 			}
 			actions := pins(latest)
 			if len(actions) != 1 {

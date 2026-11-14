@@ -82,6 +82,7 @@ above does not automatically acquire changes merged into the source repository.
 The toolkit source dependency supplies text snapshots, YAML values and origins,
 schema queries, bounded indexing and workspace primitives. Argo CD resource
 semantics, configuration, scheduling and LSP delivery remain in this server.
+[Module architecture and dependency ownership](docs/architecture.md) ·
 [Shared toolkit API contract](contracts/toolkit-design-6.md).
 
 ## Standalone CLI / other editors
@@ -126,8 +127,8 @@ Adapt the chart name/path to your repository. Avoid a generic `**/templates/**`
 association, which also matches ordinary resource directories. If both Argo
 extensions are installed, add `"argo-workflows-ls"` to that server list. No
 `.zed/tasks.json` is required. Opening a common parent directory lets the server
-index multiple Git repositories beneath it; separately added visible project
-roots remain separate server indexes in Zed 1.28.1.
+index multiple Git repositories beneath it. The server indexes the roots supplied
+by the editor; worktrees hosted by separate server processes keep separate indexes.
 
 The same operation is available from a chart directory, or for a selected file:
 
@@ -144,4 +145,5 @@ need a lasting report. Rendered diagnostic locations refer to generated YAML.
 Analysis is local: it does not access a cluster, execute controllers or render Helm
 implicitly. The alpha includes automated CLI/LSP and package checks; real Zed GUI
 acceptance is recorded separately. [Documentation](docs/README.md) ·
-[Development and tests](DEVELOPMENT.md) · [MIT license](LICENSE)
+[Development](DEVELOPMENT.md) · [Test contracts](tests/README.md) ·
+[Lessons learned](docs/lessons-learned.md) · [MIT license](LICENSE)
