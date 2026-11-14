@@ -25416,6 +25416,5051 @@
         "runnerKey": "runnerSHA256",
         "runner": "tests/native_environment_e2e.py"
       }
+    },
+    "lsp-regressions": {
+      "darwin/amd64": {
+        "file": "lsp-regressions/report.json",
+        "rowsKey": "rows",
+        "rootRow": false,
+        "rows": [
+          {
+            "identity": {
+              "id": "rescan-cancel",
+              "status": "skipped",
+              "passed": null,
+              "reason": "Linux IN_OPEN synchronization required; this platform was not exercised"
+            }
+          },
+          {
+            "identity": {
+              "id": "scope-proof-merge"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-split"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-reassign"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-switch"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          }
+        ],
+        "passKey": "passed",
+        "runnerKey": "runnerSHA256",
+        "binaryKey": "binarySHA256",
+        "runner": "tests/lsp_regressions_e2e.py"
+      },
+      "darwin/arm64": {
+        "file": "lsp-regressions/report.json",
+        "rowsKey": "rows",
+        "rootRow": false,
+        "rows": [
+          {
+            "identity": {
+              "id": "rescan-cancel",
+              "status": "skipped",
+              "passed": null,
+              "reason": "Linux IN_OPEN synchronization required; this platform was not exercised"
+            }
+          },
+          {
+            "identity": {
+              "id": "scope-proof-merge"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-split"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-reassign"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-switch"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          }
+        ],
+        "passKey": "passed",
+        "runnerKey": "runnerSHA256",
+        "binaryKey": "binarySHA256",
+        "runner": "tests/lsp_regressions_e2e.py"
+      },
+      "windows/amd64": {
+        "file": "lsp-regressions/report.json",
+        "rowsKey": "rows",
+        "rootRow": false,
+        "rows": [
+          {
+            "identity": {
+              "id": "rescan-cancel",
+              "status": "skipped",
+              "passed": null,
+              "reason": "Linux IN_OPEN synchronization required; this platform was not exercised"
+            }
+          },
+          {
+            "identity": {
+              "id": "scope-proof-merge"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-split"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-reassign"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "scope-proof-switch"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "exact-initial-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "versioned-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-query-stays-valid"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "independent-scope-does-not-invalidate-local-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-current-buffer-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-current-version-edit-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "barrier-and-dependent-edit-order"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "fresh-scope-proof-rejects-only-actual-dependencies"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "changed-config-rejects-old-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "settled-reference-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "new-membership-positive-control"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-depth-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-open-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-last"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "parser-root-documents-disk-failed-first"
+            },
+            "checks": {
+              "rows": [
+                {
+                  "identity": {
+                    "id": "before-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "before-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-initially-usable"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "bounded-input-error-explained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-scope-is-not-reported-complete"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "during-failure-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-file-does-not-hide-known-positive-candidate"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-cannot-supply-stale-authority"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-assert-target-missing"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "partial-scope-cannot-offer-cross-file-edit"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failure-diagnostic-clears-after-repair"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-definition"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-completion"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-references"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "after-repair-schema-diagnostic-retained"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "failed-root-recovers-without-restart"
+                  },
+                  "passKey": "passed"
+                },
+                {
+                  "identity": {
+                    "id": "clean-server-exit"
+                  },
+                  "passKey": "passed"
+                }
+              ]
+            },
+            "passKey": "passed"
+          }
+        ],
+        "passKey": "passed",
+        "runnerKey": "runnerSHA256",
+        "binaryKey": "binarySHA256",
+        "runner": "tests/lsp_regressions_e2e.py"
+      }
+    },
+    "workspace-regressions": {
+      "windows/amd64": {
+        "file": "workspace-regressions/report.json",
+        "rowsKey": "rows",
+        "rootRow": false,
+        "rows": [
+          {
+            "identity": {
+              "id": "path-patch-exists"
+            },
+            "checks": {
+              "keys": [
+                "complete",
+                "exitZero",
+                "noMissingPath",
+                "noSchemaError"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-patch-absent"
+            },
+            "checks": {
+              "keys": [
+                "missingWarning",
+                "warningOnlyExitZero"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-patch-restored"
+            },
+            "checks": {
+              "keys": [
+                "complete",
+                "exitZero",
+                "noMissingPath"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-url-revision-combination"
+            },
+            "checks": {
+              "keys": [
+                "equivalentExistingSource"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-url-revision-combination-absent"
+            },
+            "checks": {
+              "keys": [
+                "equivalentMissingSource"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-static-patch-over-dynamic-exists"
+            },
+            "checks": {
+              "keys": [
+                "effectiveStaticStateChecked",
+                "noSchemaError"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-static-patch-over-dynamic-absent"
+            },
+            "checks": {
+              "keys": [
+                "effectiveStaticStateChecked",
+                "noSchemaError"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-generator-inherited-revision"
+            },
+            "checks": {
+              "keys": [
+                "complete",
+                "noMissingPath",
+                "noSchemaError"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-generator-inherited-revision-absent"
+            },
+            "checks": {
+              "keys": [
+                "missingWarning"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-dynamic-path"
+            },
+            "checks": {
+              "keys": [
+                "dynamicExplained",
+                "knownMissingControl",
+                "notCertainlyMissing"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-dynamic-repoURL"
+            },
+            "checks": {
+              "keys": [
+                "dynamicExplained",
+                "knownMissingControl",
+                "notCertainlyMissing"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-dynamic-targetRevision"
+            },
+            "checks": {
+              "keys": [
+                "dynamicExplained",
+                "knownMissingControl",
+                "notCertainlyMissing"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-lsp-initial"
+            },
+            "checks": {
+              "keys": [
+                "noMissingPath"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-filesystem-only-delete"
+            },
+            "checks": {
+              "keys": [
+                "expectedPathState"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "path-filesystem-only-restore"
+            },
+            "checks": {
+              "keys": [
+                "expectedPathState"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-pure-yaml-control"
+            },
+            "checks": {
+              "keys": [
+                "schemaStillChecked"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-unsaved-version-2"
+            },
+            "checks": {
+              "keys": [
+                "onlyUnrenderedInfo",
+                "queryUsesCurrentClass",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-unsaved-version-3"
+            },
+            "checks": {
+              "keys": [
+                "queryUsesCurrentClass",
+                "schemaRestored",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-unsaved-version-4"
+            },
+            "checks": {
+              "keys": [
+                "onlyUnrenderedInfo",
+                "queryUsesCurrentClass",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-unsaved-version-5"
+            },
+            "checks": {
+              "keys": [
+                "queryUsesCurrentClass",
+                "schemaRestored",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-transitions-no-acquisition"
+            },
+            "checks": {
+              "keys": [
+                "fourCompletedEdits",
+                "noFallback",
+                "noUnrelatedReads"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-direct-and-edited-equivalent"
+            },
+            "checks": {
+              "keys": [
+                "sameDiagnosticContract"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-pure-yaml-control"
+            },
+            "checks": {
+              "keys": [
+                "schemaStillChecked"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-unsaved-version-2"
+            },
+            "checks": {
+              "keys": [
+                "onlyUnrenderedInfo",
+                "queryUsesCurrentClass",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-unsaved-version-3"
+            },
+            "checks": {
+              "keys": [
+                "queryUsesCurrentClass",
+                "schemaRestored",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-unsaved-version-4"
+            },
+            "checks": {
+              "keys": [
+                "onlyUnrenderedInfo",
+                "queryUsesCurrentClass",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-unsaved-version-5"
+            },
+            "checks": {
+              "keys": [
+                "queryUsesCurrentClass",
+                "schemaRestored",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-transitions-no-acquisition"
+            },
+            "checks": {
+              "keys": [
+                "fourCompletedEdits",
+                "noFallback",
+                "noUnrelatedReads"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-helm-direct-and-edited-equivalent"
+            },
+            "checks": {
+              "keys": [
+                "sameDiagnosticContract"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-language-switch-initial"
+            },
+            "checks": {
+              "keys": [
+                "templateBuffer"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-language-reopen-helm"
+            },
+            "checks": {
+              "keys": [
+                "currentSymbols",
+                "oldTemplateCleared",
+                "resetVersionAccepted",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-language-reopen-edit-helm"
+            },
+            "checks": {
+              "keys": [
+                "currentTemplate",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-language-reopen-yaml"
+            },
+            "checks": {
+              "keys": [
+                "currentSymbols",
+                "oldTemplateCleared",
+                "resetVersionAccepted",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "helm-language-reopen-edit-yaml"
+            },
+            "checks": {
+              "keys": [
+                "currentTemplate",
+                "sourceUnchanged"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-canonical-initial"
+            },
+            "checks": {
+              "keys": [
+                "diagnosticsUseClientURI",
+                "validApp"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-canonical-navigation"
+            },
+            "checks": {
+              "keys": [
+                "commentDoesNotChangeDiagnostics",
+                "definitionClientURI",
+                "referencesClientURI"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-canonical-versioned-client-edit"
+            },
+            "checks": {
+              "keys": [
+                "clientURIAndVersion",
+                "exactBytes"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-canonical-edit-verified"
+            },
+            "checks": {
+              "keys": [
+                "diagnosticRemoved"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-real-windows-drive"
+            },
+            "passKey": "passed",
+            "checks": {
+              "keys": [
+                "actualDriveURI"
+              ]
+            }
+          },
+          {
+            "identity": {
+              "id": "uri-canonical-incremental-work"
+            },
+            "checks": {
+              "keys": [
+                "noDiskReads",
+                "noHiddenFallback",
+                "oneParsedFile",
+                "onlyAppAndProjectDomain",
+                "threeCompletedEdits"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-symlink-initial"
+            },
+            "checks": {
+              "keys": [
+                "diagnosticsUseClientURI",
+                "validApp"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-symlink-navigation"
+            },
+            "checks": {
+              "keys": [
+                "commentDoesNotChangeDiagnostics",
+                "definitionClientURI",
+                "referencesClientURI"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-symlink-versioned-client-edit"
+            },
+            "checks": {
+              "keys": [
+                "clientURIAndVersion",
+                "exactBytes"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-symlink-edit-verified"
+            },
+            "checks": {
+              "keys": [
+                "diagnosticRemoved"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-symlink-incremental-work"
+            },
+            "checks": {
+              "keys": [
+                "noDiskReads",
+                "noHiddenFallback",
+                "oneParsedFile",
+                "onlyAppAndProjectDomain",
+                "threeCompletedEdits"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-retarget-scope-identity"
+            },
+            "checks": {
+              "keys": [
+                "initialScope",
+                "newScope",
+                "noStaleDiagnostics"
+              ]
+            },
+            "passKey": "passed"
+          },
+          {
+            "identity": {
+              "id": "uri-retarget-invalidates-membership"
+            },
+            "checks": {
+              "keys": [
+                "identityReassignedWithoutRootScan",
+                "oldIdentityRestoredFromDisk",
+                "oneCompletedEdit"
+              ]
+            },
+            "passKey": "passed"
+          }
+        ],
+        "passKey": "passed",
+        "runnerKey": "runnerSHA256",
+        "binaryKey": "binarySHA256",
+        "runner": "tests/workspace_regressions_e2e.py"
+      }
     }
   }
 }
