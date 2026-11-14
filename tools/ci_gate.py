@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
-from native_ci import COMPILER_CASES, PLATFORM_COMPILERS, SUITES, inventory_digest, required_steps
+from native_ci import BUILD_ROLES, COMPILER_CASES, PLATFORM_COMPILERS, SUITES, inventory_digest, required_steps
 
 
 def require(condition, message):
@@ -35,7 +35,8 @@ def source_context(args):
     require(re.fullmatch("[1-9][0-9]*", args.run_id) and re.fullmatch("[1-9][0-9]*", args.run_attempt), "Expected an exact workflow run and attempt")
     names = subprocess.check_output(["git", "ls-files", "--cached", "-z"], cwd=ROOT).decode().split("\0")
     sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in names if name}
-    return {"sourceCommit": head,
+    return {"contractDigest": hashlib.sha256((ROOT/"tests/inventory.json").read_bytes()).hexdigest(),
+            "sourceCommit": head,
             "sourceTree": subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True).strip(),
             "sourceInputsSHA256": inventory_digest(sources),
             "runnerSHA256": hashlib.sha256((ROOT / "tests/native_ci.py").read_bytes()).hexdigest(),
@@ -87,16 +88,24 @@ def validate_compiler_cases(report):
 
 
 def validate_report(report, platform, suite, context):
-    require(type(report.get("schemaVersion")) is int and report["schemaVersion"] == 1 and report.get("suite") == suite and report.get("expectedNativePlatform") == platform, "Wrong lane identity")
+    require(type(report.get("schemaVersion")) is int and report["schemaVersion"] == 2 and report.get("suite") == suite and report.get("expectedNativePlatform") == platform, "Wrong lane identity")
+    require(report.get("contractDigest") == context["contractDigest"], "Contract inventory differs from checked-out source")
     run = report.get("workflowRun", {})
     attempt = run.get("GITHUB_RUN_ATTEMPT", "")
-    # A failed-only rerun preserves successful jobs' original outputs. Accept
-    # those lanes only within this same run, source and toolchain boundary.
-    require(report.get("releaseVersion") == context["version"] and run.get("GITHUB_RUN_ID") == context["workflowRun"]["GITHUB_RUN_ID"], "Wrong release version or workflow run")
-    require(set(run) == {"GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"} and re.fullmatch("[1-9][0-9]*", attempt) and
-            int(attempt) <= int(context["workflowRun"]["GITHUB_RUN_ATTEMPT"]), "Invalid or future lane attempt")
+    require(report.get("buildRole") == BUILD_ROLES[suite], "Wrong build role: mutation and isolation builds cannot be ordinary")
+    require(report.get("releaseVersion") == context["version"] and run == context["workflowRun"],
+            "Wrong release version or workflow run/attempt; rerun producers and all consumers together")
     require(report.get("runnerSHA256") == context["runnerSHA256"], "Lane runner differs from the checked-out source")
     require(report.get("expectedProvenance") == {"sourceCommit": context["sourceCommit"], "sourceTree": context["sourceTree"], "dirty": False, "buildMode": "release"}, "Wrong lane source provenance")
+    if report.get("buildOrigin") == "producer":
+        producer = report.get("producerReceipt") or {}
+        require(suite == "consumers" and platform == "linux/amd64", "Unexpected imported build")
+        expected_producer = {"schemaVersion": 1, "buildRole": "ordinary", "sourceCommit": context["sourceCommit"],
+                             "platform": platform, "buildMode": "release", "version": context["version"],
+                             "runID": context["workflowRun"]["GITHUB_RUN_ID"], "attempt": context["workflowRun"]["GITHUB_RUN_ATTEMPT"],
+                             "initialBuildCachesEmpty": True}
+        require(all(type(producer.get(k)) is type(v) and producer[k] == v for k, v in expected_producer.items()), "Imported producer identity differs")
+        require(producer.get("binarySHA256") == report["buildEvidence"][0]["binarySHA256"], "Consumer used different producer bytes")
     require(report.get("initialBuildCachesEmpty") is True, "Lane did not start with empty build caches")
     require(report.get("host") == {"linux": "linux", "darwin": "darwin", "windows": "win32"}[platform.split("/")[0]], "Wrong lane execution host")
     require(report.get("completed") is True and report.get("passed") is True and report.get("activeCommand") is None, "Lane is incomplete or failed")
@@ -117,16 +126,19 @@ def validate_report(report, platform, suite, context):
 
 def verify(args):
     context = source_context(args)
-    expected_names = {"argocd-acceptance-" + platform.replace("/", "-") + "-" + suite for platform in PLATFORM_COMPILERS for suite in SUITES}
+    suffix = "-" + args.run_id + "-" + args.run_attempt
+    expected_names = {"argocd-acceptance-" + platform.replace("/", "-") + "-" + suite + suffix for platform in PLATFORM_COMPILERS for suite in SUITES}
     paths = list(args.inputs.glob("*/report.json"))
     require({path.parent.name for path in paths} == expected_names and len(paths) == len(expected_names), "Expected exactly fifteen native acceptance reports")
     reports = {}
     for platform in PLATFORM_COMPILERS:
         reports[platform] = {}
         for suite in SUITES:
-            name = "argocd-acceptance-" + platform.replace("/", "-") + "-" + suite
+            name = "argocd-acceptance-" + platform.replace("/", "-") + "-" + suite + suffix
             report = read_json(args.inputs / name / "report.json")
             validate_report(report, platform, suite, context)
+            from child_evidence import verify as verify_children
+            verify_children(args.inputs / name, report, required_steps(platform, suite), platform, report["buildEvidence"][0]["binarySHA256"])
             reports[platform][suite] = report
         consumer = reports[platform]["consumers"]["buildEvidence"][0]
         for suite in SUITES:
@@ -138,7 +150,7 @@ def verify(args):
         require(record.get("sourceCommit") == context["sourceCommit"] and record.get("version") == context["version"], "Release record source differs from tested source")
         binary = reports[record["platform"]]["consumers"]["buildEvidence"][0]["binarySHA256"]
         require(record.get("package", {}).get("binarySHA256") == binary, "Release bytes differ from the accepted native binary")
-    attempts = {"argocd-acceptance-" + platform.replace("/", "-") + "-" + suite: reports[platform][suite]["workflowRun"]["GITHUB_RUN_ATTEMPT"]
+    attempts = {"argocd-acceptance-" + platform.replace("/", "-") + "-" + suite + suffix: reports[platform][suite]["workflowRun"]["GITHUB_RUN_ATTEMPT"]
                 for platform in PLATFORM_COMPILERS for suite in SUITES}
     return {"schemaVersion": 1, "passed": True, "sourceCommit": context["sourceCommit"], "sourceTree": context["sourceTree"],
             "workflowRun": context["workflowRun"], "version": context["version"], "acceptedLanes": sorted(expected_names),

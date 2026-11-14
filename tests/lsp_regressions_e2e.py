@@ -35,7 +35,14 @@ def result_uris(response):
 
 
 def labels(response):
-    return [item['label'] for item in response.get('result', [])]
+    result = response.get('result', [])
+    if isinstance(result, dict):
+        if type(result.get('isIncomplete')) is not bool or not isinstance(result.get('items'), list):
+            raise ValueError('Invalid CompletionList response: ' + repr(response))
+        result = result['items']
+    if not isinstance(result, list):
+        raise ValueError('Invalid completion response: ' + repr(response))
+    return [item['label'] for item in result]
 
 
 def has_code(diagnostics, code):

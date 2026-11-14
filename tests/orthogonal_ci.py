@@ -97,6 +97,8 @@ def main():
     binary = args.binary.resolve()
     report = {'suite': args.suite, 'binarySHA256': hashlib.sha256(binary.read_bytes()).hexdigest(),
               'runnerSHA256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              'schemaVersion':2, 'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},
+              'producerReceipt':json.loads((binary.parent/'receipt.json').read_text()) if (binary.parent/'receipt.json').is_file() else None,
               'expectedCases': [case[0] for case in CASES[args.suite]], 'rows': [], 'passed': False}
     for ident, script, arguments, report_path, timeout in CASES[args.suite]:
         folder = out / ident

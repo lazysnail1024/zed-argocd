@@ -71,7 +71,10 @@
         "tests/orthogonal_ci.py",
         "tests/publication_delivery_e2e.py",
         "tests/release_e2e.py",
-        "tests/test_inventory.py"
+        "tests/test_inventory.py",
+        "tests/build_receipt_e2e.py",
+        "tests/session_transport_e2e.py",
+        "tests/ci_plan_e2e.py"
       ],
       ".github/workflows/zed-install.yml": [
         "editors/zed/tests/install_e2e.py"
@@ -132,7 +135,8 @@
         "tests/target_e2e.py",
         "tests/workspace_regressions_e2e.py",
         "tests/navigation_defaults_e2e.py",
-        "tests/helm_source_e2e.py"
+        "tests/helm_source_e2e.py",
+        "tests/incremental_equivalence_e2e.py"
       ]
     },
     "resources": {
@@ -174,6 +178,14 @@
     "rust": {
       ".github/workflows/zed.yml": [
         "editors/zed/tests/distribution.rs"
+      ]
+    },
+    "support": {
+      "tests/audit_repair_e2e.py": [
+        "tests/support/session.py"
+      ],
+      "tests/native_ci.py": [
+        "tests/child_evidence.py"
       ]
     }
   }

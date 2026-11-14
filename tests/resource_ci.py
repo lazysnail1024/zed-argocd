@@ -427,13 +427,15 @@ def main():
     args = parser.parse_args()
     binary, output = args.binary.resolve(), args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    report = {"suite": args.suite, "rows": [], "passed": False}
+    report = {"schemaVersion":2,"suite": args.suite, "rows": [], "passed": False,
+              "workflowRun":{key:os.environ.get(key) for key in ("GITHUB_RUN_ID","GITHUB_RUN_ATTEMPT")},
+              "producerReceipt":json.loads((binary.parent/"receipt.json").read_text()) if (binary.parent/"receipt.json").is_file() else None}
     try:
         require(platform.system() == "Linux", "resource acceptance requires Linux")
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         identity = json.loads(subprocess.check_output([str(binary), "version", "--json"], timeout=20))
         require(identity.get("product") == "argo-cd" and identity.get("sourceCommit") == head
-                and identity.get("dirty") is False, "resource binary does not identify this exact clean source")
+                and identity.get("dirty") is False and identity.get("buildMode")=="development" and identity.get("serverVersion")== (ROOT/"VERSION").read_text().strip()+"-dev", "resource binary does not identify this exact clean source")
         report.update(sourceCommit=head, binarySHA256=sha(binary), identity=identity, runnerSHA256=sha(Path(__file__)))
         for case in SUITES[args.suite]:
             report["rows"].append(execute(case, binary, output))

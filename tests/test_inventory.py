@@ -55,7 +55,7 @@ def verify(plan):
     workflow = (ROOT / '.github/workflows/native.yml').read_text()
     gate = workflow.split('  candidate:\n', 1)[1]
     for job in ('native', 'orthogonal', 'resources'):
-        if '\n    - ' + job + '\n' not in gate or 'needs.' + job + '.result' not in gate:
+        if '\n    - ' + job + '\n' not in gate or ('needs.' + job + '.result' not in gate and 'toJSON(needs)' not in gate):
             raise ValueError('Candidate does not require the whole ' + job + ' boundary')
     return len(actual)
 

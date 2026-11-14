@@ -15,6 +15,7 @@ import tempfile
 import tomllib
 import urllib.request
 import zipfile
+import traceback
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,16 @@ ID = EXTENSION["id"]
 VERSION = EXTENSION["version"]
 REPO = EXTENSION["repository"].removeprefix("https://github.com/")
 ARCHIVE = f"{REPO.split('/')[-1]}-{VERSION}.zip"
+NATIVE_VERSION = (ROOT / 'native-server-version').read_text().strip()
+EXPECTED_SOURCE = None
+DOWNLOADS = []
+REPORT_PATH = None
+CASES = []
+
+def api(path):
+    request = urllib.request.Request('https://api.github.com/repos/'+REPO+path, headers={'User-Agent':'zed-install-e2e','Accept':'application/vnd.github+json'})
+    with urllib.request.urlopen(request, timeout=60) as response:return json.load(response)
+
 IS_WINDOWS = sys.platform == "win32"
 SCRIPT = ROOT / ("install.ps1" if IS_WINDOWS else "install.sh")
 
@@ -31,10 +42,21 @@ def download(version, output):
     output.mkdir(parents=True)
     name = f"{REPO.split('/')[-1]}-{version}.zip"
     base = f"https://github.com/{REPO}/releases/download/zed-v{version}"
+    release=api('/releases/tags/zed-v'+version)
+    assert release['tag_name']=='zed-v'+version and release['draft'] is False and release['published_at'], 'Wrong or unpublished adapter release'
+    selected={}
     for asset in ("SHA256SUMS", name):
+        matches=[item for item in release['assets'] if item['name']==asset]
+        assert len(matches)==1 and matches[0]['state']=='uploaded', 'Missing or duplicated release asset'
+        selected[asset]=matches[0]
         request = urllib.request.Request(f"{base}/{asset}", headers={"User-Agent": "zed-install-e2e"})
         with urllib.request.urlopen(request, timeout=120) as response:
             (output / asset).write_bytes(response.read())
+        if REPORT_PATH:
+            retained=REPORT_PATH/'downloads'/version
+            retained.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(output/asset,retained/asset)
+        DOWNLOADS.append({'releaseID':release['id'],'tag':release['tag_name'],'assetID':selected[asset]['id'],'url':f'{base}/{asset}','sha256':hashlib.sha256((output/asset).read_bytes()).hexdigest()})
     digest = hashlib.sha256((output / name).read_bytes()).hexdigest()
     lines = (output / "SHA256SUMS").read_text().splitlines()
     assert lines.count(f"{digest}  {name}") == 1, f"Published SHA256SUMS mismatch: {name}"
@@ -53,13 +75,33 @@ def check_identity(folder, version):
     assert manifest["extensionId"] == ID and manifest["version"] == version
     assert (folder / "extension.wasm").stat().st_size > 1000
     assert (folder / "extension.toml").is_file()
+    if version==VERSION:
+        assert manifest['sourceCommit']==EXPECTED_SOURCE, 'Installed adapter source differs from successful publication'
+        assert manifest['nativeServerVersion']==NATIVE_VERSION, 'Installed adapter native pin differs'
+    for name,digest in manifest['files'].items():
+        path=folder/name
+        assert path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest()==digest, 'Installed payload differs: '+name
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--source-commit", required=True)
     args = parser.parse_args()
-    cases = []
+    global EXPECTED_SOURCE, REPORT_PATH, CASES
+    REPORT_PATH=args.report
+    if REPORT_PATH:
+        REPORT_PATH.mkdir(parents=True,exist_ok=True)
+        (REPORT_PATH/"report.json").write_text(json.dumps({"passed":False,"status":"running","command":sys.argv,"sourceCommit":args.source_commit})+"\n")
+    EXPECTED_SOURCE=args.source_commit
+    assert len(EXPECTED_SOURCE)==40 and all(c in '0123456789abcdef' for c in EXPECTED_SOURCE)
+    native=api('/releases/tags/v'+NATIVE_VERSION)
+    assert native['tag_name']=='v'+NATIVE_VERSION and native['draft'] is False and native['published_at']
+    required={'SHA256SUMS'}|{'argocd-ls-'+NATIVE_VERSION+'-'+platform+('.exe' if platform.startswith('windows') else '') for platform in ['linux-amd64','linux-arm64','darwin-amd64','darwin-arm64','windows-amd64']}
+    for name in required:
+        matches=[asset for asset in native['assets'] if asset['name']==name]
+        assert len(matches)==1 and matches[0]['state']=='uploaded' and matches[0]['size']>0, 'Missing native platform asset: '+name
+    cases = CASES
     with tempfile.TemporaryDirectory(prefix="zed-alpha-file-install-") as temporary:
         root = Path(temporary)
         home = root / "User Home With Spaces"
@@ -88,9 +130,12 @@ def main():
             successful = result.returncode == 0
             cases.append({"case": label, "exitCode": result.returncode,
                           "expectedSuccess": expected_success,
+                          "command":command, "passed":successful == expected_success,
                           "output": (result.stdout + result.stderr)[-800:]})
             if args.report:
                 args.report.mkdir(parents=True, exist_ok=True)
+                (args.report/(label+".stdout")).write_text(result.stdout)
+                (args.report/(label+".stderr")).write_text(result.stderr)
                 (args.report / "report.json").write_text(json.dumps(
                     {"repository": REPO, "platform": sys.platform, "cases": cases},
                     indent=2) + "\n")
@@ -230,7 +275,7 @@ def main():
             check_identity(home / ".local/share/zed/extensions/installed" / ID, VERSION)
 
     report = {"repository": REPO, "version": VERSION, "platform": sys.platform,
-              "scope": "filesystem-only; Zed GUI not launched", "cases": cases}
+              "scope": "filesystem-only; Zed GUI not launched", "cases": cases, "passed":True, "sourceCommit":EXPECTED_SOURCE, "nativeVersion":NATIVE_VERSION, "nativeReleaseID":native["id"], "downloads":DOWNLOADS}
     if args.report:
         args.report.mkdir(parents=True, exist_ok=True)
         (args.report / "report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -238,4 +283,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if REPORT_PATH:
+            REPORT_PATH.mkdir(parents=True,exist_ok=True)
+            (REPORT_PATH/'failure.stderr').write_text(traceback.format_exc())
+            (REPORT_PATH/'report.json').write_text(json.dumps({'passed':False,'status':'failed','scope':'filesystem-only; Zed GUI not launched','command':sys.argv,'repository':REPO,'version':VERSION,'sourceCommit':EXPECTED_SOURCE,'nativeVersion':NATIVE_VERSION,'downloads':DOWNLOADS,'cases':CASES,'error':repr(error)},indent=2)+'\n')
+        raise

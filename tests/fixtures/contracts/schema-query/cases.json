@@ -13,7 +13,25 @@
     ],
     "apply": "source",
     "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  project: default\n  source: \n  destination: {server: local}\n",
-    "rangeText": ""
+    "rangeText": "",
+    "expectedDiagnostics": [
+      {
+        "uri": "$INPUT",
+        "range": {
+          "start": {
+            "line": 4,
+            "character": 11
+          },
+          "end": {
+            "line": 4,
+            "character": 18
+          }
+        },
+        "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+        "source": "argocd-ls",
+        "severity": 3
+      }
+    ]
   },
   {
     "id": "empty-mapping",
@@ -24,7 +42,25 @@
     ],
     "apply": "destination",
     "expected": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: example}\nspec:\n  destination: \n",
-    "rangeText": ""
+    "rangeText": "",
+    "expectedDiagnostics": [
+      {
+        "uri": "$INPUT",
+        "range": {
+          "start": {
+            "line": 3,
+            "character": 0
+          },
+          "end": {
+            "line": 3,
+            "character": 4
+          }
+        },
+        "code": "SCHEMA_TYPE",
+        "source": "argocd-ls",
+        "severity": 1
+      }
+    ]
   },
   {
     "id": "incomplete-key",

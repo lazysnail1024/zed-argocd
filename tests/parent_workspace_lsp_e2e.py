@@ -39,7 +39,10 @@ def wait_message(client, predicate, since=0):
     for entry in client.messages[since:]:
         if predicate(entry['message']):
             return entry['message']
-    return client.wait(predicate)
+    # The transport preserves unmatched messages, including ones before this mark.
+    # Apply the same observation boundary when waiting on that pending queue.
+    return client.wait(lambda message: predicate(message) and any(
+        entry['message'] is message for entry in client.messages[since:]))
 
 
 def wait_diagnostics(client, file, version, since=0, scope=None, predicate=lambda ds: True):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Native CI entry: retain each real-process outcome, including failures."""
-import argparse,hashlib,json,os,pathlib,re,subprocess,sys,signal,time
+import argparse,hashlib,json,os,pathlib,re,subprocess,sys,signal,time,shutil
 ROOT=pathlib.Path(__file__).resolve().parents[1]
+BUILD_ROLES={'consumers':'ordinary','provenance':'provenance','compiler-environment':'compiler-isolation','all':'ordinary'}
 SUITES=('consumers','provenance','compiler-environment')
 PLATFORM_COMPILERS={'linux/amd64':'13.3.0','linux/arm64':'13.3.0','darwin/amd64':'Apple clang version 17.0.0','darwin/arm64':'Apple clang version 17.0.0','windows/amd64':'15.2.0'}
 SECURITY_STEPS={'provenance':'provenance-and-archive','compiler-environment':'compiler-environment'}
@@ -18,6 +19,7 @@ def audit_consumers(platform):
   ('multi-version-compatibility','multi_version_e2e.py',[] if full_catalog else ['--representatives'],600),
   ('lsp-lifecycle','lsp_e2e.py',[],90),
   ('navigation-defaults','navigation_defaults_e2e.py',[],90),
+  ('incremental-equivalence','incremental_equivalence_e2e.py',[],180),
   ('helm-source','helm_source_e2e.py',[],120),
   ('parent-workspace','parent_workspace_lsp_e2e.py',[],90),
   ('mixed-parent-index','mixed_parent_index_e2e.py',[],90),
@@ -77,13 +79,13 @@ def accepted():
  return completed and [r['id'] for r in rows]==expected_steps and all(r.get('passed') is True and type(r.get('exit')) is int and r['exit']==0 and r.get('cleanupError') is None for r in rows)
 
 def configure(argv=None):
- global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps,builds,security_cases
- ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--suite',choices=('all',)+SUITES,default='all');ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];expected=None;active=None;completed=False;builds=[];security_cases=[];cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
+ global a,out,rows,expected,cache,modules,env,go,active,completed,expected_steps,builds,security_cases,child_evidence
+ ap=argparse.ArgumentParser();ap.add_argument('--platform',required=True);ap.add_argument('--suite',choices=('all',)+SUITES,default='all');ap.add_argument('--build-directory',type=pathlib.Path);ap.add_argument('--producer-receipt-sha');ap.add_argument('--source-commit');ap.add_argument('--compiler-version');ap.add_argument('--release-version',default='',help='Run the same native consumers against a clean stable or prerelease build');ap.add_argument('--output',type=pathlib.Path,default=ROOT/'artifacts/native-ci');a=ap.parse_args(argv);out=a.output.resolve();out.mkdir(parents=True,exist_ok=False);rows=[];child_evidence={};expected=None;active=None;completed=False;builds=[];security_cases=[];cache=out/'go-cache';modules=out/'module-cache';cache.mkdir();modules.mkdir();env=dict(os.environ,GOCACHE=str(cache),GOMODCACHE=str(modules),GOWORK='off',GOTOOLCHAIN='local',CGO_ENABLED='1',GOFLAGS='',PYTHONUTF8='1');go=env.get('GO') or (str(pathlib.Path(env['GOROOT'])/'bin/go') if env.get('GOROOT') else 'go')
  expected_steps=required_steps(a.platform,a.suite)
-def start_command(command,child_env):
+def start_command(command,child_env,stdin=None):
  # Own this CI command and its descendants before any helper code executes.
  if os.name!='nt':
-  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdin=stdin,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
   def close():
    try:os.killpg(p.pid,signal.SIGKILL)
    except ProcessLookupError:pass
@@ -109,7 +111,7 @@ def start_command(command,child_env):
  try:
   limits=Extended();limits.basic.flags=0x2000 # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
   if not k.SetInformationJobObject(job,9,ctypes.byref(limits),ctypes.sizeof(limits)):raise ctypes.WinError(ctypes.get_last_error())
-  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,creationflags=0x00000004) # CREATE_SUSPENDED
+  p=subprocess.Popen(command,cwd=ROOT,env=child_env,stdin=stdin,stdout=subprocess.PIPE,stderr=subprocess.PIPE,creationflags=0x00000004) # CREATE_SUSPENDED
   process=k.OpenProcess(0x0100|0x0001|0x0800,False,p.pid) # SET_QUOTA, TERMINATE, SUSPEND_RESUME
   if not process:raise ctypes.WinError(ctypes.get_last_error())
   try:
@@ -173,7 +175,7 @@ def replace_report(pending, published):
    retries+=1
    time.sleep(.05)
 def save():
- report={'schemaVersion':1,'suite':a.suite,'releaseVersion':a.release_version,'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'buildEvidence':builds,'securityCases':security_cases,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');replace_report(pending,out/'report.json')
+ report={'schemaVersion':2,'childEvidence':child_evidence,'contractDigest':hashlib.sha256((ROOT/'tests/inventory.json').read_bytes()).hexdigest(),'buildRole':BUILD_ROLES[a.suite],'suite':a.suite,'releaseVersion':a.release_version,'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},'expectedNativePlatform':a.platform,'host':sys.platform,'python':sys.version,'initialBuildCachesEmpty':True,'buildOrigin':'producer' if a.build_directory else 'local','producerReceipt':json.loads((a.build_directory/'receipt.json').read_text()) if a.build_directory and (a.build_directory/'receipt.json').is_file() else None,'cachePaths':{'GOCACHE':str(cache),'GOMODCACHE':str(modules)},'runnerImage':{k:os.environ.get(k) for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH']},'runnerSHA256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'expectedProvenance':expected,'expectedSteps':expected_steps,'buildEvidence':builds,'securityCases':security_cases,'rows':rows,'activeCommand':active,'completed':completed,'passed':accepted()};pending=out/'report.pending.json';pending.write_text(json.dumps(report,indent=2)+'\n');replace_report(pending,out/'report.json')
 
 def security_suite(suite):
  global security_cases
@@ -186,6 +188,13 @@ def security_suite(suite):
   if run('compiler-environment',[sys.executable,str(ROOT/'tests/native_environment_e2e.py'),str(out/'environment'),'--platform',a.platform],timeout=900):
    builds.extend(build_evidence(out/'environment'/(name+'-build')/'manifest.json') for name in COMPILER_CASES)
    security_cases=json.loads((out/'environment/report.json').read_text())['rows']
+
+def collect_children():
+ from child_evidence import collect
+ for step in expected_steps:
+  entry=collect(out,step,a.platform)
+  if entry is not None:child_evidence[step]=entry
+
 
 def main():
  global expected,completed
@@ -203,12 +212,18 @@ def main():
   if a.suite in SECURITY_STEPS:
    # Both security consumers already build real native binaries. A redundant
    # main build here would add ten cold builds to the five-platform matrix.
-   security_suite(a.suite);completed=True
+   security_suite(a.suite);collect_children();completed=True
    return 0 if accepted() else 1
   args=[sys.executable,str(ROOT/'tools/native.py'),'build','--output',str(out/'build'),'--platform',a.platform]
   if a.release_version:args+=['--mode','release','--version',a.release_version]
   if a.source_commit:args+=['--source-commit',a.source_commit]
-  if not run('build',args):raise RuntimeError('native build failed')
+  if a.build_directory:
+   if a.suite!='consumers' or not a.release_version:raise RuntimeError('Only ordinary release consumers may import this build')
+   args=[sys.executable,str(ROOT/'tools/build_receipt.py'),'verify','--directory',str(a.build_directory),'--platform',a.platform,'--source-commit',a.source_commit,'--mode','release','--version',a.release_version,'--receipt-sha',a.producer_receipt_sha,'--check-source']
+   if not run('build',args):raise RuntimeError('producer verification failed')
+   shutil.copytree(a.build_directory,out/'build')
+   (out/'build'/'argocd-ls').chmod(0o755)
+  elif not run('build',args):raise RuntimeError('native build failed')
   manifest=json.loads((out/'build/manifest.json').read_text());binary=out/'build'/manifest['binary']
   builds.append(build_evidence(out/'build/manifest.json'))
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
@@ -232,7 +247,7 @@ def main():
   if a.platform=='linux/amd64':
    for name,script,timeout in SOURCE_ABLATIONS:
     run(name,[sys.executable,str(ROOT/'tests'/script),str(out/name)],timeout=timeout)
-  completed=True
+  collect_children();completed=True
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
  finally:save()
  return 0 if accepted() else 1

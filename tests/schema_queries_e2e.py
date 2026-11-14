@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real LSP query oracle; marked positions and intended full bytes are independent."""
-import argparse, hashlib, json, pathlib, sys, time
+import argparse, hashlib, json, pathlib, sys, time, subprocess
 import audit_repair_e2e as wire
 
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -16,10 +16,15 @@ class Client(wire.LSP):
         super().send(method,params,ident)
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('binary',type=pathlib.Path);ap.add_argument('output',type=pathlib.Path);ap.add_argument('--cases',type=pathlib.Path,default=pathlib.Path(__file__).with_name('schema-query-cases.json'));args=ap.parse_args()
+    ap=argparse.ArgumentParser();ap.add_argument('binary',type=pathlib.Path);ap.add_argument('output',type=pathlib.Path);ap.add_argument('--cases',type=pathlib.Path,default=pathlib.Path(__file__).parent/'fixtures/contracts/schema-query/cases.json');args=ap.parse_args()
     wire.BINARY=args.binary.resolve();out=args.output.resolve();out.mkdir(parents=True,exist_ok=True);cases=json.loads(args.cases.read_text());rows=[]
     if not cases or len({case['id'] for case in cases})!=len(cases):raise ValueError('Expected nonempty independently named schema cases')
     try:
+      contract_path=args.cases.parent/'contract.json'
+      if contract_path.is_file():
+        contract=json.loads(contract_path.read_text())
+        if contract.get('schemaVersion')!=1 or [case['id'] for case in cases]!=contract.get('caseIds'):
+          raise ValueError('Required fixture cases are missing, duplicated or reordered')
       for version in ['3.0.0','3.5.6']:
        for snippets in [False,True]:
         folder=out/(version+('-snippets' if snippets else '-plain'));work=folder/'workspace';work.mkdir(parents=True,exist_ok=True)
@@ -37,6 +42,15 @@ def main():
               diagnostics=client.diag(path,revision)
               response=client.request('textDocument/'+case.get('method','completion'),{'textDocument':{'uri':path.as_uri()},'position':position(text,point)})
               result=response.get('result');checks={'terminalResponse':'error' not in response};row.update(response=response,diagnostics=diagnostics)
+              if 'expectedDiagnostics' in case:
+                expected=case['expectedDiagnostics']
+                observed=[{key:('$INPUT' if key=='uri' and value==path.as_uri() else value) for key,value in diagnostic.items() if key in ('uri','range','code','source','severity')} for diagnostic in diagnostics]
+                checks['exactDiagnostics']=observed==expected
+                effective=folder/(case['id']+'-effective');effective.mkdir();(effective/'.argocd-ls.yaml').write_text('schemaVersion: 1\ntargetVersion: "'+version+'"\n');(effective/'input.yaml').write_text(text)
+                command=[str(wire.BINARY),'check','--root',str(effective),'--format','json'];completed=subprocess.run(command,capture_output=True,timeout=20)
+                (effective/'stdout').write_bytes(completed.stdout);(effective/'stderr').write_bytes(completed.stderr);completion=json.loads(completed.stdout)
+                checks['analysisComplete']=completion.get('analysisComplete') is True and completion.get('resourcesAnalyzed')==1 and completed.returncode==(1 if any(d['severity']==1 for d in expected) else 0)
+                row['completionCommand']=command;row['completionExit']=completed.returncode
               if case.get('method')=='hover':
                 value=(result or {}).get('contents',{}).get('value','');checks['hover']=all(x.replace('$TARGET',version).replace('$COMMIT',{'3.0.0':'e98f483bfd5781df2592fef1aeed1148f150d9c9','3.5.6':'c2b1e3017e2cec86b122172e861dcd026453ae44'}[version]) in value for x in case.get('contains',[]));checks['noInventedType']='<nil>' not in value
                 if case.get('empty'):checks['empty']=result is None

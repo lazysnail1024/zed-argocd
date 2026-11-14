@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "caseIds": [
+    "blank-mapping",
+    "empty-mapping",
+    "incomplete-key",
+    "partial-key-value-suffix",
+    "quoted-key",
+    "escaped-key-refused",
+    "middle-key-refused",
+    "crlf-quoted",
+    "utf16-flow",
+    "array-existing",
+    "union",
+    "map-value",
+    "array-item",
+    "ordinary-description",
+    "no-map-key-invention",
+    "foreign",
+    "ambiguous-duplicate",
+    "alias-exact-sibling-recovery",
+    "custom-tag-guard",
+    "unrelated-damage",
+    "comment-refused",
+    "scalar-refused",
+    "enum",
+    "source-provenance"
+  ],
+  "contract": "Schema completion and hover with exact edit bytes, ranges, required and forbidden labels.",
+  "oracle": "Hand-authored schema query cases; no generated or automatically updated expectations.",
+  "targetVersions": [
+    "3.0.0",
+    "3.5.6"
+  ],
+  "clientCapabilities": {
+    "snippetSupport": [
+      false,
+      true
+    ]
+  },
+  "operations": [
+    "open/change marked fixture",
+    "await versioned workspace diagnostics",
+    "query",
+    "apply expected edit when specified",
+    "await updated diagnostics"
+  ],
+  "lane": "native consumers on all five platforms",
+  "entrypoint": "tests/schema_queries_e2e.py",
+  "strictDiagnosticsCaseIds": [
+    "blank-mapping",
+    "empty-mapping"
+  ],
+  "diagnosticOracle": "Explicit control-plane namespace is absent; a null spec violates the object schema. Exact source ranges follow marked input bytes. Other cases retain their existing query-specific contracts."
+}
