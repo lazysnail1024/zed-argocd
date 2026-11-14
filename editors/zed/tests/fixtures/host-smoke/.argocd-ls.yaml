@@ -1,0 +1,4 @@
+schemaVersion: 1
+targetVersion: "3.0.0"
+controlPlaneNamespace: argocd
+referencePolicy: closed

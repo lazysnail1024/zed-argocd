@@ -11,11 +11,13 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
+      full: ${{ steps.plan.outputs.full }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
         ref: ${{ github.sha }}
+        fetch-depth: 0
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
@@ -25,13 +27,44 @@ jobs:
         REQUESTED_VERSION: ${{ inputs.release_version }}
         SOURCE_COMMIT: ${{ github.sha }}
       run: python tools/release.py version --source-commit "$SOURCE_COMMIT" --requested-version "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+    - name: Reject misidentified ordinary build receipts
+      run: python tests/build_receipt_e2e.py --output artifacts/build-receipt-controls
+    - name: Verify transport failure and cleanup evidence
+      run: python tests/session_transport_e2e.py --output artifacts/session-controls
+    - name: Verify conservative diff controls
+      run: python tests/ci_plan_e2e.py --output artifacts/plan-controls
+    - name: Freeze the execution plan before consumers
+      id: plan
+      run: python tools/ci_plan.py create --output artifacts/ci-plan.json
+    - name: Retain immutable same-attempt plan
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/ci-plan.json
+        if-no-files-found: error
+    - name: Retain plan and transport controls on success or failure
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-prepare-controls-${{ github.run_id }}-${{ github.run_attempt }}
+        path: 'artifacts/plan-controls/
+
+          artifacts/build-receipt-controls/
+
+          artifacts/session-controls/'
+        if-no-files-found: error
   native:
-    name: Native ${{ matrix.host.platform }} / ${{ matrix.suite }}
-    needs: prepare
+    name: Native ${{ matrix.host.platform }} / ${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+    needs:
+    - prepare
+    - ordinary
     strategy:
       fail-fast: false
       matrix:
-        suite: [consumers, provenance, compiler-environment]
+        suite:
+        - consumers
+        - provenance
+        - compiler-environment
         host:
         - runner: ubuntu-24.04
           platform: linux/amd64
@@ -84,22 +117,36 @@ jobs:
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
+    - name: Download same-attempt ordinary release build
+      if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
+        path: artifacts/ordinary-release
     - name: Execute the complete native lane with fresh build caches
-      run: python tests/native_ci.py --suite "${{ matrix.suite }}" --platform "${{ matrix.host.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.host.compiler }}" --release-version "${{ needs.prepare.outputs.version }}"
+      run: python tests/native_ci.py --suite "${{ matrix.suite }}" --platform "${{ matrix.host.platform }}" --source-commit "${{ github.sha }}" --compiler-version "${{ matrix.host.compiler
+        }}" --release-version "${{ needs.prepare.outputs.version }}" ${{ matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64' && '--build-directory artifacts/ordinary-release'
+        || '' }} --producer-receipt-sha "${{ needs.ordinary.outputs.receiptSHA256 }}"
     - name: Check every schema constraint and automatic query field
       if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       shell: bash
-      run: |
-        set -o pipefail
+      run: 'set -o pipefail
+
         go test -mod=vendor -count=1 -v ./internal/assets ./internal/analysis ./internal/cli 2>&1 | tee artifacts/native-ci/go-tests.log
+
+        '
     - name: Check concurrent index and overlay delivery
       if: matrix.suite == 'consumers' && matrix.host.platform == 'linux/amd64'
       shell: bash
-      run: |
-        go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
+      run: 'go test -mod=vendor -race -count=1 ./internal/lsp ./internal/workspace
+
         go build -mod=vendor -race -o artifacts/native-ci/build/argocd-ls-race ./cmd/argocd-ls
+
         python tests/mixed_parent_index_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-mixed-parent --ordinary-files 1000
+
         python tests/publication_delivery_e2e.py artifacts/native-ci/build/argocd-ls-race artifacts/native-ci/race-publication-delivery
+
+        '
     - name: Test release staging and complete-platform aggregation
       if: matrix.suite == 'consumers'
       run: python tests/release_e2e.py --platform "${{ matrix.host.platform }}" --output artifacts/native-ci/release-e2e
@@ -111,12 +158,13 @@ jobs:
       run: python tests/ablate_multi_version.py artifacts/native-ci/build/argocd-ls artifacts/native-ci/multi-version-ablation
     - name: Stage verified release assets
       if: matrix.suite == 'consumers'
-      run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}"
+      run: python tools/release.py stage --manifest artifacts/native-ci/build/manifest.json --output artifacts/native-ci/release-assets --version "${{ needs.prepare.outputs.version }}"
+        --source-commit "${{ github.sha }}"
     - name: Retain per-platform release assets
       if: matrix.suite == 'consumers'
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-release-${{ matrix.host.bundle }}
+        name: argocd-release-${{ matrix.host.bundle }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/native-ci/release-assets/
         if-no-files-found: error
         retention-days: 30
@@ -124,8 +172,10 @@ jobs:
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-acceptance-${{ matrix.host.bundle }}-${{ matrix.suite }}
-        path: artifacts/native-ci/report.json
+        name: argocd-acceptance-${{ matrix.host.bundle }}-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          artifacts/native-ci/report.json
+          artifacts/native-ci/child-evidence/*.json
         if-no-files-found: error
         retention-days: 30
     - name: Archive complete replay evidence without disposable compiler caches
@@ -138,18 +188,24 @@ jobs:
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-native-${{ matrix.host.artifact }}-${{ matrix.suite }}
+        name: argocd-native-${{ matrix.host.artifact }}-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/native-evidence/
         compression-level: 0
         if-no-files-found: error
         retention-days: 30
+    if: needs.prepare.outputs.full == 'true'
   orthogonal:
-    name: Linux orthogonal ${{ matrix.suite }}
-    needs: prepare
+    name: Linux orthogonal ${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+    needs:
+    - prepare
+    - ordinary
     strategy:
       fail-fast: false
       matrix:
-        suite: [contracts, boundaries, mutations]
+        suite:
+        - contracts
+        - boundaries
+        - mutations
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -172,8 +228,16 @@ jobs:
         python-version: 3.14.0
     - name: Require every first-party test to have an explicit execution boundary
       run: python tests/test_inventory.py
-    - name: Build the exact source for the independent semantic axes
-      run: python tools/native.py build --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/orthogonal-ci/build
+    - name: Download same-attempt ordinary release build
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
+        path: artifacts/orthogonal-ci/build
+    - name: Verify producer identity before fresh consumers
+      run: 'python tools/build_receipt.py verify --directory artifacts/orthogonal-ci/build --source-commit "${{ github.sha }}" --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version
+        }}" --receipt-sha "${{ needs.ordinary.outputs.receiptSHA256 }}" --check-source
+
+        chmod +x artifacts/orthogonal-ci/build/argocd-ls'
     - name: Install the checksum-pinned real Helm consumer
       if: matrix.suite == 'boundaries' || matrix.suite == 'mutations'
       run: python tools/install_test_helm.py --output artifacts/orthogonal-ci/tools
@@ -181,7 +245,17 @@ jobs:
       if: matrix.suite == 'boundaries'
       run: python tools/install_test_helm.py --major 4 --output artifacts/orthogonal-ci/tools4
     - name: Execute complementary consumers with named evidence
-      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --helm4 artifacts/orthogonal-ci/tools4/helm --output artifacts/orthogonal-ci/tests
+      run: python tests/orthogonal_ci.py "${{ matrix.suite }}" --binary artifacts/orthogonal-ci/build/argocd-ls --helm artifacts/orthogonal-ci/tools/helm --helm4 artifacts/orthogonal-ci/tools4/helm
+        --output artifacts/orthogonal-ci/tests
+    - name: Replay orthogonal evidence rejection controls
+      if: matrix.suite == 'contracts'
+      run: python tests/acceptance_evidence_e2e.py --orthogonal artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/rejection-controls
+    - name: Replay ordinary observation rejection controls
+      if: matrix.suite == 'contracts'
+      run: python tests/observation_evidence_e2e.py --contracts artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
+    - name: Replay designated mutation rejection controls
+      if: matrix.suite == 'mutations'
+      run: python tests/observation_evidence_e2e.py --mutations artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
     - name: Archive complete success and failure evidence
       if: always()
       run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence
@@ -192,60 +266,73 @@ jobs:
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-orthogonal-${{ matrix.suite }}
+        name: argocd-orthogonal-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/orthogonal-evidence/
         compression-level: 0
         if-no-files-found: error
         retention-days: 30
+    if: needs.prepare.outputs.full == 'true'
   resources:
-    name: Constrained resource acceptance
+    name: Constrained resource acceptance-${{ github.run_id }}-${{ github.run_attempt }}
     uses: ./.github/workflows/resource.yml
+    needs: prepare
+    if: needs.prepare.outputs.full == 'true'
   candidate:
-    name: Verify complete native distribution
+    name: ${{ github.event_name == 'pull_request' && 'Verify complete native distribution' || 'Native distribution evidence' }}
     if: always()
     needs:
     - prepare
     - native
     - orthogonal
     - resources
+    - ordinary
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-    - name: Require every native lane and candidate preparation
-      env:
-        PREPARE_RESULT: ${{ needs.prepare.result }}
-        NATIVE_RESULT: ${{ needs.native.result }}
-        ORTHOGONAL_RESULT: ${{ needs.orthogonal.result }}
-        RESOURCE_RESULT: ${{ needs.resources.result }}
-      run: test "$PREPARE_RESULT" = success && test "$NATIVE_RESULT" = success && test "$ORTHOGONAL_RESULT" = success && test "$RESOURCE_RESULT" = success
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
         ref: ${{ github.sha }}
+        fetch-depth: 0
     - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
       with:
         python-version: 3.14.0
+    - name: Download the pre-execution plan
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: argocd-plan-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/plan
+    - name: Verify selection and every same-graph dependency
+      env:
+        NEEDS_JSON: ${{ toJSON(needs) }}
+      run: python tools/ci_plan.py verify --plan artifacts/plan/ci-plan.json --needs "$NEEDS_JSON"
     - name: Download native assets from this exact workflow run
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: argocd-release-*
+        pattern: argocd-release-*-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/candidate-inputs/native
+      if: needs.prepare.outputs.full == 'true'
     - name: Download every lane report from this exact workflow run
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
-        pattern: argocd-acceptance-*
+        pattern: argocd-acceptance-*-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/candidate-inputs/acceptance
+      if: needs.prepare.outputs.full == 'true'
     - name: Require all fifteen native lanes and the exact tested release bytes
-      run: python tools/ci_gate.py --inputs artifacts/candidate-inputs/acceptance --assets artifacts/candidate-inputs/native --source-commit "${{ github.sha }}" --version "${{ needs.prepare.outputs.version }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}" --jobs-result "${{ needs.native.result }}" --output artifacts/candidate-acceptance.json
+      run: python tools/ci_gate.py --inputs artifacts/candidate-inputs/acceptance --assets artifacts/candidate-inputs/native --source-commit "${{ github.sha }}" --version "${{ needs.prepare.outputs.version
+        }}" --run-id "${{ github.run_id }}" --run-attempt "${{ github.run_attempt }}" --jobs-result "${{ needs.native.result }}" --output artifacts/candidate-acceptance.json
+      if: needs.prepare.outputs.full == 'true'
     - name: Verify all native platforms, original licenses, source identity and checksums
       run: python tools/release.py collect --inputs artifacts/candidate-inputs/native --version "${{ needs.prepare.outputs.version }}" --source-commit "${{ github.sha }}" --output artifacts/native-distribution
+      if: needs.prepare.outputs.full == 'true'
     - name: Retain the complete verified native distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: argocd-native-distribution-${{ needs.prepare.outputs.version }}-${{ github.sha }}
+        name: argocd-native-distribution-${{ needs.prepare.outputs.version }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         path: artifacts/native-distribution/
         if-no-files-found: error
         retention-days: 30
+      if: needs.prepare.outputs.full == 'true'
     - name: Summarize the native acceptance boundary
       run: 'cat >> "$GITHUB_STEP_SUMMARY" <<''EOF''
 
@@ -259,6 +346,50 @@ jobs:
         The Zed adapter has its own workflow and release lifecycle.
 
         EOF'
+      if: needs.prepare.outputs.full == 'true'
+  ordinary:
+    name: Cold ordinary release producer-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CC: gcc-13
+      CGO_ENABLED: '1'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version-file: go.mod
+        cache: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Build exact ordinary bytes with empty caches
+      run: python tools/build_receipt.py produce --directory artifacts/ordinary-release --source-commit "${{ github.sha }}" --platform linux/amd64 --mode release --version "${{ needs.prepare.outputs.version
+        }}"
+      id: produce
+    - name: Upload immediately for same-attempt consumers
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-ordinary-release-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
+        path: artifacts/ordinary-release/
+        compression-level: 0
+        if-no-files-found: error
+    - name: Retain failed producer evidence
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-producer-failure-release-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/ordinary-release/
+        if-no-files-found: error
+    needs: prepare
+    if: needs.prepare.outputs.full == 'true'
+    outputs:
+      receiptSHA256: ${{ steps.produce.outputs.receiptSHA256 }}
 'on':
   pull_request: null
   push:

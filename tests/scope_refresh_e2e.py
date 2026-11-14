@@ -27,8 +27,11 @@ try:
  if not any(d.get('code')=='CD_PROJECT_UNRESOLVED' for d in ds):ds=client.wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==apps['first'].as_uri() and any(d.get('code')=='CD_PROJECT_UNRESOLVED' for d in m['params']['diagnostics']))['params']['diagnostics']
  definition=query(apps['first'],'definition');other=query(apps['second'],'definition');hover=query(apps['second'],'hover')
  record('dependent-and-unrelated',{'missingProject':[(d['code'],d['severity']) for d in ds]==[('CD_PROJECT_UNRESOLVED',1)],'removedDefinition':definition.get('result')==[],'otherDefinition':len(other.get('result',[]))==1 and other['result'][0]['uri']==projects['second'].as_uri(),'otherTarget':'Target: 3.4.12' in (hover.get('result') or {}).get('contents',{}).get('value','')},{'diagnostics':ds,'definition':definition,'otherDefinition':other,'otherHover':hover})
+ # The dependent application's older clear publication is retained by the transport.
+ # Only a publication observed after closing the project can establish recovery.
+ close_mark=len(client.messages)
  client.send('textDocument/didClose',{'textDocument':{'uri':projects['first'].as_uri()}})
- client.wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==apps['first'].as_uri() and not m['params']['diagnostics'])
+ client.wait(lambda m:m.get('method')=='textDocument/publishDiagnostics' and m.get('params',{}).get('uri')==apps['first'].as_uri() and not m['params']['diagnostics'] and any(row['message'] is m for row in client.messages[close_mark:]))
  definition=query(apps['first'],'definition');record('close-restores-disk',{'definition':len(definition.get('result',[]))==1},definition)
  client.open(config,cfg.replace('3.4.12','3.5.6'),1);client.diag(config,1);hover=query(apps['second'],'hover');record('config-target-refresh',{'currentTarget':'Target: 3.5.6' in (hover.get('result') or {}).get('contents',{}).get('value','')},hover)
  # Disk watch authority must refresh the affected scope without stale reuse.

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "status",
+    "operator",
+    "timestamp",
+    "zed",
+    "platform",
+    "display",
+    "candidate",
+    "evidence",
+    "cleanup",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "enum": [
+        "source-dev-host",
+        "release-package-host"
+      ]
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "blocked",
+        "unverified"
+      ]
+    },
+    "operator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "zed": {
+      "type": "object",
+      "required": [
+        "version",
+        "executableSHA256"
+      ]
+    },
+    "platform": {
+      "type": "object",
+      "required": [
+        "os",
+        "arch"
+      ]
+    },
+    "display": {
+      "type": "object",
+      "required": [
+        "backend",
+        "session"
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "sourceCommit",
+        "adapterVersion",
+        "loadedWasmSHA256",
+        "nativeSHA256",
+        "nativePath",
+        "nativeVersion"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "logs",
+        "screenshots",
+        "finalDiff"
+      ]
+    },
+    "cleanup": {
+      "type": "object",
+      "required": [
+        "zedExited",
+        "serverExited",
+        "isolatedUserDataRemoved"
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "caseId",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "blocked"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

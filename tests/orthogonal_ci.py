@@ -10,6 +10,7 @@ import sys
 import time
 
 from native_ci import start_command
+from resource_ci import load_json
 
 ROOT = Path(__file__).resolve().parents[1]
 # IDs are disjoint. Controls inside mutation suites intentionally replay the
@@ -60,24 +61,16 @@ CASES = {
 }
 
 
-def evidence_passed(value):
-    if not isinstance(value, dict):
-        return False
-    if 'passed' in value and value['passed'] is not True:
-        return False
-    if value.get('error') or value.get('runnerError') or value.get('exception'):
-        return False
-    rows = value.get('rows', value.get('cases', value.get('results')))
-    if rows is not None:
-        return isinstance(rows, list) and bool(rows) and all(row.get('passed', row.get('detected', row.get('caughtExpectedRegression'))) is True for row in rows)
-    return value.get('passed') is True
+def evidence_passed(value, consumer, folder=None):
+    from orthogonal_contracts import validate_consumer
+    return validate_consumer(consumer, value, folder)
 
 
 def verify_consumer_identity(result, folder, binary_sha, helm_sha=None):
     """Accept the consumer's actual invocation receipt, not just our argv."""
     receipt = result
     if 'binarySHA256' not in receipt:
-        receipt = json.loads((folder / 'manifest.json').read_text())
+        receipt = load_json((folder / 'manifest.json').read_text())
     if receipt.get('binarySHA256') != binary_sha:
         raise ValueError('Consumer evidence identifies a different native binary')
     if helm_sha is not None and receipt.get('helmSHA256') != helm_sha:
@@ -97,6 +90,9 @@ def main():
     binary = args.binary.resolve()
     report = {'suite': args.suite, 'binarySHA256': hashlib.sha256(binary.read_bytes()).hexdigest(),
               'runnerSHA256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              'contractSHA256': hashlib.sha256((ROOT/'tests/orthogonal_contracts.py').read_bytes()).hexdigest(),
+              'schemaVersion':2, 'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},
+              'producerReceipt':load_json((binary.parent/'receipt.json').read_text()) if (binary.parent/'receipt.json').is_file() else None,
               'expectedCases': [case[0] for case in CASES[args.suite]], 'rows': [], 'passed': False}
     for ident, script, arguments, report_path, timeout in CASES[args.suite]:
         folder = out / ident
@@ -118,13 +114,13 @@ def main():
             (out / (ident + '.stderr')).write_bytes(stderr)
             row['exit'] = process.returncode
             evidence = folder / report_path
-            result = json.loads(evidence.read_text())
+            result = load_json(evidence.read_text())
             row['reportSHA256'] = hashlib.sha256(evidence.read_bytes()).hexdigest()
             if args.suite != 'mutations' and ident != 'catalog-integrity' and script != 'tests/schema_fixture_e2e.py':
                 selected_helm=args.helm4 if '{helm4}' in arguments else args.helm if '{helm}' in arguments else None
                 helm_sha=hashlib.sha256(selected_helm.resolve().read_bytes()).hexdigest() if selected_helm else None
                 verify_consumer_identity(result, folder, report['binarySHA256'], helm_sha)
-            row['passed'] = process.returncode == 0 and evidence_passed(result)
+            row['passed'] = process.returncode == 0 and evidence_passed(result, ident, folder)
         except Exception as error:
             row['error'] = repr(error)
         finally:
@@ -135,10 +131,10 @@ def main():
                 process.communicate(timeout=3)
             row['elapsedSeconds'] = time.monotonic() - started
             report['rows'].append(row)
-            (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+            (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
         print(json.dumps(row), flush=True)
     report['passed'] = [row['id'] for row in report['rows']] == report['expectedCases'] and all(row['passed'] for row in report['rows'])
-    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+    (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     return 0 if report['passed'] else 1
 
 

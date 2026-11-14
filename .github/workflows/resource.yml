@@ -1,7 +1,7 @@
 name: Linux resource contracts
-on:
-  workflow_call:
-  workflow_dispatch:
+'on':
+  workflow_call: null
+  workflow_dispatch: null
 permissions:
   contents: read
 jobs:
@@ -12,7 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [retention, boundaries, lifecycle]
+        suite:
+        - retention
+        - boundaries
+        - lifecycle
     env:
       CC: gcc-13
       CGO_ENABLED: '1'
@@ -20,36 +23,97 @@ jobs:
       GOTOOLCHAIN: local
       PYTHONUTF8: '1'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
-        with:
-          go-version-file: go.mod
-          cache: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
-        with:
-          python-version: '3.14.0'
-      - name: Reject incomplete or fabricated resource evidence
-        run: python tests/resource_gate_e2e.py
-      - name: Build exact source outside the measured memory scopes
-        run: python tools/native.py build --platform linux/amd64 --source-commit "${{ github.sha }}" --output artifacts/resource-build
-      - name: Execute original performance and memory contracts in enforced cgroups
-        run: python tests/resource_ci.py --suite "${{ matrix.suite }}" --binary artifacts/resource-build/argocd-ls --output artifacts/resources
-      - name: Pack complete resource evidence
-        if: always()
-        run: |
-          mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
-          python tools/ci_evidence.py pack --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
-      - name: Verify archived resource evidence
-        if: always()
-        run: python tools/ci_evidence.py verify --manifest artifacts/resource-evidence/manifest.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        if: always()
-        with:
-          name: argocd-resources-${{ matrix.suite }}
-          path: artifacts/resource-evidence/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 30
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version-file: go.mod
+        cache: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Reject incomplete or fabricated resource evidence
+      run: python tests/resource_gate_e2e.py
+    - name: Download ordinary development bytes outside measured scopes
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      with:
+        name: argocd-ordinary-development-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
+        path: artifacts/resource-build
+    - name: Verify the exact development producer
+      run: 'python tools/build_receipt.py verify --directory artifacts/resource-build --source-commit "${{ github.sha }}" --platform linux/amd64 --mode development --version "$(cat VERSION)-dev"
+        --receipt-sha "${{ needs.ordinary.outputs.receiptSHA256 }}" --check-source
+
+        chmod +x artifacts/resource-build/argocd-ls'
+    - name: Execute original performance and memory contracts in enforced cgroups
+      run: python tests/resource_ci.py --suite "${{ matrix.suite }}" --binary artifacts/resource-build/argocd-ls --output artifacts/resources
+    - name: Replay measured resource evidence rejection controls
+      if: matrix.suite == 'lifecycle'
+      run: python tests/acceptance_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/rejection-controls
+    - name: Replay retained memory rejection controls
+      if: matrix.suite == 'boundaries'
+      run: python tests/observation_evidence_e2e.py --retained artifacts/resources/retained-boundary-multiroot/report.json --output artifacts/resources/observation-controls
+    - name: Replay CLI deadline rejection controls
+      if: matrix.suite == 'lifecycle'
+      run: python tests/observation_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/observation-controls
+    - name: Pack complete resource evidence
+      if: always()
+      run: 'mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
+
+        python tools/ci_evidence.py pack --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
+
+        '
+    - name: Verify archived resource evidence
+      if: always()
+      run: python tools/ci_evidence.py verify --manifest artifacts/resource-evidence/manifest.json
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      if: always()
+      with:
+        name: argocd-resources-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/resource-evidence/
+        compression-level: 0
+        if-no-files-found: error
+        retention-days: 30
+    needs: ordinary
+  ordinary:
+    name: Cold ordinary development producer-${{ github.run_id }}-${{ github.run_attempt }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CC: gcc-13
+      CGO_ENABLED: '1'
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        ref: ${{ github.sha }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version-file: go.mod
+        cache: false
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      with:
+        python-version: 3.14.0
+    - name: Build exact ordinary bytes with empty caches
+      run: python tools/build_receipt.py produce --directory artifacts/ordinary-development --source-commit "${{ github.sha }}" --platform linux/amd64 --mode development --version "$(cat
+        VERSION)-dev"
+      id: produce
+    - name: Upload immediately for same-attempt consumers
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-ordinary-development-${{ github.run_id }}-${{ github.run_attempt }}-linux-amd64
+        path: artifacts/ordinary-development/
+        compression-level: 0
+        if-no-files-found: error
+    - name: Retain failed producer evidence
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: argocd-producer-failure-development-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/ordinary-development/
+        if-no-files-found: error
+    outputs:
+      receiptSHA256: ${{ steps.produce.outputs.receiptSHA256 }}

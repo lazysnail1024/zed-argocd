@@ -155,12 +155,32 @@ func (a *Analyzer) ReuseSchemas(documents []Document) {
 	}
 }
 
-func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string) (Result, error) {
-	result := Result{Diagnostics: []Diagnostic{}}
+// ParsedFile binds a parser view to its original immutable source snapshot.
+// Its private fields prevent callers from pairing a view with different text.
+type ParsedFile struct {
+	snapshot source.Snapshot
+	view     yamlview.View
+}
+
+// ParseFile performs bounded, cancellable syntax parsing without analysis or counts.
+func ParseFile(ctx context.Context, s source.Snapshot) (ParsedFile, error) {
 	view, err := yamlview.Parse(ctx, s)
+	return ParsedFile{snapshot: s, view: view}, err
+}
+
+func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string) (Result, error) {
+	parsed, err := ParseFile(ctx, s)
 	if err != nil {
-		return result, err
+		return Result{Diagnostics: []Diagnostic{}}, err
 	}
+	return a.AnalyzeParsed(ctx, parsed, target)
+}
+
+// AnalyzeParsed consumes a successfully parsed file. Analysis and budget accounting
+// remain serial on this Analyzer; parsing itself does not mutate it.
+func (a *Analyzer) AnalyzeParsed(ctx context.Context, parsed ParsedFile, target string) (Result, error) {
+	result := Result{Diagnostics: []Diagnostic{}}
+	s, view := parsed.snapshot, parsed.view
 	result.Incomplete = len(view.Issues()) > 0
 	emit := func(node yamlview.Node, code, message string) {
 		a, e1 := s.Position(node.Span().Start)
@@ -268,7 +288,7 @@ func (a *Analyzer) Analyze(ctx context.Context, s source.Snapshot, target string
 			}
 		}
 		compiled := prepared.compiled
-		if err = compiled.Validate(value); err != nil {
+		if err := compiled.Validate(value); err != nil {
 			validation, ok := err.(*schema.ValidationError)
 			if !ok {
 				return result, err

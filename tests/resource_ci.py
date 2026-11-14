@@ -4,6 +4,7 @@ import argparse
 from collections import deque
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -42,11 +43,47 @@ def require(condition, message):
 
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
 
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def reject_constant(value):
+    raise ValueError("Nonfinite JSON number: " + value)
+
+
+def load_json(text):
+    def finite_float(value):
+        result = float(value)
+        if not math.isfinite(result):
+            reject_constant(value)
+        return result
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "Duplicate JSON key: " + key)
+            result[key] = value
+        return result
+
+    return json.loads(text, parse_constant=reject_constant, parse_float=finite_float,
+                      object_pairs_hook=unique_object)
+
+
+def number(value, label, positive=False):
+    require(type(value) in (int, float) and math.isfinite(value)
+            and (value > 0 if positive else value >= 0),
+            label + " must be a finite non-boolean " + ("positive" if positive else "nonnegative") + " number")
+    return value
+
+
+def measurements(value, count, label, positive=False):
+    require(isinstance(value, list) and len(value) == count, label + " sample count differs")
+    for sample in value:
+        number(sample, label, positive)
+    return value
 
 
 def assertions(value, expected=None):
@@ -74,18 +111,18 @@ def validate_report(report, name, script, binary_sha, test_sha):
         assertions(report.get("checks"), expected)
         require(type(report.get("peakRSS")) is int and 0 < report["peakRSS"] <= 384 * 1024 ** 2,
                 "resource probe has no valid resident-memory measurement")
-        require(report.get("exitCode") == (0 if name == "retained-buffers" else 2), "resource probe did not end normally")
+        require(type(report.get("exitCode")) is int and report.get("exitCode") == (0 if name == "retained-buffers" else 2), "resource probe did not end normally")
         if name == "retained-buffers":
-            require(report.get("sentBuffers") == 100, "resource probe omitted buffers")
+            require(type(report.get("sentBuffers")) is int and report.get("sentBuffers") == 100, "resource probe omitted buffers")
         return 1
     require(isinstance(rows, list) and rows and all(isinstance(row, dict) and row.get("passed") is True
             and "error" not in row for row in rows), "missing or failed resource cases")
     if script == "repository_rotation_e2e.py":
         assertions(report.get("checks"), {"allVisits", "normalShutdown", "boundedGrowth"})
-        require([row.get("index") for row in rows] == list(range(120)), "scope visits are incomplete or duplicated")
+        require(all(type(row.get("index")) is int and type(row.get("scope")) is int for row in rows) and [row.get("index") for row in rows] == list(range(120)), "scope visits are incomplete or duplicated")
         require(all(row.get("scope") == i % 100 and row.get("diagnostics") == []
                     and type(row.get("rss")) is int and row["rss"] > 0 for i, row in enumerate(rows)), "invalid scope observations")
-        require(report.get("exitCode") == 0 and rows[-1]["rss"] <= rows[19]["rss"] * 1.1,
+        require(type(report.get("exitCode")) is int and report.get("exitCode") == 0 and rows[-1]["rss"] <= rows[19]["rss"] * 1.1,
                 "scope rotation failed shutdown or the original ten-percent growth limit")
         return len(rows)
     if script == "retained_budget_e2e.py":
@@ -105,6 +142,9 @@ def validate_report(report, name, script, binary_sha, test_sha):
                           "incremental-cannot-restore-refused": {"reason"}, "full-replacement-recovers": {"onlyExpectedDiagnostic"},
                           "close-reopen-clears-state": {"restored"}, "shutdown": {"exit"}}[row["id"]]
             assertions(row.get("checks"), checks)
+        if not name.endswith("-cli"):
+            number(rows[0].get("observed", {}).get("rss"), "retained boundary RSS", positive=True)
+            measurements(report.get("metadata", {}).get("replacementRSS"), 5, "replacement RSS", positive=True)
         return len(rows)
     if script == "bounded_cli_e2e.py":
         expected = [*["tiny-" + str(i) for i in range(5)], *["full-" + str(i) for i in range(5)], "signal-cancellation"]
@@ -113,11 +153,30 @@ def validate_report(report, name, script, binary_sha, test_sha):
             expected_checks = {"exit3", "cancelReason", "notComplete", "notAllCounted", "processEnded"} if row["name"] == "signal-cancellation" else {
                 "exit0", "exactFiles", "exactResources", "configuration", "exactDiagnostics", "complete", "deadline", "processEnded"}
             assertions(row.get("assertions"), expected_checks)
+            for field in ("elapsedSeconds", "totalElapsedSeconds", "processElapsedSeconds", "readDecodeSeconds", "verificationSeconds"):
+                number(row.get(field), field)
+            phases = row.get("phaseSeconds")
+            require(isinstance(phases, dict) and set(phases) == {"processStarted", "processObservedEnd", "decoded", "verified"}, "CLI phase timing inventory differs")
+            for value in phases.values():
+                number(value, "CLI phase timing")
+            require(phases["processStarted"] <= phases["processObservedEnd"] <= phases["decoded"] <= phases["verified"], "CLI phases are out of order")
+            for field, measured in (("processElapsedSeconds", phases["processObservedEnd"]-phases["processStarted"]),
+                                    ("readDecodeSeconds", phases["decoded"]-phases["processObservedEnd"]),
+                                    ("verificationSeconds", phases["verified"]-phases["processObservedEnd"]),
+                                    ("elapsedSeconds", phases["verified"]), ("totalElapsedSeconds", phases["verified"])):
+                require(math.isclose(row[field], measured, rel_tol=1e-9, abs_tol=1e-9), "CLI duration contradicts phases: " + field)
+            if row["name"] != "signal-cancellation":
+                require(row["processElapsedSeconds"] <= 5, "CLI process exceeded the original five-second deadline")
+            number(row.get("peakRSSKiB"), "CLI peak RSS", positive=True)
+            require(type(row.get("exit")) is int and row["exit"] == (3 if row["name"] == "signal-cancellation" else 0), "CLI exit is invalid")
         return len(rows)
     if script == "bounded_completion_e2e.py":
         require([row.get("name") for row in rows] == ["sample-" + str(i) for i in range(5)], "completion samples are incomplete")
         for row in rows:
-            timings = row.get("seconds", [])
+            timings = measurements(row.get("seconds"), 200, "completion timing")
+            if "p95Seconds" in row:
+                number(row["p95Seconds"], "reported completion p95")
+                require(row["p95Seconds"] == sorted(timings)[189], "reported completion p95 differs from samples")
             require(len(timings) == 200 and sorted(timings)[189] <= .1 and row.get("expectedLabels") == ["team"],
                     "completion sample omitted requests or exceeded its original p95 limit")
         return len(rows)
@@ -125,10 +184,14 @@ def validate_report(report, name, script, binary_sha, test_sha):
     expected = ["five-diagnostic-samples", "query-latency", "sustained-newest-epoch", "close-clear",
                 "ten-thousand-open-edit-close", "terminal-shutdown"]
     require(report.get("full") is True and [row.get("name") for row in rows] == expected, "full LSP lifecycle cases are incomplete")
+    measurements(rows[0].get("seconds"), 5, "diagnostic timing")
     require(len(rows[0].get("seconds", [])) == 5 and max(rows[0]["seconds"]) <= .620, "diagnostic latency contract failed")
-    queries = rows[1].get("seconds", [])
+    queries = measurements(rows[1].get("seconds"), 1000, "query timing")
     require(len(queries) == 1000 and sorted(queries)[949] <= .1, "query latency contract failed")
-    samples = rows[4].get("samplesRSSKiB", [])
+    samples = measurements(rows[4].get("samplesRSSKiB"), 5, "lifecycle RSS", positive=True)
+    number(rows[4].get("warmRSSKiB"), "warm RSS", positive=True)
+    number(rows[5].get("seconds"), "shutdown timing")
+    require(rows[4].get("twoActiveVersions") == ["3.0.0", "3.5.6"], "lifecycle target versions differ")
     require(len(samples) == 5 and samples[-1] <= rows[4]["warmRSSKiB"] * 1.1, "ten-thousand-cycle growth limit failed")
     require(rows[2].get("stale") == [] and rows[5].get("seconds", 6) <= 5, "stale publication or slow shutdown")
     return len(rows)
@@ -155,7 +218,7 @@ def validate_limits(limits, memory):
 
 
 def worker(path):
-    spec = json.loads(Path(path).read_text())
+    spec = load_json(Path(path).read_text())
     before = limits_snapshot()
     save(Path(spec["limits"]) / "before.json", before)
     validate_limits(before, spec["memoryMiB"])
@@ -188,7 +251,7 @@ class UnitObserver:
 
     def sample(self):
         if not self.group:
-            membership = json.loads((self.logs / "limits/before.json").read_text())["cgroup"]
+            membership = load_json((self.logs / "limits/before.json").read_text())["cgroup"]
             group = membership.removeprefix("0::")
             require(group.startswith("/") and ".." not in Path(group).parts
                     and Path(group).name == self.unit + ".service", "observer cgroup is not the owned unit")
@@ -282,7 +345,7 @@ class UnitObserver:
             kernel.update(exit=child.returncode, stderr=child.stderr.decode("utf-8", errors="replace"))
             pids = {str(x["pid"]) for x in self.identities.values()}
             for line in child.stdout.decode("utf-8", errors="replace").splitlines():
-                item = json.loads(line)
+                item = load_json(line)
                 message = item.get("MESSAGE", "")
                 group_match = self.group and re.search(re.escape(self.group) + r"(?=$|[\s,:;)])", message)
                 pid_match = any(re.search(r"(?:Killed process |pid=|task_pid=)" + pid + r"(?![0-9])", message) for pid in pids)
@@ -333,7 +396,7 @@ def capture_unit_evidence(unit, logs, control=("sudo", "-n", "systemctl"),
     if not group:
         before = logs / "limits" / "before.json"
         try:
-            group = json.loads(before.read_text())["cgroup"].removeprefix("0::")
+            group = load_json(before.read_text())["cgroup"].removeprefix("0::")
         except (OSError, ValueError, KeyError, TypeError) as error:
             receipt["cgroupLookupError"] = repr(error)
     cgroup = {"path": group, "files": {}, "errors": {}}
@@ -383,8 +446,8 @@ def execute(case, binary, output):
         row["exitCode"] = child.returncode
         require(child.returncode == 0, "resource command failed")
         for phase in ("before", "after"):
-            validate_limits(json.loads((logs / "limits" / (phase + ".json")).read_text()), memory)
-        report = json.loads((destination / "report.json").read_text())
+            validate_limits(load_json((logs / "limits" / (phase + ".json")).read_text()), memory)
+        report = load_json((destination / "report.json").read_text())
         row["caseCount"] = validate_report(report, name, script, sha(binary), sha(ROOT / "tests" / script))
         row["passed"] = True
     except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
@@ -427,13 +490,15 @@ def main():
     args = parser.parse_args()
     binary, output = args.binary.resolve(), args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    report = {"suite": args.suite, "rows": [], "passed": False}
+    report = {"schemaVersion":2,"suite": args.suite, "rows": [], "passed": False,
+              "workflowRun":{key:os.environ.get(key) for key in ("GITHUB_RUN_ID","GITHUB_RUN_ATTEMPT")},
+              "producerReceipt":load_json((binary.parent/"receipt.json").read_text()) if (binary.parent/"receipt.json").is_file() else None}
     try:
         require(platform.system() == "Linux", "resource acceptance requires Linux")
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        identity = json.loads(subprocess.check_output([str(binary), "version", "--json"], timeout=20))
+        identity = load_json(subprocess.check_output([str(binary), "version", "--json"], timeout=20))
         require(identity.get("product") == "argo-cd" and identity.get("sourceCommit") == head
-                and identity.get("dirty") is False, "resource binary does not identify this exact clean source")
+                and identity.get("dirty") is False and identity.get("buildMode")=="development" and identity.get("serverVersion")== (ROOT/"VERSION").read_text().strip()+"-dev", "resource binary does not identify this exact clean source")
         report.update(sourceCommit=head, binarySHA256=sha(binary), identity=identity, runnerSHA256=sha(Path(__file__)))
         for case in SUITES[args.suite]:
             report["rows"].append(execute(case, binary, output))

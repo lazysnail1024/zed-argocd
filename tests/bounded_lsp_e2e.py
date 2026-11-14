@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Native LSP latency, burst ownership and terminal lifecycle observations."""
 import argparse,hashlib,importlib.util,json,os,pathlib,sys,time
+from support.session import Session
 p=argparse.ArgumentParser();p.add_argument('binary',type=pathlib.Path);p.add_argument('output',type=pathlib.Path);p.add_argument('--full',action='store_true');a=p.parse_args();out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);os.environ['CD_AUDIT_BINARY']=str(a.binary.resolve());spec=importlib.util.spec_from_file_location('client',pathlib.Path(__file__).with_name('audit_repair_e2e.py'));e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e);e.BINARY=a.binary.resolve();rows=[];c=None
 try:
  root=out/'workspace';root.mkdir(exist_ok=True);e.write(root,'.argocd-ls.yaml',e.CONFIG);e.write(root,'project.yaml',e.PROJECT)
  for i in range(98):e.write(root,f'app-{i}.yaml',e.APP.replace('name: app','name: app-'+str(i)))
- text=e.APP+'#'+('x'*199000)+'\n';file=e.write(root,'active.yaml',text);other=out/'second-workspace';other.mkdir(exist_ok=True);e.write(other,'.argocd-ls.yaml',e.CONFIG.replace('3.0.0','3.5.6'));e.write(other,'project.yaml',e.PROJECT);e.write(other,'app.yaml',e.APP);c=e.LSP(out,[root,other]);c.open(file,text,1);c.diag(file,1);version=1
+ text=e.APP+'#'+('x'*199000)+'\n';file=e.write(root,'active.yaml',text);other=out/'second-workspace';other.mkdir(exist_ok=True);e.write(other,'.argocd-ls.yaml',e.CONFIG.replace('3.0.0','3.5.6'));e.write(other,'project.yaml',e.PROJECT);e.write(other,'app.yaml',e.APP)
+ # Full mode sends 600 roughly 200 KiB replacements plus 11,000 lifecycle cycles.
+ # Reserve a bounded 256 MiB transcript for this workload; keep the default elsewhere.
+ c=Session(out,[root,other],binary=e.BINARY,transcript_limit=(256 if a.full else 128)*1024*1024);c.open(file,text,1);c.diag(file,1);version=1
  latencies=[]
  for i in range(5):
   version+=1;start=time.monotonic();c.change(file,text,version);c.diag(file,version);latencies.append(time.monotonic()-start)

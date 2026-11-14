@@ -2,10 +2,8 @@ name: Zed adapter acceptance
 
 on:
   pull_request:
-    paths: ['editors/zed/**', '.github/workflows/zed*.yml']
   push:
     branches: [main]
-    paths: ['editors/zed/**', '.github/workflows/zed*.yml']
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -49,13 +47,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
-          name: zed-argocd-zed-rust-${{ matrix.runner }}
+          name: zed-argocd-zed-rust-${{ matrix.runner }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/zed-rust/
           if-no-files-found: ignore
           retention-days: 30
 
   package:
-    name: Standalone WASM package and ablations
+    name: Standalone WASM package and ablations-${{ github.run_id }}-${{ github.run_attempt }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     outputs:
@@ -103,7 +101,7 @@ jobs:
       - name: Retain the verified installable adapter
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
-          name: zed-argocd-zed-adapter-${{ github.sha }}
+          name: zed-argocd-zed-adapter-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/zed-release/
           if-no-files-found: error
           retention-days: 30
@@ -111,13 +109,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
-          name: zed-argocd-zed-package-evidence
+          name: zed-argocd-zed-package-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/zed/
           if-no-files-found: ignore
           retention-days: 30
 
   acceptance:
-    name: Zed acceptance gate
+    name: ${{ github.event_name == 'pull_request' && 'Zed acceptance gate' || 'Zed adapter evidence' }}
     if: always()
     needs: [rust, package]
     runs-on: ubuntu-24.04

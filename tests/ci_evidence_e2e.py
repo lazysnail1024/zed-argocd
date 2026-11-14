@@ -272,6 +272,7 @@ def main():
             def change_link(entry, payload):
                 if entry.issym():
                     entry.linkname = str(sentinel) + "-changed"
+                    entry.pax_headers = dict(entry.pax_headers, linkpath=entry.linkname)
                 return [(entry, payload)]
             variant("wrong-link", mutation=change_link)
     except Exception as error:

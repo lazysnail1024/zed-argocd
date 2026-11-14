@@ -164,12 +164,21 @@ func checkReport(root, scope, file, target string, warningsAsErrors bool) (Repor
 			}
 			return input.Files[i].Snapshot.URI() < input.Files[j].Snapshot.URI()
 		})
+		parsedFiles, stopParsing := parseFiles(ctx, input.Files)
+		defer stopParsing()
 		for _, f := range input.Files {
 			if ctx.Err() != nil {
 				break
 			}
 			outputs[string(f.Snapshot.URI())] = f.Output
-			result, e := analyzer.Analyze(ctx, f.Snapshot, f.Target.Version)
+			parsed, ok := <-parsedFiles
+			if !ok {
+				break
+			}
+			result, e := analysis.Result{}, parsed.err
+			if e == nil {
+				result, e = analyzer.AnalyzeParsed(ctx, parsed.file, f.Target.Version)
+			}
 			if e != nil {
 				scopeIncomplete[f.Target.Scope] = true
 				r.ConfigurationErrors = append(r.ConfigurationErrors, ConfigError{Code: "ANALYSIS_INCOMPLETE", Message: e.Error()})
