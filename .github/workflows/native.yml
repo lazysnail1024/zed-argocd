@@ -256,6 +256,24 @@ jobs:
     - name: Replay designated mutation rejection controls
       if: matrix.suite == 'mutations'
       run: python tests/observation_evidence_e2e.py --mutations artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
+    - name: Diagnostic reject missing-case through the production verifier
+      if: matrix.suite == 'contracts'
+      run: |-
+        python - <<'PY'
+        import json, pathlib, subprocess, sys
+        base = pathlib.Path('artifacts/orthogonal-ci/rejection-controls')
+        report = json.loads((base / 'report.json').read_text())
+        row = next(item for item in report['rows'] if item['id'] == 'missing-case')
+        assert row['expectedAccepted'] is False and row['passed'] is True
+        result = subprocess.run(row['command'], capture_output=True)
+        (base / 'diagnostic-failure.stdout').write_bytes(result.stdout)
+        (base / 'diagnostic-failure.stderr').write_bytes(result.stderr)
+        (base / 'diagnostic-failure.json').write_text(json.dumps({'case': row['id'], 'command': row['command'], 'exitCode': result.returncode, 'inputSHA256': row['inputSHA256']}, indent=2))
+        print('Diagnostic production rejection:', row['id'], 'exit', result.returncode, flush=True)
+        sys.stdout.buffer.write(result.stdout)
+        sys.stderr.buffer.write(result.stderr)
+        sys.exit(result.returncode)
+        PY
     - name: Archive complete success and failure evidence
       if: always()
       run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence

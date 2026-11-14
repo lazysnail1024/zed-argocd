@@ -57,6 +57,24 @@ jobs:
     - name: Replay CLI deadline rejection controls
       if: matrix.suite == 'lifecycle'
       run: python tests/observation_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/observation-controls
+    - name: Diagnostic reject completion-negative through the production verifier
+      if: matrix.suite == 'lifecycle'
+      run: |-
+        python - <<'PY'
+        import json, pathlib, subprocess, sys
+        base = pathlib.Path('artifacts/resources/rejection-controls')
+        report = json.loads((base / 'report.json').read_text())
+        row = next(item for item in report['rows'] if item['id'] == 'completion-negative')
+        assert row['expectedAccepted'] is False and row['passed'] is True
+        result = subprocess.run(row['command'], capture_output=True)
+        (base / 'diagnostic-failure.stdout').write_bytes(result.stdout)
+        (base / 'diagnostic-failure.stderr').write_bytes(result.stderr)
+        (base / 'diagnostic-failure.json').write_text(json.dumps({'case': row['id'], 'command': row['command'], 'exitCode': result.returncode, 'inputSHA256': row['inputSHA256']}, indent=2))
+        print('Diagnostic production rejection:', row['id'], 'exit', result.returncode, flush=True)
+        sys.stdout.buffer.write(result.stdout)
+        sys.stderr.buffer.write(result.stderr)
+        sys.exit(result.returncode)
+        PY
     - name: Pack complete resource evidence
       if: always()
       run: 'mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
