@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"io"
 	"net/url"
 	"path"
@@ -28,12 +29,14 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	defer worktrace.Measure(ctx, "domainPasses", "domainNs")()
 	projects := map[string][]Document{}
 	projectDocuments := []Document{}
 	for _, doc := range documents {
 		if ctx.Err() != nil {
 			return diagnostics
 		}
+		worktrace.Add(ctx, "domainResources", 1)
 		if doc.Kind != "AppProject" {
 			continue
 		}

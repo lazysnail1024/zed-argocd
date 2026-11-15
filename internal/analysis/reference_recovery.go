@@ -18,7 +18,7 @@ type referenceRecovery struct {
 }
 
 func recoverReferencePrefix(ctx context.Context, snapshot source.Snapshot, target string, offset int) *referenceRecovery {
-	original, err := yamlview.Parse(ctx, snapshot)
+	original, err := parseView(ctx, snapshot, "recovery")
 	if err != nil {
 		return nil
 	}
@@ -42,7 +42,7 @@ func recoverReferencePrefix(ctx context.Context, snapshot source.Snapshot, targe
 	if err != nil {
 		return nil
 	}
-	view, err := yamlview.Parse(ctx, prefix)
+	view, err := parseView(ctx, prefix, "recovery")
 	if err != nil {
 		return nil
 	}

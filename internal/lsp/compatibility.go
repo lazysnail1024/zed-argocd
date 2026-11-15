@@ -11,6 +11,7 @@ import (
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 )
 
 const compatibilityMethod = "argocd/compatibility"
@@ -63,6 +64,10 @@ func explainCompatibility(ctx context.Context, analyzer *analysis.CompatibilityA
 				checked, reused = scope.checked[b.snapshot.URI()]
 			}
 		}
+	}
+	if reused {
+		worktrace.Add(ctx, "factsRestored", int64(len(checked.Documents)))
+		worktrace.Add(ctx, "resultCacheHits", 1)
 	}
 	if skipped {
 		checked = analysis.Result{Incomplete: true}

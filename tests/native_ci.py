@@ -20,6 +20,7 @@ def audit_consumers(platform):
   ('lsp-lifecycle','lsp_e2e.py',[],90),
   ('navigation-defaults','navigation_defaults_e2e.py',[],90),
   ('incremental-equivalence','incremental_equivalence_e2e.py',[],180),
+  ('work-observability','work_observability_e2e.py',[],150),
   ('helm-source','helm_source_e2e.py',[],120),
   ('parent-workspace','parent_workspace_lsp_e2e.py',[],90),
   ('mixed-parent-index','mixed_parent_index_e2e.py',[],90),

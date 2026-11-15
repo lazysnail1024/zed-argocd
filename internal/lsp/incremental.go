@@ -18,6 +18,7 @@ import (
 	shared "github.com/lazysnail1024/k8s-crd-toolkit/workspace"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 )
 
 const (
@@ -77,6 +78,7 @@ type indexedRoot struct {
 // background worker is outside the lock doing filesystem/parse work.
 // No closed-file Snapshot, CST or projected YAML graph is stored here.
 type workspaceIndex struct {
+	queueStarted map[source.URI]time.Time // trace-only, bounded by the existing queue identities
 	mu           sync.RWMutex
 	documents    *shared.Documents
 	facts        *index.Index
@@ -100,7 +102,11 @@ func newWorkspaceIndex() *workspaceIndex {
 	// A removed in-flight job keeps its execution slot until Complete, while a
 	// replacement file may already be admitted within the unchanged file limit.
 	queue, _ := shared.NewWorkQueue(indexQueueLimit, indexFileLimit+1)
-	return &workspaceIndex{documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, configEvents: map[string]uint64{}}
+	var queueStarted map[source.URI]time.Time
+	if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+		queueStarted = map[source.URI]time.Time{}
+	}
+	return &workspaceIndex{queueStarted: queueStarted, documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, configEvents: map[string]uint64{}}
 }
 
 func indexScope(root, scope string) index.Scope { return index.Scope(root + "\x00" + scope) }
@@ -205,6 +211,9 @@ func (s *workspaceIndex) enqueue(uri source.URI, read bool, priority shared.Prio
 		root.err = err
 		return
 	}
+	if s.queueStarted != nil && !waiting {
+		s.queueStarted[uri] = time.Now()
+	}
 	copy := *file
 	if read {
 		copy.seen = root.membership.Observe()
@@ -241,6 +250,7 @@ func (s *workspaceIndex) remove(uri source.URI) publication {
 		}
 	}
 	s.queue.Remove(uri)
+	delete(s.queueStarted, uri)
 	if old.err != nil || old.incomplete {
 		if root := s.roots[old.root]; root != nil {
 			root.issues[old.target.Scope]--
@@ -739,6 +749,7 @@ func (s *workspaceIndex) process(ctx context.Context, uri source.URI, read bool,
 			if err == nil {
 				if same {
 					change, err = s.facts.Reuse(ticket)
+					worktrace.Add(ctx, "indexFactReuses", 1)
 				} else {
 					change, err = s.facts.Commit(ticket, file.summary.Facts)
 				}
@@ -839,6 +850,10 @@ func (s *workspaceIndex) processNext(ctx context.Context, result *completed) boo
 	if !ok {
 		s.mu.Unlock()
 		return false
+	}
+	if start, ok := s.queueStarted[job.URI]; ok {
+		worktrace.Queue(ctx, time.Since(start))
+		delete(s.queueStarted, job.URI)
 	}
 	read, readScope := false, ""
 	var root *indexedRoot

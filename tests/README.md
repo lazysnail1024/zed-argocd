@@ -177,6 +177,11 @@ stable IDs live under `tests/fixtures/contracts/schema-query`; edit expectations
 explicitly and review the diff. CI never updates fixtures. Run
 `python tests/incremental_equivalence_e2e.py <binary> artifacts/equivalence` to
 compare incremental and fresh final states, including overlays and root identity.
+The eleven histories include actual UTF-16/CRLF application of Project rename,
+field completion and resolved repair to independently expected complete texts.
+`work_observability_e2e.py` adds five real interaction workloads and a trace-off
+control, including actual byte/parse/schema/domain counters and separate cancel
+reply/worker-release observations. See [measurement definitions](../docs/performance.md).
 Repeated semantics alone do not prove a cache hit; existing incremental work-count
 and cancellation consumers remain required.
 

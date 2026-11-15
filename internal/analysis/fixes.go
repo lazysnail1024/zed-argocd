@@ -8,6 +8,7 @@ import (
 	"github.com/lazysnail1024/k8s-crd-toolkit/schemaquery"
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"sort"
 	"strings"
 )
@@ -123,7 +124,7 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 			if err != nil {
 				return err
 			}
-			candidates, err := schemaquery.Values(ctx, selectedDoc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+			candidates, err := schemaValues(ctx, selectedDoc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
 			if err != nil {
 				return err
 			}
@@ -158,6 +159,7 @@ func fixesInRange(ctx context.Context, doc Document, scope []Document, options D
 	return out
 }
 func safeScopePlan(ctx context.Context, doc Document, scope []Document, options DomainOptions, plan edit.Plan, targetCode string) bool {
+	options.Context = worktrace.Carry(options.Context, ctx)
 	if ctx.Err() != nil {
 		return false
 	}

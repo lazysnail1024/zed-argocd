@@ -3619,6 +3619,44 @@
             "id": "edit-candidates"
           },
           "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "applied-project-rename"
+          },
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "applied_diagnostics_clear",
+              "bindings_remain_scope_local",
+              "disk_bytes_unchanged",
+              "exact_expected_texts",
+              "incremental_matches_fresh",
+              "nonempty_current_edits",
+              "other_scope_unchanged",
+              "utf16_crlf_preserved"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "applied-field-edits"
+          },
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "applied_diagnostics_clear",
+              "bindings_remain_scope_local",
+              "disk_bytes_unchanged",
+              "exact_expected_texts",
+              "incremental_matches_fresh",
+              "nonempty_current_edits",
+              "other_scope_unchanged",
+              "quickfix_bindings_valid",
+              "quickfix_expected_texts",
+              "utf16_crlf_preserved"
+            ]
+          }
         }
       ],
       "passKey": "passed",
@@ -19306,6 +19344,115 @@
           }
         }
       ]
+    },
+    "work-observability": {
+      "file": "work-observability/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "mixed-first-open"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "actualAcquisitionBytes",
+              "boundedCounterContract",
+              "closedReadBytes",
+              "closedSymbolNonempty",
+              "coldSchemaWork",
+              "currentDocumentChecked",
+              "definitionIsExactOwner",
+              "originsSeparated",
+              "readyCoversMixedWorkspace",
+              "warmQueryResultsExact"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "queries-during-indexing"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "hoverHasTypeAndTarget",
+              "queryIssuedBeforeReady",
+              "recoveredFieldHasExpectedEdit",
+              "recoveryParseCounted",
+              "schemaQueryWorkCounted"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "continuous-current-edits"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "changedInputActualParse",
+              "currentVersionSemantics",
+              "domainWorkVisible",
+              "eightRealEdits"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "scope-target-rotation"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "dependencyInvalidatesLocally",
+              "invalidationWorkVisible",
+              "targetRoundtripInvalidates",
+              "threeScopeSelectionsExact"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "cancel-and-recover"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "cancelReplyWithinExistingBudget",
+              "cancelledWorkWasReal",
+              "nextQueryHasCurrentResult",
+              "sameLaneReusedAfterRelease",
+              "workerReleaseSeparateFromReply"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "trace-off-control"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "publicResultUnchanged",
+              "sourceRefPlanDomainWork",
+              "sourceRefRenameApplied",
+              "traceOffHasNoDetailedRecords",
+              "traceOnHasActualWork"
+            ]
+          }
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/work_observability_e2e.py"
     }
   },
   "platforms": {

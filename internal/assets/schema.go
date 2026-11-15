@@ -1,9 +1,11 @@
 package assets
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	schema "github.com/santhosh-tekuri/jsonschema/v6"
 	"path"
 	"strings"
@@ -19,6 +21,10 @@ func (noNetwork) Load(url string) (any, error) {
 }
 
 func CompileSchema(value map[string]any) (*schema.Schema, error) {
+	return CompileSchemaContext(context.Background(), value)
+}
+
+func CompileSchemaContext(ctx context.Context, value map[string]any) (*schema.Schema, error) {
 	compiler := schema.NewCompiler()
 	compiler.DefaultDraft(schema.Draft2020)
 	compiler.UseLoader(noNetwork{})
@@ -26,10 +32,15 @@ func CompileSchema(value map[string]any) (*schema.Schema, error) {
 	if err := compiler.AddResource(uri, value); err != nil {
 		return nil, err
 	}
+	defer worktrace.Measure(ctx, "schemaCompiles", "schemaCompileNs")()
 	return compiler.Compile(uri)
 }
 
 func SchemaData(version, apiVersion, kind string) (map[string]any, error) {
+	return SchemaDataContext(context.Background(), version, apiVersion, kind)
+}
+
+func SchemaDataContext(ctx context.Context, version, apiVersion, kind string) (map[string]any, error) {
 	for _, entry := range schemaEntries(version) {
 		if entry.APIVersion != apiVersion || entry.Kind != kind {
 			continue
@@ -38,6 +49,7 @@ func SchemaData(version, apiVersion, kind string) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer worktrace.Measure(ctx, "schemaLoads", "schemaLoadNs")()
 		var value map[string]any
 		if err = json.Unmarshal(b, &value); err != nil {
 			return nil, err

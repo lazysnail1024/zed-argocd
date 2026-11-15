@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"fmt"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"io"
 	"strings"
 	"sync"
@@ -119,21 +120,23 @@ func (a *CompatibilityAnalyzer) prepared(ctx context.Context, version, kind stri
 	defer a.mu.Unlock()
 	key := version + "/" + kind
 	if cached, ok := a.schemas[key]; ok {
+		worktrace.Add(ctx, "schemaReuseHits", 1)
 		return cached, nil
 	}
 	var prepared preparedSchema
 	for _, doc := range documents {
 		if doc.compact == nil && doc.Target == version && doc.Kind == kind && doc.CompiledSchema != nil {
 			prepared = preparedSchema{doc.SchemaData, doc.CompiledSchema}
+			worktrace.Add(ctx, "schemaReuseHits", 1)
 			break
 		}
 	}
 	if prepared.compiled == nil {
-		data, err := assets.SchemaData(version, "argoproj.io/v1alpha1", kind)
+		data, err := assets.SchemaDataContext(ctx, version, "argoproj.io/v1alpha1", kind)
 		if err != nil {
 			return prepared, err
 		}
-		compiled, err := assets.CompileSchema(data)
+		compiled, err := assets.CompileSchemaContext(ctx, data)
 		if err != nil {
 			return prepared, err
 		}
@@ -214,7 +217,7 @@ func (a *CompatibilityAnalyzer) resource(ctx context.Context, doc Document, docu
 			return r, fmt.Errorf("whole-schema branch identity differs from compatibility metadata")
 		}
 		schemaWork++
-		if err := auto.compiled.AnyOf[i].Validate(doc.Value); err == nil {
+		if err := validateSchema(ctx, auto.compiled.AnyOf[i], doc.Value); err == nil {
 			schemaSet.add(branch.Versions)
 		} else {
 			validation, ok := err.(*schema.ValidationError)

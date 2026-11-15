@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"sort"
 	"strings"
 
@@ -21,7 +22,7 @@ func automaticQueryDocument(ctx context.Context, doc Document, active []string) 
 	if doc.Target != "auto" || doc.CompiledSchema == nil || len(doc.CompiledSchema.AnyOf) < 2 {
 		return doc, nil
 	}
-	possible, err := schemaquery.SelectShapes(ctx, doc.CompiledSchema.AnyOf, doc.Value, active, schemaquery.Limits{})
+	possible, err := schemaSelectShapes(ctx, doc.CompiledSchema.AnyOf, doc.Value, active, schemaquery.Limits{})
 	if err != nil {
 		return Document{}, err
 	}
@@ -40,7 +41,7 @@ func fieldCompletions(ctx context.Context, doc Document, parent []string, prefix
 	if err != nil {
 		return nil
 	}
-	query, err := schemaquery.Lookup(ctx, doc.CompiledSchema, parent, doc.Value, schemaquery.Limits{})
+	query, err := schemaLookup(ctx, doc.CompiledSchema, parent, doc.Value, schemaquery.Limits{})
 	if err != nil {
 		return nil
 	}
@@ -60,14 +61,14 @@ func fieldCompletions(ctx context.Context, doc Document, parent []string, prefix
 	result := []Completion{}
 	for name := range fields {
 		path := appendPath(parent, name)
-		allowed, err := schemaquery.AllowsKey(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+		allowed, err := schemaAllowsKey(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
 		if err != nil {
 			return nil
 		}
 		if !allowed {
 			continue
 		}
-		kind, err := schemaquery.Type(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+		kind, err := schemaType(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
 		if err != nil {
 			return nil
 		}
@@ -122,7 +123,7 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 	if err != nil {
 		return nil
 	}
-	view, err := yamlview.Parse(ctx, snapshot)
+	view, err := parseView(ctx, snapshot, "recovery")
 	if err != nil {
 		return nil
 	}
@@ -141,7 +142,7 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 			if err != nil {
 				return nil
 			}
-			view, err = yamlview.Parse(ctx, snapshot)
+			view, err = parseView(ctx, snapshot, "recovery")
 			if err != nil {
 				return nil
 			}
@@ -175,15 +176,18 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 		for _, original := range documents {
 			if original.Target == target && original.Kind == kind {
 				compiled = original.CompiledSchema
+				if compiled != nil {
+					worktrace.Add(ctx, "schemaReuseHits", 1)
+				}
 				break
 			}
 		}
 		if compiled == nil {
-			data, e := assets.SchemaData(target, api, kind)
+			data, e := assets.SchemaDataContext(ctx, target, api, kind)
 			if e != nil {
 				return nil
 			}
-			compiled, e = assets.CompileSchema(data)
+			compiled, e = assets.CompileSchemaContext(ctx, data)
 			if e != nil {
 				return nil
 			}
@@ -206,11 +210,11 @@ func schemaHoverText(ctx context.Context, doc Document, parts []string) string {
 	if err != nil {
 		return ""
 	}
-	query, err := schemaquery.Lookup(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+	query, err := schemaLookup(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
 	if err != nil || len(query.Nodes) == 0 {
 		return ""
 	}
-	kind, err := schemaquery.Type(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+	kind, err := schemaType(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
 	if err != nil {
 		return ""
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,8 +35,9 @@ type message struct {
 	Params json.RawMessage `json:"params"`
 }
 type incoming struct {
-	message message
-	err     error
+	received time.Time
+	message  message
+	err      error
 }
 type buffer struct {
 	uri         string
@@ -70,6 +72,7 @@ type scopeResult struct {
 }
 
 type pendingQuery struct {
+	work *worktrace.Recorder
 	ctx  context.Context
 	stop context.CancelFunc
 }
@@ -90,6 +93,7 @@ type queryResult struct {
 }
 
 type completed struct {
+	work                *worktrace.Recorder
 	refusal             *analysis.Refusal // Request-local guard explanation; never retained by the index.
 	candidatesTruncated bool
 	more                bool
@@ -127,6 +131,21 @@ type completed struct {
 }
 
 func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
+	var traceWriter io.Writer
+	if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+		writer := &worktrace.Writer{Out: errOut}
+		defer writer.Close()
+		errOut = writer
+		traceWriter = errOut
+	}
+	var workSequence uint64
+	newWork := func(ctx context.Context, origin, method string, id json.RawMessage, received time.Time) (context.Context, *worktrace.Recorder) {
+		if traceWriter == nil {
+			return ctx, nil
+		}
+		workSequence++
+		return worktrace.New(ctx, traceWriter, workSequence, origin, method, id, received)
+	}
 	var renderer Renderer
 	if len(renderers) > 0 {
 		renderer = renderers[0]
@@ -140,8 +159,12 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		reader := bufio.NewReader(in)
 		for {
 			m, e := readMessage(reader)
+			var received time.Time
+			if traceWriter != nil {
+				received = time.Now()
+			}
 			select {
-			case messages <- incoming{m, e}:
+			case messages <- incoming{message: m, err: e, received: received}:
 			case <-done:
 				return
 			}
@@ -324,11 +347,20 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		if documentPending && !documentActive {
 			documentPending, documentActive = false, true
 			ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, work := newWork(ctx, "document-background", "", nil, time.Time{})
 			cancelDocument = stop
 			previous := documents
 			go func() {
 				defer stop()
+				work.Start()
 				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous, "")
+				local.work = work
+				work.Finish()
+				if ctx.Err() != nil {
+					work.Complete("cancelled")
+				} else {
+					work.Complete("finished")
+				}
 				select {
 				case results <- local:
 				case <-done:
@@ -340,12 +372,21 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		}
 		pending, active = false, true
 		ctx, stop := context.WithCancel(context.Background())
+		ctx, work := newWork(ctx, "workspace-background", "", nil, time.Time{})
 		cancel = stop
 		events := workEvents
 		workEvents = workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 		go func() {
 			defer stop()
+			work.Start()
 			result := workspaceState.advance(ctx, current, copyRoots, copyBuffers, selected, events)
+			result.work = work
+			work.Finish()
+			if ctx.Err() != nil {
+				work.Complete("cancelled")
+			} else {
+				work.Complete("finished")
+			}
 			select {
 			case results <- result:
 			case <-done:
@@ -408,12 +449,15 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			delete(requests, key)
 			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
 				reject(q.id, -32801, "analysis changed", analysis.Refuse("STALE_INPUT", "analysis changed"))
+				request.work.Reply("stale")
 				continue
 			}
 			if q.code != 0 {
 				reject(q.id, q.code, q.why, q.refusal)
+				request.work.Reply("refused")
 			} else {
 				reply(q.id, q.answer)
+				request.work.Reply("delivered")
 				if status, ok := q.answer.(analysisStatus); ok && q.showExplanation {
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": status.message()}})
 				}
@@ -441,6 +485,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			}
 
 			if result.epoch != epoch || shutdown {
+				result.work.Publish("discarded")
 				if !shutdown && !result.documentOnly && len(result.publications) > 0 {
 					for _, clear := range workspaceState.retryPublications(result.publications, buffers) {
 						publish(map[string]any{"uri": clear.uri, "diagnostics": clear.diagnostics})
@@ -456,6 +501,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				continue
 			}
+			result.work.Publish("accepted")
 			if result.documentOnly {
 				if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 					trace, _ := json.Marshal(result.stats)
@@ -973,7 +1019,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 30*time.Second)
-				requests[string(m.ID)] = pendingQuery{ctx, stop}
+				requests[string(m.ID)] = pendingQuery{ctx: ctx, stop: stop}
 				renderBusy = true
 				copied := map[string]buffer{}
 				for uri, b := range buffers {
@@ -1007,7 +1053,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
-				requests[key] = pendingQuery{ctx, stop}
+				ctx, work := newWork(ctx, "request", m.Method, m.ID, event.received)
+				requests[key] = pendingQuery{ctx: ctx, stop: stop, work: work}
 				input, localInput, current := latest, documents, epoch
 				selected := override
 				var queryRoots []string
@@ -1025,7 +1072,12 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				editable := canEdit
 				go func() {
-					defer func() { <-slots }()
+					work.Start()
+					terminal := "finished"
+					defer func() {
+						<-slots
+						work.Release(terminal)
+					}()
 					var proof *readProof
 					var symbolProof *symbolReadProof
 					var editProof *uint64
@@ -1129,6 +1181,13 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					if ctx.Err() != nil {
 						code, why = -32800, "request cancelled"
 					}
+					if code != 0 {
+						terminal = "refused"
+					}
+					if ctx.Err() != nil {
+						terminal = "cancelled"
+					}
+					work.Finish()
 					select {
 					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
@@ -1141,9 +1200,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				if json.Unmarshal(m.Params, &p) == nil {
 					key := string(p.ID)
 					if request, ok := requests[key]; ok {
+						request.work.Cancel()
 						request.stop()
 						delete(requests, key)
 						reject(p.ID, -32800, "request cancelled")
+						request.work.Reply("cancelled")
 					}
 				}
 			case "$/setTrace":
@@ -1383,6 +1444,8 @@ rootLoop:
 						// sharing this acquisition's equal whole-root path facts.
 						old.options.LocalPaths = input.LocalPaths
 						result.scopes = append(result.scopes, old)
+						worktrace.Add(ctx, "factsRestored", int64(len(old.documents)))
+						worktrace.Add(ctx, "resultCacheHits", 1)
 						// Keep the completed input and reused documents on the same
 						// immutable snapshots after exact fresh-text comparison.
 						for _, f := range old.files {
@@ -1445,6 +1508,8 @@ rootLoop:
 					if oldFile, ok := priorFiles[f.Snapshot.URI()]; ok && sameFile(oldFile, f) {
 						if old, ok := priorScope.checked[f.Snapshot.URI()]; ok && analyzer.ReuseProjections(old.Documents) {
 							checked = old
+							worktrace.Add(ctx, "factsRestored", int64(len(old.Documents)))
+							worktrace.Add(ctx, "resultCacheHits", 1)
 							reusedFile = true
 						} else if documentOnly && documentURI == "" && previous.documentOnly {
 							if publication, ok := oldPublications[uri]; ok {

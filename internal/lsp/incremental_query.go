@@ -13,6 +13,7 @@ import (
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 )
 
 func queryURI(m message) string {
@@ -210,6 +211,8 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 			if previous.Snapshot.URI() == snapshot.URI() && previous.Target == file.Target && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
 				if value, ok := scope.checked[snapshot.URI()]; ok {
 					checked, reused = value, true
+					worktrace.Add(ctx, "factsRestored", int64(len(value.Documents)))
+					worktrace.Add(ctx, "resultCacheHits", 1)
 				}
 			}
 		}

@@ -144,6 +144,7 @@
         "tests/semantic_regressions_e2e.py",
         "tests/shared_schemaquery_e2e.py",
         "tests/target_e2e.py",
+        "tests/work_observability_e2e.py",
         "tests/workspace_regressions_e2e.py"
       ]
     },

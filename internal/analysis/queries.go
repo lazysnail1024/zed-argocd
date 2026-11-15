@@ -256,7 +256,7 @@ func Complete(ctx context.Context, doc Document, p Position) []Completion {
 		if err != nil {
 			return nil
 		}
-		values, err := schemaquery.Values(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
+		values, err := schemaValues(ctx, doc.CompiledSchema, parts, doc.Value, schemaquery.Limits{})
 		if err != nil {
 			return nil
 		}
