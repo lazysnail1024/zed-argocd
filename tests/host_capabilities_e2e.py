@@ -20,11 +20,12 @@ def initialize_contract(client,label):
   'textDocumentSync':{'openClose':True,'change':2,'save':True},
   'completionProvider':{},'hoverProvider':True,'definitionProvider':True,
   'referencesProvider':True,'documentSymbolProvider':True,'workspaceSymbolProvider':True,
+  'executeCommandProvider':{'commands':['argocd.explainAnalysis','argocd.explainCompatibility']},
   'workspace':{'workspaceFolders':{'supported':True,'changeNotifications':True}},
  }
  if client.edit:
   expected['codeActionProvider']={'resolveProvider':True}
-  expected['executeCommandProvider']={'commands':['argocd.renderCheck']}
+  expected['executeCommandProvider']={'commands':['argocd.explainAnalysis','argocd.explainCompatibility','argocd.renderCheck']}
   expected['renameProvider']={'prepareProvider':True}
  info=result.get('serverInfo',{})
  # JSON booleans and integers have different protocol types (Python == aliases them).

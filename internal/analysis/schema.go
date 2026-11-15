@@ -3,6 +3,7 @@ package analysis
 
 import (
 	"context"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"strconv"
 	"strings"
 
@@ -162,9 +163,9 @@ type ParsedFile struct {
 	view     yamlview.View
 }
 
-// ParseFile performs bounded, cancellable syntax parsing without analysis or counts.
+// ParseFile performs bounded, cancellable syntax parsing without diagnostic-pass accounting.
 func ParseFile(ctx context.Context, s source.Snapshot) (ParsedFile, error) {
-	view, err := yamlview.Parse(ctx, s)
+	view, err := parseView(ctx, s, "source")
 	return ParsedFile{snapshot: s, view: view}, err
 }
 
@@ -255,12 +256,15 @@ func (a *Analyzer) AnalyzeParsed(ctx context.Context, parsed ParsedFile, target 
 		}
 		key := target + "/" + resourceKind
 		prepared, ok := a.schemas[key]
+		if ok {
+			worktrace.Add(ctx, "schemaReuseHits", 1)
+		}
 		if !ok {
-			data, e := assets.SchemaData(target, api, resourceKind)
+			data, e := assets.SchemaDataContext(ctx, target, api, resourceKind)
 			if e != nil {
 				return result, e
 			}
-			compiled, e := assets.CompileSchema(data)
+			compiled, e := assets.CompileSchemaContext(ctx, data)
 			if e != nil {
 				return result, e
 			}
@@ -288,7 +292,7 @@ func (a *Analyzer) AnalyzeParsed(ctx context.Context, parsed ParsedFile, target 
 			}
 		}
 		compiled := prepared.compiled
-		if err := compiled.Validate(value); err != nil {
+		if err := validateSchema(ctx, compiled, value); err != nil {
 			validation, ok := err.(*schema.ValidationError)
 			if !ok {
 				return result, err

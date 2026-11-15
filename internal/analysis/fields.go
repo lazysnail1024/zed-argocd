@@ -46,7 +46,7 @@ func UnknownFields(ctx context.Context, doc Document) ([]Field, error) {
 		if !ok {
 			return nil
 		}
-		query, err := schemaquery.Lookup(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
+		query, err := schemaLookup(ctx, doc.CompiledSchema, path, doc.Value, schemaquery.Limits{})
 		if err != nil {
 			return err
 		}

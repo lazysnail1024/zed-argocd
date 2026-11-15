@@ -3,8 +3,8 @@ package lsp
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
@@ -16,14 +16,30 @@ import (
 // and a scope generation are both necessary: a newly introduced unresolved use
 // of the proposed name must invalidate the result, even if no old key changed.
 func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *completed, uri string) (*scopeResult, error) {
-	proof := input.queryProof
-	if proof == nil || proof.catalog == nil || len(input.scopes) != 1 {
-		return nil, fmt.Errorf("Project rename requires a ready configured scope")
+	if len(input.scopes) == 1 && strings.HasPrefix(input.scopes[0].scope, "isolated:") {
+		return nil, analysis.Refuse("ISOLATED_DOCUMENT", "excluded documents cannot authorize cross-resource rename")
+	}
+	if input.queryProof == nil || input.queryProof.catalog == nil || len(input.scopes) != 1 {
+		return nil, analysis.Refuse("INDEX_INCOMPLETE", "Project rename requires a ready configured scope")
 	}
 	selected := input.scopes[0]
-	if selected.options.ReferencePolicy != "closed" || selected.options.ControlPlaneNamespace == "" {
-		return nil, fmt.Errorf("Project rename requires closed references and an explicit controlPlaneNamespace")
+	if selected.options.ControlPlaneNamespace == "" {
+		return nil, analysis.Refuse("TARGET_UNKNOWN", "Project rename requires an explicit controlPlaneNamespace")
 	}
+	if selected.options.ReferencePolicy != "closed" {
+		return nil, analysis.Refuse("REFERENCE_SCOPE_OPEN", "Project rename requires an intentionally closed reference scope")
+	}
+	return s.completeQueryScope(ctx, input, uri)
+}
+
+// completeQueryScope borrows the complete configured scope for a read-only
+// completeness proof. Policy and writable-buffer conditions belong to callers.
+func (s *workspaceIndex) completeQueryScope(ctx context.Context, input *completed, uri string) (*scopeResult, error) {
+	proof := input.queryProof
+	if proof == nil || proof.catalog == nil || len(input.scopes) != 1 {
+		return nil, analysis.Refuse("INDEX_INCOMPLETE", "query requires a ready configured scope")
+	}
+	selected := input.scopes[0]
 	path, err := workspace.PathFromURI(uri)
 	if err != nil {
 		return nil, err
@@ -33,7 +49,7 @@ func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *complete
 	defer s.mu.RUnlock()
 	root := s.roots[selected.root]
 	if root == nil || root.catalog != proof.catalog || !s.scopeComplete(root, selected.scope) {
-		return nil, fmt.Errorf("Project rename requires a completely analyzed selected scope")
+		return nil, analysis.Refuse("INDEX_INCOMPLETE", "query requires a completely analyzed selected scope")
 	}
 	files := []*indexedFile{}
 	for _, file := range s.files {
@@ -44,7 +60,7 @@ func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *complete
 			continue
 		}
 		if file.err != nil || file.invalidated || file.incomplete {
-			return nil, fmt.Errorf("Project rename scope contains unavailable or incomplete input")
+			return nil, analysis.Refuse("INDEX_INCOMPLETE", "scope contains unavailable or incomplete input")
 		}
 		files = append(files, file)
 	}
@@ -60,7 +76,7 @@ func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *complete
 			for _, sourceFile := range selected.files {
 				if string(sourceFile.Snapshot.URI()) == uri {
 					if sha256.Sum256([]byte(sourceFile.Snapshot.Text())) != file.hash {
-						return nil, fmt.Errorf("selected input changed during scope acquisition")
+						return nil, analysis.Refuse("STALE_INPUT", "selected input changed during scope acquisition")
 					}
 					scope.files = append(scope.files, sourceFile)
 				}
@@ -82,7 +98,7 @@ func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *complete
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("selected file is not committed in its scope")
+		return nil, analysis.Refuse("INDEX_INCOMPLETE", "selected file is not committed in its scope")
 	}
 	_, state := s.facts.Definitions(proof.scope, "")
 	proof.allScope, proof.scopeGeneration, proof.complete = true, state.Generation, true
@@ -91,6 +107,7 @@ func (s *workspaceIndex) projectRenameScope(ctx context.Context, input *complete
 
 func (s *workspaceIndex) projectRenameRequest(ctx context.Context, m message, input *completed, buffers map[string]buffer, params renameParams) (any, int, string) {
 	refuse := func(err error) (any, int, string) {
+		input.refusal = analysis.ExplainRefusal(err)
 		if m.Method == "textDocument/prepareRename" {
 			return nil, 0, ""
 		}
@@ -129,21 +146,21 @@ func (s *workspaceIndex) projectRenameRequest(ctx context.Context, m message, in
 		}
 		b, opened := byPath[path]
 		if ambiguous[path] {
-			return refuse(fmt.Errorf("multiple open spellings prevent a unique document-version proof"))
+			return refuse(analysis.Refuse("AMBIGUOUS_BINDING", "multiple open spellings prevent a unique document-version proof"))
 		}
 		if !opened || b.unavailable != "" {
-			return refuse(fmt.Errorf("every affected Project file must be open with an accepted client version"))
+			return refuse(analysis.Refuse("AFFECTED_FILE_NOT_OPEN", "every affected Project file must be open with an accepted client version", analysis.Location{URI: uri}))
 		}
 		if sha256.Sum256([]byte(b.snapshot.Text())) != input.queryProof.hashes[source.URI(workspace.FileURI(path))] {
-			return refuse(fmt.Errorf("affected input changed during scope acquisition"))
+			return refuse(analysis.Refuse("STALE_INPUT", "affected input changed during scope acquisition"))
 		}
 		file, included, skipped, err := input.queryProof.catalog.File(b.snapshot, path, true)
 		if err != nil || !included || skipped || file.Target.Scope != scope.scope {
-			return refuse(fmt.Errorf("affected input no longer belongs to the selected scope"))
+			return refuse(analysis.Refuse("STALE_INPUT", "affected input no longer belongs to the selected scope"))
 		}
 		checked, err := analyzer.Analyze(ctx, b.snapshot, file.Target.Version)
 		if err != nil || checked.Incomplete {
-			return refuse(fmt.Errorf("an affected Project file cannot be completely analyzed"))
+			return refuse(analysis.Refuse("INDEX_INCOMPLETE", "an affected Project file cannot be completely analyzed"))
 		}
 		full[path] = checked.Documents
 		for i := range scope.files {

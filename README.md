@@ -95,6 +95,37 @@ argocd-ls check --root . --format json
 argocd-ls serve --stdio
 ```
 
+## Explain the current analysis
+
+In Zed, select **editor: toggle code actions → Explain current Argo CD analysis**.
+The explanation identifies the current editor buffer, actual owning root and
+scope, target/configuration identity, indexing phase, and separate document and
+workspace completeness. A completed document check does not imply a completed
+workspace reference search or permission to rename across files.
+
+Rename refusals include a stable reason and a next step, such as opening an
+affected file, resolving an ambiguous binding, or reviewing an unknown
+control-plane namespace. An unknown reference count is not reported as zero.
+Explanations do not change configuration or source text. See the
+[status interface and refusal codes](docs/configuration.md#analysis-explanations)
+for client integration and the difference from disk-based `explain-config`.
+
+## Explain compatibility candidates
+
+Choose **Explain Argo CD compatibility candidates** from the code actions, or run:
+
+```sh
+argocd-ls explain-compatibility --root . --file applications/example.yaml
+```
+
+The read-only explanation reports **candidates under modeled static constraints**
+for each resource in the file: whole-resource Schema candidates, candidates under
+the implemented local rules, their intersection, exclusion reasons and unknown
+areas. The editor uses the accepted unsaved buffer; the CLI reads disk. It does
+not select a deployment target or change ordinary `check`, `auto` or exact-pin
+validation results. A nonempty candidate set does not prove controller or
+admission compatibility. [Candidate meaning and source evidence](docs/multi-version-support.md#explicit-compatibility-explanation).
+
 ## Helm sources and explicit rendering
 
 Plain YAML inside a chart receives normal analysis. For Helm sources, literal
@@ -107,6 +138,8 @@ semantic edits. Escaped ApplicationSet tags can coexist with static neighbors.
 In Zed, open the command palette, choose **editor: toggle code actions**, then
 **Render chart and check Argo CD (saved files)** on an owned chart document. It uses Helm from `PATH`, finds the nearest ancestor
 `Chart.yaml`, renders with the chart's default values, and opens generated YAML.
+With `schemaVersion: 2`, matching `renderProfiles` add explicit named profile
+actions with ordered values files. See [profiles and retained artifacts](docs/configuration.md#render-profiles-and-artifacts).
 Save all open chart/configuration buffers first. The action runs only when
 selected; collecting actions, opening a file and saving never render a chart.
 The result message includes a durable `report.json` path beside generated YAML.
@@ -129,18 +162,25 @@ extensions are installed, add `"argo-workflows-ls"` to that server list. No
 `.zed/tasks.json` is required. Opening a common parent directory lets the server
 index multiple Git repositories beneath it. The server indexes the roots supplied
 by the editor; worktrees hosted by separate server processes keep separate indexes.
+See [Zed workspaces and multiple repositories](docs/zed-workspaces.md) for parent
+configuration, actual root/scope explanations and the pinned host's sharing and
+request-routing boundaries.
 
 The same operation is available from a chart directory, or for a selected file:
 
 ```sh
 argocd-ls render-check --format json
 argocd-ls render-check --root . --file chart/templates/app.yaml --format json
+argocd-ls render-check --root . --profile dev --format json
+argocd-ls render-cache
 ```
 
 Helm 3 and 4 are accepted. `--chart`, `--helm-binary`, `--values`, `--output`,
 `--release-name`, `--namespace`, `--kube-version` and `--api-version` remain explicit
-overrides. Automatic output uses a fresh temporary directory; preserve it if you
-need a lasting report. Rendered diagnostic locations refer to generated YAML.
+overrides for the default operation. Profiles reject conflicting overrides.
+Automatic output is retained in the owned user cache; `render-cache` lists it and
+`render-cache --remove DIRECTORY` removes one verified entry explicitly. Custom
+outputs remain user-owned. Rendered diagnostic locations refer to generated YAML.
 
 Analysis is local: it does not access a cluster, execute controllers or render Helm
 implicitly. The alpha includes automated CLI/LSP and package checks; real Zed GUI

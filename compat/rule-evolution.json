@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "product": "argocd",
+  "coverage": {
+    "kind": "boundary-samples",
+    "catalogVersionCount": 370,
+    "historicalSemanticManifestVersionCount": 88,
+    "historicalSemanticManifestSHA256": "f74f1d48563316781ac3a552c3f3dda48512750507940a9beb89921c2606e95e",
+    "allCatalogRuntimeSourcesAudited": false,
+    "statement": "The 88-version historical source audit and the current 370-version schema inventory are different sets. These added samples do not establish a 370-version source audit.",
+    "modeledInventorySHA256": "f8c6138bb711157a12a5cef57109fdb3118dd96f9b766c8ae06b7e53508f5f3d",
+    "modeledInventoryMeaning": "Reviewed identity of the current product model inventory only; this digest is not proof that every controller source was audited. Adding or changing a pin requires explicit rule/source review before regeneration."
+  },
+  "hashContract": {
+    "sourceSHA256": "SHA-256 of exact upstream file bytes, also verified using the Git blob SHA-1 returned by GitHub.",
+    "functionAndCallerSHA256": "SHA-256 of exact UTF-8 source bytes [go/ast.FuncDecl.Pos(), go/ast.FuncDecl.End()), including signature/body, excluding preceding comments and trailing newline.",
+    "lineNumbers": "One-based locations of the same parsed function declaration in the exact pinned file."
+  },
+  "sources": [
+    {
+      "version": "3.4.11",
+      "repository": "argoproj/argo-cd",
+      "commit": "285dd018209ab83291929950e53114b010d32fd7",
+      "upstreamPath": "util/argo/argo.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/285dd018209ab83291929950e53114b010d32fd7/util/argo/argo.go",
+      "gitBlobSHA1": "93b727048ffe3f7a3eddfc0eb8d4e9b57e89c1a0",
+      "sha256": "8fbe7fbd32ebb21465056dc4e8fc9b8cb913406bb262ca8c5ea4afa9ee22e8cc",
+      "bytes": 49302,
+      "id": "cd-util-argo-3.4.11",
+      "localPath": "compat/semantic-sources/8fbe7fbd32ebb21465056dc4e8fc9b8cb913406bb262ca8c5ea4afa9ee22e8cc.go.txt"
+    },
+    {
+      "id": "cd-controller-state-3.4.13",
+      "repository": "argoproj/argo-cd",
+      "version": "3.4.13",
+      "commit": "83ad9cd88fa03ec152b267b371e03ad670c4dd81",
+      "upstreamPath": "controller/state.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/83ad9cd88fa03ec152b267b371e03ad670c4dd81/controller/state.go",
+      "gitBlobSHA1": "6ea73e6447602646fe9998f8034e3e627ef4ab89",
+      "sha256": "03899b27c50574a97ddb164ee4d300bbf8f6b32e36e97fa9e0606564d1db8e93",
+      "bytes": 53376,
+      "localPath": "compat/semantic-sources/03899b27c50574a97ddb164ee4d300bbf8f6b32e36e97fa9e0606564d1db8e93.go.txt"
+    },
+    {
+      "id": "cd-controller-state-3.5.0",
+      "repository": "argoproj/argo-cd",
+      "version": "3.5.0",
+      "commit": "e95e1be88a2da6c06bff5c2fe1791e4d233ed810",
+      "upstreamPath": "controller/state.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/controller/state.go",
+      "gitBlobSHA1": "e5260ca8eafedbd2658f1efc0a26aad4609af3d7",
+      "sha256": "11597fc02602867342861c608a8d8fd51f32b0c9b0150ddd3daa6a20c0efc5e1",
+      "bytes": 57074,
+      "localPath": "compat/semantic-sources/11597fc02602867342861c608a8d8fd51f32b0c9b0150ddd3daa6a20c0efc5e1.go.txt"
+    },
+    {
+      "id": "cd-controller-state-3.6.1",
+      "repository": "argoproj/argo-cd",
+      "version": "3.6.1",
+      "commit": "94037c4d4e1af4bd0651d37a179fbd9e347e668c",
+      "upstreamPath": "controller/state.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/94037c4d4e1af4bd0651d37a179fbd9e347e668c/controller/state.go",
+      "gitBlobSHA1": "80fcb5b6b1023a84ad5b65ffb58874b750bbb815",
+      "sha256": "103e293e893b30108a54a367118f18723e102f6242e007c6f5e882b66673600a",
+      "bytes": 61308,
+      "localPath": "compat/semantic-sources/103e293e893b30108a54a367118f18723e102f6242e007c6f5e882b66673600a.go.txt"
+    },
+    {
+      "id": "cd-util-argo-3.4.13",
+      "repository": "argoproj/argo-cd",
+      "version": "3.4.13",
+      "commit": "83ad9cd88fa03ec152b267b371e03ad670c4dd81",
+      "upstreamPath": "util/argo/argo.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/83ad9cd88fa03ec152b267b371e03ad670c4dd81/util/argo/argo.go",
+      "gitBlobSHA1": "93b727048ffe3f7a3eddfc0eb8d4e9b57e89c1a0",
+      "sha256": "8fbe7fbd32ebb21465056dc4e8fc9b8cb913406bb262ca8c5ea4afa9ee22e8cc",
+      "bytes": 49302,
+      "localPath": "compat/semantic-sources/8fbe7fbd32ebb21465056dc4e8fc9b8cb913406bb262ca8c5ea4afa9ee22e8cc.go.txt"
+    },
+    {
+      "id": "cd-util-argo-3.5.0",
+      "repository": "argoproj/argo-cd",
+      "version": "3.5.0",
+      "commit": "e95e1be88a2da6c06bff5c2fe1791e4d233ed810",
+      "upstreamPath": "util/argo/argo.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/e95e1be88a2da6c06bff5c2fe1791e4d233ed810/util/argo/argo.go",
+      "gitBlobSHA1": "ddc0190db52ba5b8c5a241b142ed38c1606fb257",
+      "sha256": "d25dd83ada35346a3742eb2a9fa628ad2ff812e28589c0d23e8164fcf27d93db",
+      "bytes": 50176,
+      "localPath": "compat/semantic-sources/d25dd83ada35346a3742eb2a9fa628ad2ff812e28589c0d23e8164fcf27d93db.go.txt"
+    },
+    {
+      "id": "cd-util-argo-3.6.1",
+      "repository": "argoproj/argo-cd",
+      "version": "3.6.1",
+      "commit": "94037c4d4e1af4bd0651d37a179fbd9e347e668c",
+      "upstreamPath": "util/argo/argo.go",
+      "url": "https://github.com/argoproj/argo-cd/blob/94037c4d4e1af4bd0651d37a179fbd9e347e668c/util/argo/argo.go",
+      "gitBlobSHA1": "6c3e8575f72b39dad8a971a4891e2ebd22a584d6",
+      "sha256": "6733c85c070c7ffdaa5d7e778c5abd2b9638b6f6316e077cf0c8b966a68ad4a4",
+      "bytes": 53174,
+      "localPath": "compat/semantic-sources/6733c85c070c7ffdaa5d7e778c5abd2b9638b6f6316e077cf0c8b966a68ad4a4.go.txt"
+    }
+  ],
+  "rules": [
+    {
+      "id": "single-source-refs",
+      "localImplementation": [
+        "internal/assets/catalog.go:SingleSourceRefs",
+        "internal/analysis/domain.go:sourceRefsActive",
+        "internal/analysis/domain.go:Domain",
+        "internal/analysis/queries.go:sourceReferences"
+      ],
+      "modelCondition": "Nonempty spec.sources uses activate ref declarations/mapping for length>1 on older pins, or length>=1 from 3.5.0. The product separately models a sole-source $ref use as unsupported before activation. spec.source is outside the product sources-ref domain.",
+      "upstreamCondition": "GetRefSources allocates mappings, validates nonempty ref names with ^[a-zA-Z0-9_-]+$, and rejects duplicate keys only inside its len(sources) entry guard. GetRepoObjs calls it with the selected sources and current revisions; database access, downstream rendering and manifests are outside this static rule.",
+      "rangeUniverse": "Known catalog versions only; not a forecast of future major versions.",
+      "boundaries": [
+        {
+          "before": "3.4.13",
+          "after": "3.5.0",
+          "kind": "introduction",
+          "change": "GetRefSources entry guard >1 becomes >0."
+        }
+      ],
+      "removalsObservedInSamples": [],
+      "backportsObservedInSamples": [],
+      "absenceClaim": "No removal or earlier-line backport is demonstrated in the fetched samples; this is not an exhaustive claim across every source revision.",
+      "evidence": [
+        {
+          "sourceID": "cd-util-argo-3.4.11",
+          "functions": [
+            {
+              "function": "GetRefSources",
+              "receiver": "",
+              "sha256": "373401689ace524e337e6cd9d7df6ea61d35de1ac43e8c0e53820dc47cf50a61",
+              "startLine": 539,
+              "endLine": 581
+            }
+          ],
+          "callers": [],
+          "observation": "Byte-identical GetRefSources file to 3.4.13; the same >1 guard."
+        },
+        {
+          "sourceID": "cd-util-argo-3.4.13",
+          "functions": [
+            {
+              "function": "GetRefSources",
+              "receiver": "",
+              "sha256": "373401689ace524e337e6cd9d7df6ea61d35de1ac43e8c0e53820dc47cf50a61",
+              "startLine": 539,
+              "endLine": 581
+            }
+          ],
+          "callers": [
+            {
+              "sourceID": "cd-controller-state-3.4.13",
+              "function": "GetRepoObjs",
+              "receiver": "(m *appStateManager)",
+              "sha256": "4c2af4ac946fb9d062e6b73164575acb9070ca0c64a22e97987e539b300375a4",
+              "startLine": 131,
+              "endLine": 355
+            }
+          ],
+          "observation": "GetRefSources uses len(sources)>1; no sole-source activation backport in this sampled latest 3.4 patch."
+        },
+        {
+          "sourceID": "cd-util-argo-3.5.0",
+          "functions": [
+            {
+              "function": "GetRefSources",
+              "receiver": "",
+              "sha256": "bc45c10f1a346009b430a00041ca0d82373dfee2de78ac19f61ac19a6a7087c8",
+              "startLine": 543,
+              "endLine": 586
+            }
+          ],
+          "callers": [
+            {
+              "sourceID": "cd-controller-state-3.5.0",
+              "function": "GetRepoObjs",
+              "receiver": "(m *appStateManager)",
+              "sha256": "26673ab9c842d53766d7e505ed0b0d8873f4b0405c0016b8f6f583aeb0f26d8f",
+              "startLine": 206,
+              "endLine": 412
+            }
+          ],
+          "observation": "GetRefSources uses len(sources)>0; validates and populates a sole ref entry."
+        },
+        {
+          "sourceID": "cd-util-argo-3.6.1",
+          "functions": [
+            {
+              "function": "GetRefSources",
+              "receiver": "",
+              "sha256": "072852138964fb026ba9622503f8604b1a342b6b8d94e64102c743f4bc54bc6d",
+              "startLine": 599,
+              "endLine": 642
+            }
+          ],
+          "callers": [
+            {
+              "sourceID": "cd-controller-state-3.6.1",
+              "function": "GetRepoObjs",
+              "receiver": "(m *appStateManager)",
+              "sha256": "e1aa170bd1d6237594068571e8f003716bd4e68e7766c460a8bbc688845186e7",
+              "startLine": 229,
+              "endLine": 461
+            }
+          ],
+          "observation": "The >0 entry guard, ref grammar, and duplicate detection remain present."
+        }
+      ],
+      "behaviorScenarioIDs": [
+        "compatibility-explanation/single-source-ref-boundary",
+        "compatibility-explanation/schema-semantic-empty-intersection",
+        "compatibility-explanation/ordinary-auto-and-exact-unchanged"
+      ],
+      "scenarioNotes": {
+        "boundary": "A sole sources entry with ref values and Helm $values path is unsupported before the gate and allowed after, independently of valid chart rendering.",
+        "emptyIntersection": "tagPrefix first occurs in collected 3.5 schemas; sole invalid ref bad.ref is validated only from 3.5. Therefore schema candidates are newer while this modeled validity predicate permits only older candidates, giving empty intersection. This case is already auto-invalid; preserve a separate unchanged auto-success control.",
+        "callerProfile": "ApplicationSet static templatePatch required fields are a second semantic profile dimension (exact compiled schema Required set); group by it and this gate, not by this gate alone."
+      },
+      "modeledActiveIntervals": [
+        {
+          "from": "3.5.0",
+          "through": "3.6.1"
+        }
+      ],
+      "boundarySampleVersions": [
+        "3.4.11",
+        "3.4.13",
+        "3.5.0",
+        "3.6.1"
+      ]
+    },
+    {
+      "id": "static-template-patch-required-fields",
+      "localImplementation": [
+        "internal/analysis/appset.go:applyStaticTemplatePatch"
+      ],
+      "profileSource": "Exact collected ApplicationSet schema spec.template.spec.required; this is a product model input, not an upstream controller equivalence claim.",
+      "boundaries": [
+        {
+          "before": "2.5.22",
+          "after": "2.6.0",
+          "change": "source is no longer required in the embedded Application spec"
+        }
+      ],
+      "behaviorScenarioIDs": [
+        "compatibility-explanation/appset-schema-dependent-rule-profile"
+      ]
+    }
+  ],
+  "schemaBoundaries": [
+    {
+      "kind": "Application",
+      "path": "spec.source.ksonnet",
+      "removed": "2.4.0",
+      "scenario": "compatibility-explanation/schema-field-evolution"
+    },
+    {
+      "kind": "Application",
+      "path": "spec.syncPolicy.automated.enabled",
+      "introduced": "3.1.0",
+      "scenario": "compatibility-explanation/schema-field-evolution"
+    },
+    {
+      "kind": "Application",
+      "path": "spec.sources[].tagPrefix",
+      "introduced": "3.5.0",
+      "scenario": "compatibility-explanation/schema-semantic-empty-intersection"
+    }
+  ],
+  "license": "Apache-2.0; exact official source bytes retained with immutable commit URLs and content hashes."
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	yamlv3 "gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
@@ -36,13 +37,14 @@ type Repository struct {
 	Path           string `json:"path"`
 }
 type Config struct {
-	SchemaVersion         int          `json:"schemaVersion"`
-	TargetVersion         string       `json:"targetVersion"`
-	ReferencePolicy       string       `json:"referencePolicy"`
-	ControlPlaneNamespace string       `json:"controlPlaneNamespace"`
-	Exclude               []string     `json:"exclude"`
-	Scopes                []Scope      `json:"scopes"`
-	Repositories          []Repository `json:"repositories"`
+	SchemaVersion         int                      `json:"schemaVersion"`
+	TargetVersion         string                   `json:"targetVersion"`
+	ReferencePolicy       string                   `json:"referencePolicy"`
+	ControlPlaneNamespace string                   `json:"controlPlaneNamespace"`
+	Exclude               []string                 `json:"exclude"`
+	Scopes                []Scope                  `json:"scopes"`
+	Repositories          []Repository             `json:"repositories"`
+	RenderProfiles        map[string]RenderProfile `json:"renderProfiles,omitempty"`
 }
 type Target struct {
 	SchemaHash string `json:"schemaHash"`
@@ -143,12 +145,24 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		if len(raw) > 1024*1024 {
 			return input, failure("CONFIG_INVALID", "configuration exceeds 1 MiB")
 		}
+		worktrace.Add(ctx, "configDecodes", 1)
 		if err = yaml.UnmarshalStrict(raw, &cfg); err != nil {
 			return input, failure("CONFIG_INVALID", err.Error())
 		}
 	}
-	if cfg.SchemaVersion != 1 || (cfg.ReferencePolicy != "open" && cfg.ReferencePolicy != "closed") {
+	if (cfg.SchemaVersion != 1 && cfg.SchemaVersion != 2) || (cfg.ReferencePolicy != "open" && cfg.ReferencePolicy != "closed") {
 		return input, failure("CONFIG_INVALID", "unsupported schemaVersion or referencePolicy")
+	}
+	var presence map[string]any
+	if err == nil {
+		worktrace.Add(ctx, "configDecodes", 1)
+		_ = yaml.UnmarshalStrict(raw, &presence)
+	}
+	if _, present := presence["renderProfiles"]; present && cfg.SchemaVersion == 1 {
+		return input, failure("CONFIG_INVALID", "renderProfiles requires schemaVersion: 2")
+	}
+	if err := validateRenderProfiles(cfg.RenderProfiles); err != nil {
+		return input, failure("CONFIG_INVALID", err.Error())
 	}
 	hash := sha256.Sum256(raw)
 	configHash := hex.EncodeToString(hash[:])
@@ -432,8 +446,13 @@ func match(pattern, name string) bool {
 	}
 	return walk(0, 0)
 }
-func readStable(ctx context.Context, file string, remaining int) ([]byte, error) {
+func readStable(ctx context.Context, file string, remaining int) (data []byte, err error) {
+	finish := worktrace.Read(ctx)
+	defer func() { finish(err) }()
 	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			worktrace.Add(ctx, "readRetries", 1)
+		}
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -458,6 +477,7 @@ func readStable(ctx context.Context, file string, remaining int) ([]byte, error)
 		}
 		b, e := io.ReadAll(io.LimitReader(f, int64(min(remaining, MaxFileText))+1))
 		f.Close()
+		worktrace.ReadBytes(ctx, len(b), e)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -499,7 +519,9 @@ func IsHelmTemplate(root, file string, snapshot source.Snapshot) bool {
 
 // Config input is restricted to bounded regular files. Open buffers bypass this
 // disk path. This does not promise interruption of arbitrary filesystem I/O.
-func readConfig(ctx context.Context, file string) ([]byte, error) {
+func readConfig(ctx context.Context, file string) (data []byte, err error) {
+	finish := worktrace.Read(ctx)
+	defer func() { finish(err) }()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -532,6 +554,7 @@ func readConfig(ctx context.Context, file string) ([]byte, error) {
 		return nil, failure("CONFIG_INVALID", "configuration exceeds 1 MiB")
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, 1024*1024+1))
+	worktrace.ReadBytes(ctx, len(raw), err)
 	if e := ctx.Err(); e != nil {
 		return nil, e
 	}

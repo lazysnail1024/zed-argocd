@@ -37,7 +37,7 @@ cases=[
  ('scope-partial',{'good/app.yaml':APP,'good/project.yaml':PROJECT,'bad/app.yaml':APP.replace('project: team','project: &x [*x]')},2,False,3,2,['YAML_PROJECTION_INCOMPLETE'],{'config':CONFIG+'scopes:\n- name: good\n  include: ["good/**"]\n- name: bad\n  include: ["bad/**"]\n','targetComplete':{'good':True,'bad':False,'unassigned':True}}),
 ]
 try:
- status,identity,_,_=run('identity',['version','--json']);row('identity',{'exit0':status==0,'ready':identity.get('analysisReady') is True,'config':[1]==identity.get('configSchemaVersions'),'report':[1]==identity.get('reportSchemaVersions'),'sourceHonest':all(identity.get(k)==v for k,v in expected.items()),'product':identity.get('product')=='argo-cd','autoIdentity':identity.get('defaultTargetVersion')=='auto','supportWindow':identity.get('supportedVersions')==expected_window},identity)
+ status,identity,_,_=run('identity',['version','--json']);row('identity',{'exit0':status==0,'ready':identity.get('analysisReady') is True,'config':[1,2]==identity.get('configSchemaVersions'),'report':[1]==identity.get('reportSchemaVersions'),'sourceHonest':all(identity.get(k)==v for k,v in expected.items()),'product':identity.get('product')=='argo-cd','autoIdentity':identity.get('defaultTargetVersion')=='auto','supportWindow':identity.get('supportedVersions')==expected_window},identity)
  for name,files,exitcode,complete,count,resources,codes,options in cases:
   files=dict(files)
   if not options.get('noConfig'):files['.argocd-ls.yaml']=options.get('config',CONFIG)

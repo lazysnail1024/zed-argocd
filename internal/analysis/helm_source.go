@@ -85,7 +85,7 @@ func HelmSourceDocuments(ctx context.Context, snapshot source.Snapshot, target s
 	if err != nil {
 		return nil
 	}
-	view, err := yamlview.Parse(ctx, projected)
+	view, err := parseView(ctx, projected, "helm")
 	if err != nil || len(view.Issues()) != 0 {
 		return nil
 	}
@@ -178,7 +178,7 @@ func HelmSourceOwned(ctx context.Context, snapshot source.Snapshot) bool {
 			if err != nil {
 				return false
 			}
-			view, err := yamlview.Parse(ctx, part)
+			view, err := parseView(ctx, part, "helm")
 			if err != nil {
 				return false
 			}

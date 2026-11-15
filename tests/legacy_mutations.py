@@ -17,7 +17,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 # family, mutation, live source, old, new, oracle, exact failing cases
 VARIANTS = [
-    ('schema', 'actual-document', 'internal/analysis/schema.go', 'compiled.Validate(value)', 'compiled.Validate(map[string]any{})', 'cd3_e2e.py', {'project-type', 'missing-value'}),
+    ('schema', 'actual-document', 'internal/analysis/schema.go', 'validateSchema(ctx, compiled, value)', 'validateSchema(ctx, compiled, map[string]any{})', 'cd3_e2e.py', {'project-type', 'missing-value'}),
     ('domain', 'control-plane-namespace', 'internal/analysis/domain.go', 'if options.ControlPlaneNamespace == "" || literal(meta["namespace"]) == options.ControlPlaneNamespace {', 'if true {', 'domain_e2e.py', {'wrong-control-plane'}),
     ('appset', 'dynamic-reference-unknown', 'internal/analysis/domain.go', '&& !unknownRef {', '&& (!unknownRef || true) {', 'appset_e2e.py', {'dynamic-ref-propagates-unknown'}),
     ('workspace', 'explicit-target-precedence', 'internal/workspace/workspace.go', 'if override != "" {', 'if false {', 'workspace_e2e.py', {'override'}),
@@ -33,7 +33,7 @@ VARIANTS = [
 ]
 COUNTS = {'cd3_e2e.py': 8, 'domain_e2e.py': 16, 'appset_e2e.py': 6,
           'workspace_e2e.py': 9, 'lsp_e2e.py': 25, 'candidates_e2e.py': 10,
-          'pin_e2e.py': 3, 'pin_review_e2e.py': 13}
+          'pin_e2e.py': 3, 'pin_review_e2e.py': 14}
 
 
 def sha(path):

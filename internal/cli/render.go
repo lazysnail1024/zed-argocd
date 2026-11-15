@@ -11,6 +11,7 @@ import (
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
+	"github.com/lazysnail1024/zed-argocd/internal/rendercache"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
 	"io"
 	"os"
@@ -23,20 +24,24 @@ import (
 )
 
 type RenderInfo struct {
-	Output       string   `json:"output"`
-	Binary       string   `json:"binary"`
-	BinarySHA256 string   `json:"binarySHA256"`
-	Version      string   `json:"version"`
-	Command      []string `json:"command"`
-	ReleaseName  string   `json:"releaseName"`
-	Namespace    string   `json:"namespace"`
-	KubeVersion  string   `json:"kubeVersion"`
-	APIVersions  []string `json:"apiVersions"`
-	Chart        string   `json:"chart"`
-	Values       string   `json:"values"`
-	Stdout       string   `json:"stdout"`
-	Stderr       string   `json:"stderr"`
-	Exit         int      `json:"exit"`
+	Output       string                         `json:"output"`
+	Directory    string                         `json:"directory"`
+	Profile      string                         `json:"profile"`
+	ValuesFiles  []workspace.RenderFileIdentity `json:"valuesFiles"`
+	Input        *workspace.RenderRequest       `json:"input"`
+	Binary       string                         `json:"binary"`
+	BinarySHA256 string                         `json:"binarySHA256"`
+	Version      string                         `json:"version"`
+	Command      []string                       `json:"command"`
+	ReleaseName  string                         `json:"releaseName"`
+	Namespace    string                         `json:"namespace"`
+	KubeVersion  string                         `json:"kubeVersion"`
+	APIVersions  []string                       `json:"apiVersions"`
+	Chart        string                         `json:"chart"`
+	Values       string                         `json:"values"`
+	Stdout       string                         `json:"stdout"`
+	Stderr       string                         `json:"stderr"`
+	Exit         int                            `json:"exit"`
 }
 type stringFlags []string
 
@@ -81,68 +86,64 @@ func renderCheckContext(parent context.Context, args []string, out, errOut io.Wr
 	target := fs.String("target-version", "", "exact target")
 	chart := fs.String("chart", "", "local chart (default: nearest Chart.yaml)")
 	file := fs.String("file", "", "current source file for chart discovery")
-	values := fs.String("values", "", "local values file")
+	profile := fs.String("profile", "", "named render profile from schemaVersion 2 configuration")
 	helm := fs.String("helm-binary", "", "Helm 3 or 4 binary (default: helm on PATH)")
-	output := fs.String("output", "", "generated directory")
+	output := fs.String("output", "", "generated directory (default: owned user cache)")
 	format := fs.String("format", "human", "json or human")
 	warningsAsErrors := fs.Bool("warnings-as-errors", false, "treat warnings as errors")
 	release := fs.String("release-name", "argo-ls", "release name")
 	namespace := fs.String("namespace", "default", "namespace")
 	kube := fs.String("kube-version", "1.31.0", "Kubernetes version")
-	apis := stringFlags{}
-	fs.Var(&apis, "api-version", "available API version")
+	apis, values := stringFlags{}, stringFlags{}
+	fs.Var(&apis, "api-version", "available API version; repeat to preserve order")
+	fs.Var(&values, "values", "local values file; repeat in Helm precedence order")
 	if fs.Parse(args) != nil || fs.NArg() != 0 {
 		return 2
 	}
-	var ctx context.Context
-	inputSource := "filesystem"
-	fail := func(e error) int {
-		if ctx == nil || ctx.Err() == nil {
-			fmt.Fprintln(errOut, e)
+	if *format != "json" && *format != "human" {
+		fmt.Fprintln(errOut, "format must be json or human")
+		return 2
+	}
+	explicitRoot, conflicting := false, ""
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "root" {
+			explicitRoot = true
+		}
+		switch f.Name {
+		case "chart", "values", "release-name", "namespace", "kube-version", "api-version":
+			conflicting = f.Name
+		}
+	})
+	if *profile != "" && conflicting != "" {
+		fmt.Fprintf(errOut, "--profile cannot be combined with render parameter override --%s\n", conflicting)
+		return 2
+	}
+	signalCtx, stopSignal := signal.NotifyContext(parent, os.Interrupt)
+	defer stopSignal()
+	ctx, cancel := context.WithTimeout(signalCtx, 30*time.Second)
+	defer cancel()
+	fail := func(err error) int {
+		if ctx.Err() == nil {
+			fmt.Fprintln(errOut, err)
 			return 2
 		}
-		reason := "RENDER_CANCELLED"
-		if ctx.Err() == context.DeadlineExceeded {
-			reason = "RENDER_DEADLINE_EXCEEDED"
-		}
-		catalogHash := assets.CatalogHash()
-		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: inputSource, ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: e.Error()}}}
-		if *format == "json" {
-			if writeErr := json.NewEncoder(out).Encode(report); writeErr != nil {
-				fmt.Fprintln(errOut, writeErr)
-			}
-		} else {
-			fmt.Fprintln(errOut, e)
-		}
-		return 3
+		report, exit := renderFailureReport(ctx, err, nil, "filesystem")
+		return writeReport(report, *format, out, errOut, exit)
 	}
-	if *helm == "" {
-		found, e := exec.LookPath("helm")
-		if e != nil {
-			return fail(fmt.Errorf("Helm is unavailable on PATH: %w", e))
-		}
-		*helm = found
-	}
-	if *chart == "" {
-		explicitRoot := false
-		fs.Visit(func(f *flag.Flag) {
-			if f.Name == "root" {
-				explicitRoot = true
-			}
-		})
+	// Retain the existing no-root CLI discovery contract for the default action.
+	if *profile == "" && *chart == "" {
 		if !explicitRoot {
 			start := *file
 			if start == "" {
 				start = "."
 			}
-			start, e := filepath.Abs(start)
-			if e != nil {
-				return fail(e)
+			start, err := filepath.Abs(start)
+			if err != nil {
+				return fail(err)
 			}
-			boundary := filepath.VolumeName(start) + string(filepath.Separator)
-			found, e := workspace.FindChart(boundary, start)
-			if e != nil {
-				return fail(e)
+			found, err := workspace.FindChart(filepath.VolumeName(start)+string(filepath.Separator), start)
+			if err != nil {
+				return fail(err)
 			}
 			*root = found
 			if *file != "" {
@@ -153,217 +154,23 @@ func renderCheckContext(parent context.Context, args []string, out, errOut io.Wr
 		if start == "" {
 			start = "."
 		}
-		found, e := workspace.FindChart(*root, start)
-		if e != nil {
-			return fail(e)
+		found, err := workspace.FindChart(*root, start)
+		if err != nil {
+			return fail(err)
 		}
 		*chart = found
 	}
-	if *format != "json" && *format != "human" {
-		return fail(fmt.Errorf("format must be json or human"))
+	request, err := workspace.ResolveRenderRequest(ctx, workspace.RenderOptions{Root: *root, Scope: *scope, File: *file, Chart: *chart, Profile: *profile, Target: *target, ReleaseName: *release, Namespace: *namespace, KubeVersion: *kube, Values: values, APIVersions: apis})
+	if err != nil {
+		return fail(err)
 	}
-	if !filepath.IsAbs(*helm) {
-		return fail(fmt.Errorf("helm binary must be an explicit absolute path"))
+	report, exit, err := executeRender(ctx, request, *helm, *output, *warningsAsErrors)
+	if err != nil {
+		return fail(err)
 	}
-	signalCtx, stopSignal := signal.NotifyContext(parent, os.Interrupt)
-	defer stopSignal()
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(signalCtx, 30*time.Second)
-	defer cancel()
-	input, e := workspace.Load(ctx, *root, *scope, *file, *target)
-	if e != nil {
-		return fail(e)
-	}
-	if len(input.Targets) != 1 {
-		return fail(fmt.Errorf("select exactly one source scope"))
-	}
-	resolve := func(p string) (string, error) {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(input.Root, p)
-		}
-		p, e := filepath.EvalSymlinks(p)
-		if e != nil {
-			return "", e
-		}
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		rel, e := filepath.Rel(input.Root, p)
-		if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return "", fmt.Errorf("render inputs must stay inside source root")
-		}
-		return p, nil
-	}
-	chartPath, e := resolve(*chart)
-	if e != nil {
-		return fail(e)
-	}
-	valuesPath := ""
-	if *values != "" {
-		valuesPath, e = resolve(*values)
-		if e != nil {
-			return fail(e)
-		}
-	}
-	e = filepath.WalkDir(chartPath, func(p string, d os.DirEntry, e error) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if e != nil {
-			return e
-		}
-		if d.Type()&os.ModeSymlink != 0 {
-			_, e = resolve(p)
-			return e
-		}
-		return nil
-	})
-	if e != nil {
-		return fail(e)
-	}
-	if e := ctx.Err(); e != nil {
-		return fail(e)
-	}
-	temp, e := os.MkdirTemp("", "argocd-helm-environment-")
-	if e != nil {
-		return fail(e)
-	}
-	defer os.RemoveAll(temp)
-	if e := ctx.Err(); e != nil {
-		return fail(e)
-	}
-	env := append(os.Environ(), "HELM_CACHE_HOME="+filepath.Join(temp, "cache"), "HELM_CONFIG_HOME="+filepath.Join(temp, "config"), "HELM_DATA_HOME="+filepath.Join(temp, "data"))
-	var binaryHash string
-	run := func(arguments []string) ([]byte, []byte, int, error) {
-		commandCtx, stop := context.WithCancel(ctx)
-		defer stop()
-		cmd := exec.CommandContext(commandCtx, *helm, arguments...)
-		cmd.Env = env
-		cmd.WaitDelay = 500 * time.Millisecond
-		resume, cleanup, e := prepareCommand(cmd)
-		if e != nil {
-			return nil, nil, -1, e
-		}
-		var once sync.Once
-		terminate := func() error { var err error; once.Do(func() { err = cleanup() }); return err }
-		defer terminate()
-		cmd.Cancel = terminate
-		budget := &outputBudget{remaining: 10 * 1024 * 1024, cancel: stop}
-		stdout, stderr := boundedOutput{budget: budget}, boundedOutput{budget: budget}
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-		e = cmd.Start()
-		if e == nil {
-			if e = resume(); e != nil {
-				_ = cmd.Process.Kill()
-				_ = cmd.Wait()
-			} else {
-				e = cmd.Wait()
-			}
-		}
-		code := -1
-		if cmd.ProcessState != nil {
-			code = cmd.ProcessState.ExitCode()
-		}
-		if budget.exceeded {
-			e = fmt.Errorf("Helm output exceeds 10 MiB")
-		}
-		return stdout.Bytes(), stderr.Bytes(), code, e
-	}
-	renderFailure := func(arguments []string, stdout, stderr []byte, code int, commandErr error) int {
-		exit := 2
-		reason := "RENDER_FAILED"
-		if ctx.Err() != nil {
-			exit = 3
-			reason = "RENDER_CANCELLED"
-			if ctx.Err() == context.DeadlineExceeded {
-				reason = "RENDER_DEADLINE_EXCEEDED"
-			}
-		}
-		catalogHash := assets.CatalogHash()
-		report := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "helm-generated", ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: commandErr.Error()}}, Renderer: &RenderInfo{Binary: *helm, BinarySHA256: binaryHash, Command: append([]string{*helm}, arguments...), Stdout: string(stdout), Stderr: string(stderr), Exit: code}}
-		if *format == "json" {
-			if writeErr := json.NewEncoder(out).Encode(report); writeErr != nil {
-				fmt.Fprintln(errOut, writeErr)
-			}
-		} else {
-			fmt.Fprintln(errOut, commandErr)
-			fmt.Fprint(errOut, string(stderr))
-		}
-		return exit
-	}
-	versionArgs := []string{"version", "--short"}
-	binaryHash, e = rendererHash(ctx, *helm)
-	if e != nil {
-		return renderFailure(versionArgs, nil, nil, -1, e)
-	}
-	versionBytes, versionStderr, versionCode, e := run(versionArgs)
-	if e != nil {
-		return renderFailure(versionArgs, versionBytes, versionStderr, versionCode, e)
-	}
-	version := strings.TrimSpace(string(versionBytes))
-	if !strings.HasPrefix(version, "v3.") && !strings.HasPrefix(version, "v4.") {
-		return fail(fmt.Errorf("Helm 3 or 4 is required; found %s", version))
-	}
-	command := []string{"template", *release, chartPath, "--namespace", *namespace, "--kube-version", *kube, "--include-crds"}
-	if valuesPath != "" {
-		command = append(command, "--values", valuesPath)
-	}
-	for _, api := range apis {
-		command = append(command, "--api-versions", api)
-	}
-	rendered, stderr, code, e := run(command)
-	inputSource = "helm-generated"
-	if e != nil {
-		return renderFailure(command, rendered, stderr, code, e)
-	}
-	if e := ctx.Err(); e != nil {
-		return fail(e)
-	}
-	if *output == "" {
-		*output, e = os.MkdirTemp("", "argocd-render-")
-		if e != nil {
-			return fail(e)
-		}
-	}
-	outputPath, e := filepath.Abs(*output)
-	if e != nil {
-		return fail(e)
-	}
-	if e = os.MkdirAll(outputPath, 0755); e != nil {
-		return fail(e)
-	}
-	generated := filepath.Join(outputPath, "generated.yaml")
-	if info, e := os.Lstat(generated); e == nil && info.Mode()&os.ModeSymlink != 0 {
-		return fail(fmt.Errorf("generated output must not be a symlink"))
-	}
-	if e := ctx.Err(); e != nil {
-		return fail(e)
-	}
-	if e = os.WriteFile(generated, rendered, 0644); e != nil {
-		return fail(e)
-	}
-	report, exit := checkReport(outputPath, "", generated, input.Targets[0].Version, *warningsAsErrors)
-	report.Renderer = &RenderInfo{Output: generated, Binary: *helm, BinarySHA256: binaryHash, Version: version, Command: append([]string{*helm}, command...), ReleaseName: *release, Namespace: *namespace, KubeVersion: *kube, APIVersions: apis, Chart: chartPath, Values: valuesPath, Stdout: string(rendered), Stderr: string(stderr), Exit: code}
-	report.InputSource = "helm-generated"
-	// Keep an inspectable report beside the generated YAML for editor actions.
-	reportBytes, reportErr := json.MarshalIndent(report, "", "  ")
-	if reportErr != nil {
-		return fail(reportErr)
-	}
-	reportPath := filepath.Join(outputPath, "report.json")
-	if info, e := os.Lstat(reportPath); e == nil && (!info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) {
-		return fail(fmt.Errorf("report output must be a regular file"))
-	}
-	if e := os.WriteFile(reportPath, append(reportBytes, '\n'), 0644); e != nil {
-		return fail(e)
-	}
-	if *format == "human" {
-		if _, e = fmt.Fprintf(out, "Helm %s generated %s; analysisComplete=%v\n", version, generated, report.AnalysisComplete); e != nil {
-			fmt.Fprintln(errOut, e)
+	if *format == "human" && report.Renderer != nil && report.Renderer.Output != "" {
+		if _, err := fmt.Fprintf(out, "Helm %s generated %s; analysisComplete=%v\n", report.Renderer.Version, report.Renderer.Output, report.AnalysisComplete); err != nil {
+			fmt.Fprintln(errOut, err)
 			if exit == 3 {
 				return 3
 			}
@@ -371,6 +178,343 @@ func renderCheckContext(parent context.Context, args []string, out, errOut io.Wr
 		}
 	}
 	return writeReport(report, *format, out, errOut, exit)
+}
+
+func renderFailureReport(ctx context.Context, commandErr error, renderer *RenderInfo, inputSource string) (Report, int) {
+	exit, reason := 2, "RENDER_FAILED"
+	if ctx.Err() != nil {
+		exit, reason = 3, "RENDER_CANCELLED"
+		if ctx.Err() == context.DeadlineExceeded {
+			reason = "RENDER_DEADLINE_EXCEEDED"
+		}
+	}
+	catalogHash := assets.CatalogHash()
+	return Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: inputSource, ValidationScope: "local-editing-contract", NotEvaluated: []string{"rendered-analysis"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{{Code: reason, Message: commandErr.Error()}}, Renderer: renderer}, exit
+}
+
+// executeRender is the single CLI/editor rendering path. Collection and resolve
+// only construct RenderRequest; Helm is selected and invoked here, explicitly.
+func executeRender(ctx context.Context, request workspace.RenderRequest, helm, output string, warningsAsErrors bool) (Report, int, error) {
+	// Source acquisition keeps the existing cancellation and scope contract. A
+	// partial or failed workspace read must not launch an external process.
+	if _, err := workspace.Load(ctx, request.Root, request.Target.Scope, request.File, request.Options.Target); err != nil {
+		return Report{}, 2, err
+	}
+	if err := request.Revalidate(ctx); err != nil {
+		return Report{}, 2, err
+	}
+	if output == "" {
+		cache, err := os.UserCacheDir()
+		if err != nil {
+			return Report{}, 2, err
+		}
+		if _, err := renderOutputPath(filepath.Join(cache, "argocd-ls", "render"), request.Chart); err != nil {
+			return Report{}, 2, fmt.Errorf("default render cache placement: %w", err)
+		}
+	}
+	if helm == "" {
+		found, err := exec.LookPath("helm")
+		if err != nil {
+			return Report{}, 2, fmt.Errorf("Helm is unavailable on PATH: %w", err)
+		}
+		helm = found
+	}
+	if !filepath.IsAbs(helm) {
+		return Report{}, 2, fmt.Errorf("helm binary must be an explicit absolute path")
+	}
+	if output != "" {
+		var err error
+		output, err = renderOutputPath(output, request.Chart)
+		if err != nil {
+			return Report{}, 2, err
+		}
+		if err := renderOutputInputs(output, request); err != nil {
+			return Report{}, 2, err
+		}
+	}
+	temp, err := os.MkdirTemp("", "argocd-helm-environment-")
+	if err != nil {
+		return Report{}, 2, err
+	}
+	defer os.RemoveAll(temp)
+	env := append(os.Environ(), "HELM_CACHE_HOME="+filepath.Join(temp, "cache"), "HELM_CONFIG_HOME="+filepath.Join(temp, "config"), "HELM_DATA_HOME="+filepath.Join(temp, "data"))
+	run := func(arguments []string) ([]byte, []byte, int, error) {
+		commandCtx, stop := context.WithCancel(ctx)
+		defer stop()
+		cmd := exec.CommandContext(commandCtx, helm, arguments...)
+		cmd.Env = env
+		cmd.WaitDelay = 500 * time.Millisecond
+		resume, cleanup, err := prepareCommand(cmd)
+		if err != nil {
+			return nil, nil, -1, err
+		}
+		var once sync.Once
+		terminate := func() error { var err error; once.Do(func() { err = cleanup() }); return err }
+		defer terminate()
+		cmd.Cancel = terminate
+		budget := &outputBudget{remaining: 10 * 1024 * 1024, cancel: stop}
+		stdout, stderr := boundedOutput{budget: budget}, boundedOutput{budget: budget}
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		err = cmd.Start()
+		if err == nil {
+			if err = resume(); err != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
+			} else {
+				err = cmd.Wait()
+			}
+		}
+		code := -1
+		if cmd.ProcessState != nil {
+			code = cmd.ProcessState.ExitCode()
+		}
+		if budget.exceeded {
+			err = fmt.Errorf("Helm output exceeds 10 MiB")
+		}
+		return stdout.Bytes(), stderr.Bytes(), code, err
+	}
+	info := &RenderInfo{Binary: helm, ReleaseName: request.ReleaseName, Namespace: request.Namespace, KubeVersion: request.KubeVersion, APIVersions: request.APIVersions, Chart: request.Chart, Profile: request.Profile, ValuesFiles: request.ValuesFiles, Input: &request, Exit: -1}
+	if len(request.ValuesFiles) == 1 {
+		info.Values = request.ValuesFiles[0].Path
+	}
+	failure := func(command []string, stdout, stderr []byte, code int, err error) (Report, int) {
+		info.Command, info.Stdout, info.Stderr, info.Exit = append([]string{helm}, command...), string(stdout), string(stderr), code
+		return renderFailureReport(ctx, err, info, "helm-generated")
+	}
+	versionArgs := []string{"version", "--short"}
+	info.BinarySHA256, err = rendererHash(ctx, helm)
+	if err != nil {
+		report, exit := failure(versionArgs, nil, nil, -1, err)
+		return report, exit, nil
+	}
+	versionBytes, versionStderr, versionCode, err := run(versionArgs)
+	if err != nil {
+		report, exit := failure(versionArgs, versionBytes, versionStderr, versionCode, err)
+		return report, exit, nil
+	}
+	info.Version = strings.TrimSpace(string(versionBytes))
+	if !strings.HasPrefix(info.Version, "v3.") && !strings.HasPrefix(info.Version, "v4.") {
+		return Report{}, 2, fmt.Errorf("Helm 3 or 4 is required; found %s", info.Version)
+	}
+	if err := request.Revalidate(ctx); err != nil {
+		return Report{}, 2, err
+	}
+	currentTool, err := rendererHash(ctx, helm)
+	if err != nil || currentTool != info.BinarySHA256 {
+		return Report{}, 2, fmt.Errorf("Helm executable changed before rendering")
+	}
+	command := []string{"template", request.ReleaseName, request.Chart, "--namespace", request.Namespace, "--kube-version", request.KubeVersion, "--include-crds"}
+	for _, value := range request.ValuesFiles {
+		command = append(command, "--values", value.Path)
+	}
+	for _, api := range request.APIVersions {
+		command = append(command, "--api-versions", api)
+	}
+	var store *rendercache.Store
+	var custom *customRenderOutput
+	if output == "" {
+		store, err = rendercache.Create()
+		if err != nil {
+			return Report{}, 2, err
+		}
+		defer store.Close()
+		output = store.Directory
+		if _, err := renderOutputPath(output, request.Chart); err != nil {
+			return Report{}, 2, fmt.Errorf("default render cache placement changed: %w", err)
+		}
+	} else {
+		custom, err = openCustomRenderOutput(output, request.Chart)
+		if err != nil {
+			return Report{}, 2, err
+		}
+		defer custom.root.Close()
+	}
+	info.Directory = output
+	write := func(name string, data []byte) error {
+		if store != nil {
+			return store.Write(name, data)
+		}
+		return custom.write(name, data)
+	}
+	persist := func(report Report) error {
+		for _, artifact := range []struct {
+			name string
+			data []byte
+		}{{"helm.stdout", []byte(info.Stdout)}, {"helm.stderr", []byte(info.Stderr)}} {
+			if err := write(artifact.name, artifact.data); err != nil {
+				return err
+			}
+		}
+		data, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := write("report.json", append(data, '\n')); err != nil {
+			return err
+		}
+		return nil
+	}
+	seal := func() error {
+		if store != nil {
+			return store.Seal()
+		}
+		return custom.check()
+	}
+	artifactFailure := func(err error) (Report, int, error) {
+		report, exit := renderFailureReport(ctx, fmt.Errorf("retain render evidence: %w", err), info, "helm-generated")
+		return report, exit, nil
+	}
+	rendered, stderr, code, renderErr := run(command)
+	info.Command, info.Stdout, info.Stderr, info.Exit = append([]string{helm}, command...), string(rendered), string(stderr), code
+	if renderErr == nil {
+		renderErr = ctx.Err()
+	}
+	if renderErr == nil {
+		renderErr = request.Revalidate(ctx)
+	}
+	if renderErr == nil {
+		currentTool, err = rendererHash(ctx, helm)
+		if err != nil || currentTool != info.BinarySHA256 {
+			renderErr = fmt.Errorf("Helm executable changed while rendering")
+		}
+	}
+	if renderErr != nil {
+		report, exit := renderFailureReport(ctx, renderErr, info, "helm-generated")
+		if err := persist(report); err != nil {
+			return artifactFailure(err)
+		}
+		if err := seal(); err != nil {
+			return artifactFailure(err)
+		}
+		return report, exit, nil
+	}
+	info.Output = filepath.Join(output, "generated.yaml")
+	if err := write("generated.yaml", rendered); err != nil {
+		// The held output may have moved. Preserve raw evidence in the CLI
+		// report without redirecting any artifact writes to the new pathname.
+		info.Output = ""
+		report, exit := renderFailureReport(ctx, err, info, "helm-generated")
+		return report, exit, nil
+	}
+	report, exit := checkReportContext(ctx, output, "", info.Output, request.Target.Version, warningsAsErrors)
+	report.Renderer, report.InputSource = info, "helm-generated"
+	if err := ctx.Err(); err != nil {
+		report, exit = renderFailureReport(ctx, err, info, "helm-generated")
+	}
+	if err := persist(report); err != nil {
+		return artifactFailure(err)
+	}
+	// Generated analysis and evidence writes are part of the same operation.
+	// Recheck the selected inputs before sealing or reporting success.
+	finalErr := request.Revalidate(ctx)
+	if finalErr == nil {
+		finalTool, err := rendererHash(ctx, helm)
+		if err != nil || finalTool != info.BinarySHA256 {
+			finalErr = fmt.Errorf("Helm executable changed before render publication")
+		}
+	}
+	if finalErr != nil {
+		report, exit = renderFailureReport(ctx, finalErr, info, "helm-generated")
+		if err := persist(report); err != nil {
+			return artifactFailure(err)
+		}
+	}
+	if err := seal(); err != nil {
+		return artifactFailure(err)
+	}
+	return report, exit, nil
+}
+
+// Resolve existing ancestors before creating a custom output directory, so an
+// alias cannot redirect generated files back into the source chart.
+func renderOutputPath(output, chart string) (string, error) {
+	absolute, err := filepath.Abs(output)
+	if err != nil {
+		return "", err
+	}
+	ancestor, suffix := absolute, []string{}
+	for {
+		if _, err := os.Lstat(ancestor); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return "", fmt.Errorf("output has no existing parent")
+		}
+		suffix = append(suffix, filepath.Base(ancestor))
+		ancestor = parent
+	}
+	resolved, err := filepath.EvalSymlinks(ancestor)
+	if err != nil {
+		return "", err
+	}
+	for i := len(suffix) - 1; i >= 0; i-- {
+		resolved = filepath.Join(resolved, suffix[i])
+	}
+	rel, err := filepath.Rel(chart, resolved)
+	if err != nil || rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("render output must be outside the source chart")
+	}
+	return resolved, nil
+}
+
+// Existing regular output leaves may be replaced, but never a render input or
+// a hardlink to one. This also covers values selected outside the chart.
+func renderOutputInputs(output string, request workspace.RenderRequest) error {
+	for _, name := range []string{"generated.yaml", "helm.stdout", "helm.stderr", "report.json"} {
+		path := filepath.Join(output, name)
+		info, err := os.Lstat(path)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if info != nil && (!info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) {
+			return fmt.Errorf("render output must be a regular file: %s", name)
+		}
+		for _, input := range request.Inputs {
+			if path == input.Path {
+				return fmt.Errorf("render output would overwrite a selected input: %s", name)
+			}
+			if info != nil {
+				other, _ := os.Stat(input.Path)
+				if other != nil && os.SameFile(info, other) {
+					return fmt.Errorf("render output aliases a selected input: %s", name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func renderCache(args []string, out, errOut io.Writer) int {
+	flags := flag.NewFlagSet("render-cache", flag.ContinueOnError)
+	flags.SetOutput(errOut)
+	remove := flags.String("remove", "", "explicit verified default-cache directory to remove")
+	if flags.Parse(args) != nil || flags.NArg() != 0 {
+		return 2
+	}
+	if *remove != "" {
+		if err := rendercache.Remove(*remove); err != nil {
+			fmt.Fprintln(errOut, err)
+			return 2
+		}
+		if err := json.NewEncoder(out).Encode(map[string]any{"removed": *remove}); err != nil {
+			fmt.Fprintln(errOut, err)
+			return 2
+		}
+		return 0
+	}
+	entries, err := rendercache.List()
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	if err := json.NewEncoder(out).Encode(map[string]any{"entries": entries}); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 2
+	}
+	return 0
 }
 
 // Renderer provenance is acquired once from a regular file before execution.

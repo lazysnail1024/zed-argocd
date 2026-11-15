@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"context"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"strings"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
@@ -27,6 +28,7 @@ func projectValues(ctx context.Context, snapshot source.Snapshot, doc yamlview.D
 }
 
 func projectValuesWithin(ctx context.Context, snapshot source.Snapshot, doc yamlview.Document, allowance int) (projectedValue, error) {
+	defer worktrace.Measure(ctx, "projectionCalls", "projectionNs")()
 	projected, err := yamlvalue.Project(ctx, snapshot, doc, yamlvalue.Options{MaxNodes: allowance, Fields: []string{"apiVersion", "kind"}})
 	api, kind := projected.Fields["apiVersion"], projected.Fields["kind"]
 	ownedKind := kind == "Application" || kind == "AppProject" || kind == "ApplicationSet"

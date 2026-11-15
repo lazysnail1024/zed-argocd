@@ -13,6 +13,7 @@ import (
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 )
 
 func queryURI(m message) string {
@@ -207,9 +208,16 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	}
 	for _, scope := range local.scopes {
 		for _, previous := range scope.files {
-			if previous.Snapshot.URI() == snapshot.URI() && previous.Target == file.Target && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
+			// Discovery completeness is not part of this file's schema identity.
+			// Reuse only intrinsic checked data; current scope completeness,
+			// dependencies and delivery proof are still derived below.
+			priorTarget, currentTarget := previous.Target, file.Target
+			priorTarget.Complete, currentTarget.Complete = false, false
+			if previous.Snapshot.URI() == snapshot.URI() && priorTarget == currentTarget && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
 				if value, ok := scope.checked[snapshot.URI()]; ok {
 					checked, reused = value, true
+					worktrace.Add(ctx, "factsRestored", int64(len(value.Documents)))
+					worktrace.Add(ctx, "resultCacheHits", 1)
 				}
 			}
 		}
@@ -240,7 +248,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	summary := analysis.Summarize(checked.Documents, catalog.Input.Config.ControlPlaneNamespace)
 	selected := &indexedFile{uri: source.URI(workspace.FileURI(path)), path: path, spelling: string(snapshot.URI()), root: catalog.Input.Root, target: file.Target, hash: sha256.Sum256([]byte(snapshot.Text())), summary: summary}
 	allProjects := m.Method == "textDocument/completion" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
-	references := m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
+	references := m.Method == analysisStatusMethod || m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	var candidates *index.SymbolQueryResult
 	var candidateGeneration uint64
 	if allProjects {

@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
@@ -48,7 +46,7 @@ type Report struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		if _, err := fmt.Fprintln(out, "argocd-ls (development)\nCommands:\n  version [--json]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint."); err != nil {
+		if _, err := fmt.Fprintln(out, "argocd-ls (development)\nCommands:\n  version [--json]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human]\n  explain-compatibility --file PATH [--root DIR] [--target-version VERSION]\n  render-check [--root DIR] [--file PATH] [--profile NAME] [--values PATH ...]\n  render-cache [--remove DIRECTORY]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint."); err != nil {
 			fmt.Fprintln(errOut, err)
 			return 2
 		}
@@ -76,6 +74,10 @@ func Run(args []string, out, errOut io.Writer) int {
 		return 0
 	case "explain-config":
 		return explainConfig(args[1:], out, errOut)
+	case "explain-compatibility":
+		return explainCompatibility(args[1:], out, errOut)
+	case "render-cache":
+		return renderCache(args[1:], out, errOut)
 	case "render-check":
 		return renderCheck(args[1:], out, errOut)
 	case "check":
@@ -91,22 +93,22 @@ func Run(args []string, out, errOut io.Writer) int {
 			fmt.Fprintln(errOut, "serve requires --stdio")
 			return 2
 		}
-		return lsp.Run(os.Stdin, out, errOut, func(ctx context.Context, root, file, target string) (lsp.RenderResult, error) {
-			var output, errors bytes.Buffer
-			args := []string{"--root", root, "--file", file, "--format", "json"}
-			if target != "" {
-				args = append(args, "--target-version", target)
+		return lsp.Run(os.Stdin, out, errOut, func(ctx context.Context, request workspace.RenderRequest) (lsp.RenderResult, error) {
+			report, exit, err := executeRender(ctx, request, "", "", false)
+			if err != nil {
+				return lsp.RenderResult{}, err
 			}
-			exit := renderCheckContext(ctx, args, &output, &errors)
-			var report Report
-			if err := json.Unmarshal(output.Bytes(), &report); err != nil || exit >= 2 || report.Renderer == nil {
-				message := strings.TrimSpace(errors.String())
-				if message == "" {
-					message = fmt.Sprintf("render-check failed with exit %d: %s", exit, output.String())
+			if exit >= 2 || report.Renderer == nil {
+				reason := fmt.Sprintf("render-check failed with exit %d", exit)
+				if len(report.ConfigurationErrors) > 0 {
+					reason += ": " + report.ConfigurationErrors[0].Message
 				}
-				return lsp.RenderResult{}, fmt.Errorf("%s", message)
+				if report.Renderer != nil && report.Renderer.Directory != "" {
+					reason += "; retained evidence: " + report.Renderer.Directory
+				}
+				return lsp.RenderResult{}, fmt.Errorf("%s", reason)
 			}
-			return lsp.RenderResult{Output: report.Renderer.Output, Report: filepath.Join(filepath.Dir(report.Renderer.Output), "report.json"), Message: fmt.Sprintf("Argo CD render-check: analysisComplete=%v, %d diagnostics. Generated YAML: %s; report: %s", report.AnalysisComplete, len(report.Diagnostics), report.Renderer.Output, filepath.Join(filepath.Dir(report.Renderer.Output), "report.json"))}, nil
+			return lsp.RenderResult{Output: report.Renderer.Output, Report: filepath.Join(report.Renderer.Directory, "report.json"), Message: fmt.Sprintf("Argo CD render-check: analysisComplete=%v, %d diagnostics. Generated YAML: %s; report: %s", report.AnalysisComplete, len(report.Diagnostics), report.Renderer.Output, filepath.Join(report.Renderer.Directory, "report.json"))}, nil
 		})
 	default:
 		fmt.Fprintf(errOut, "Unknown or unimplemented command %q. Run argocd-ls help.\n", args[0])
@@ -135,10 +137,14 @@ func check(args []string, out, errOut io.Writer) int {
 }
 
 func checkReport(root, scope, file, target string, warningsAsErrors bool) (Report, int) {
+	return checkReportContext(context.Background(), root, scope, file, target, warningsAsErrors)
+}
+
+func checkReportContext(parent context.Context, root, scope, file, target string, warningsAsErrors bool) (Report, int) {
 	start := time.Now()
 	catalogHash := assets.CatalogHash()
 	r := Report{ReportSchemaVersion: 1, Product: buildinfo.Product, ToolVersion: buildinfo.ServerVersion, CatalogHash: &catalogHash, InputSource: "filesystem", ValidationScope: "local-editing-contract", NotEvaluated: []string{"controller-admission-and-runtime", "source-hydration", "helm-value-file-expansion", "template-function-availability", "templatePatch-effects", "controller-generators", "complex-project-policy", "CEL"}, Targets: []workspace.Target{}, Diagnostics: []analysis.Diagnostic{}, ConfigurationErrors: []ConfigError{}}
-	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt)
+	signalCtx, stopSignal := signal.NotifyContext(parent, os.Interrupt)
 	defer stopSignal()
 	ctx, cancel := context.WithTimeout(signalCtx, 5*time.Second)
 	defer cancel()
@@ -306,7 +312,7 @@ func explainConfig(args []string, out, errOut io.Writer) int {
 		}
 		return 2
 	}
-	if e = json.NewEncoder(out).Encode(map[string]any{"product": buildinfo.Product, "schemaVersion": 1, "root": input.Root, "config": input.Config, "targets": input.Targets, "analysisReady": buildinfo.Current().AnalysisReady}); e != nil {
+	if e = json.NewEncoder(out).Encode(map[string]any{"product": buildinfo.Product, "schemaVersion": 1, "root": input.Root, "config": input.Config, "targets": input.Targets, "analysisReady": buildinfo.Current().AnalysisReady, "inputSource": "disk", "coverage": "configuration-only", "workspaceDiscoveryComplete": input.Complete}); e != nil {
 		fmt.Fprintln(errOut, e)
 		return 2
 	}

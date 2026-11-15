@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"io"
 	"net/url"
 	"path"
@@ -28,12 +29,14 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	defer worktrace.Measure(ctx, "domainPasses", "domainNs")()
 	projects := map[string][]Document{}
 	projectDocuments := []Document{}
 	for _, doc := range documents {
 		if ctx.Err() != nil {
 			return diagnostics
 		}
+		worktrace.Add(ctx, "domainResources", 1)
 		if doc.Kind != "AppProject" {
 			continue
 		}
@@ -73,7 +76,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 			if options.ControlPlaneNamespace == "" {
 				emit([]string{"spec", "project"}, "CD_PROJECT_NAMESPACE_UNBOUND", 3, "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml")
 			} else if len(candidates) > 1 {
-				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Project policy and reverse references require an unambiguous control-plane namespace. Set controlPlaneNamespace in .argocd-ls.yaml (for example, controlPlaneNamespace: argocd); use the namespace containing AppProject, not the Application namespace")
+				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Multiple AppProject declarations with this name exist in the configured control-plane namespace. Resolve duplicate declarations within this scope before project policy or reverse references can be established.")
 			} else if len(candidates) == 0 {
 				severity := 3
 				if options.ReferencePolicy == "closed" && options.Complete {

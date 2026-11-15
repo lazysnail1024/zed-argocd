@@ -8,6 +8,7 @@ Installation and release instructions describe published artifacts. Development 
 | Build, update dependencies and run checks | [Development](../DEVELOPMENT.md) |
 | Module ownership, data flow, budgets and shared-library boundaries | [Architecture](architecture.md) |
 | Required native, semantic, resource and editor checks; CI evidence replay | [Test contracts](../tests/README.md) |
+| Opt-in actual-work counters, queue/cancellation timing and performance gates | [Performance measurement](performance.md) |
 | Automatic targets, explicit configuration and reference policy | [Configuration](configuration.md) |
 | Bundled version catalog, schema behavior and compatibility limits | [Version support](multi-version-support.md) |
 | Native server and Zed adapter installation, release and rollback | [Distribution](distribution.md) |

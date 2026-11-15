@@ -116,12 +116,16 @@ def main():
         executable_root, executable_packed = out / "native-executable-input", out / "native-executable-packed"
         executable_root.mkdir()
         executable = Path(sys.executable).resolve()
-        executable_hash, observed_modes = digest(executable), {}
+        executable_hash, observed_modes, observed_times = digest(executable), {}, {}
         for suffix in (".exe", ".bin"):
             target = executable_root / ("python-copy" + suffix)
             shutil.copy2(executable, target)
             with target.open("rb") as stream:
-                observed_modes[target.name] = {"path": target.lstat().st_mode, "descriptor": os.fstat(stream.fileno()).st_mode}
+                path_info, descriptor_info = target.lstat(), os.fstat(stream.fileno())
+                observed_modes[target.name] = {"path": path_info.st_mode, "descriptor": descriptor_info.st_mode}
+                observed_times[target.name] = {
+                    api: {"ctime_ns": info.st_ctime_ns, "birthtime_ns": getattr(info, "st_birthtime_ns", None)}
+                    for api, info in (("path", path_info), ("descriptor", descriptor_info))}
         invoke("pack-native-executable", ["pack", "--root", executable_root, "--output", executable_packed])
         invoke("verify-native-executable", ["verify", "--manifest", executable_packed / "manifest.json"])
         executable_manifest = json.loads((executable_packed / "manifest.json").read_text(encoding="utf-8"))
@@ -130,7 +134,8 @@ def main():
                              "realInterpreterBytes": all(record["sha256"] == executable_hash for record in executable_records),
                              "pathModesPreserved": all(record["mode"] == stat.S_IMODE(observed_modes[Path(record["name"]).name]["path"]) for record in executable_records)}
         rows.append({"id": "native-executable-mode-semantics", "checks": executable_checks,
-                     "observedModes": observed_modes, "passed": all(executable_checks.values())})
+                     "observedModes": observed_modes, "observedTimes": observed_times,
+                     "passed": all(executable_checks.values())})
         for phase, mutation in (("before", "size"), ("before", "mtime"), ("before", "mode"), ("before", "identity"),
                                 ("during", "size"), ("during", "mtime"), ("during", "mode")):
             name = "guard-" + phase + "-" + mutation

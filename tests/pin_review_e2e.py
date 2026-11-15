@@ -17,6 +17,8 @@ def case(name,text,selection,expected=None,override='',files=None,forbid=False,l
 
 t='# \u524d\u8a00 😀\r\nschemaVersion: 1\r\ntargetVersion: "3.5.6" # \u4fdd\u7559 😀\r\ncontrolPlaneNamespace: argocd\r\n'
 case('quoted-crlf-unicode',t,'"3.5.6"',t.replace('"3.5.6"','"3.0.0"'),'3.0.0')
+t='schemaVersion: 2\ntargetVersion: "3.5.6" # retain target comment\nrenderProfiles:\n  dev:\n    chart: charts/demo\n    values: [env/common.yaml, env/dev.yaml, env/common.yaml] # exact order\n    releaseName: sample\n    apiVersions: [example.org/v1/Widget]\n'
+case('schema-v2-profile-bytes-preserved',t,'"3.5.6"',t.replace('"3.5.6"','"3.0.0"'),'3.0.0')
 t='schemaVersion: 1\ntargetVersion: "3.0.0"\nscopes:\n  - name: development\n    targetVersion: "3.5.6"\n    include: ["dev/**"]\n  - include:\n      - "apps/**"\n      - "extra/**"\n    name: "\u751f\u4ea7😀" # keep exactly\n'
 case('second-scope-nested-includes',t,'"\u751f\u4ea7😀"',t+'    targetVersion: "3.0.0"\n',persisted='\u751f\u4ea7😀')
 t='schemaVersion: 1\ntargetVersion: "3.0.0"\nscopes:\n- name: prod # keep\n  include:\n  - "apps/**"\n'

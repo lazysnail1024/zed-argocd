@@ -14,6 +14,7 @@ import (
 	"github.com/lazysnail1024/zed-argocd/internal/analysis"
 	"github.com/lazysnail1024/zed-argocd/internal/buildinfo"
 	"github.com/lazysnail1024/zed-argocd/internal/workspace"
+	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,8 +35,9 @@ type message struct {
 	Params json.RawMessage `json:"params"`
 }
 type incoming struct {
-	message message
-	err     error
+	received time.Time
+	message  message
+	err      error
 }
 type buffer struct {
 	uri         string
@@ -70,24 +72,29 @@ type scopeResult struct {
 }
 
 type pendingQuery struct {
+	work *worktrace.Recorder
 	ctx  context.Context
 	stop context.CancelFunc
 }
 
 type queryResult struct {
-	proof          *readProof
-	symbolProof    *symbolReadProof
-	editGeneration *uint64 // Configuration pin proofs cover the complete workspace.
-	trace          string
-	ctx            context.Context
-	id             json.RawMessage
-	epoch          uint64
-	answer         any
-	code           int
-	why            string
+	refusal         *analysis.Refusal
+	showExplanation bool
+	proof           *readProof
+	symbolProof     *symbolReadProof
+	editGeneration  *uint64 // Configuration pin proofs cover the complete workspace.
+	trace           string
+	ctx             context.Context
+	id              json.RawMessage
+	epoch           uint64
+	answer          any
+	code            int
+	why             string
 }
 
 type completed struct {
+	work                *worktrace.Recorder
+	refusal             *analysis.Refusal // Request-local guard explanation; never retained by the index.
 	candidatesTruncated bool
 	more                bool
 	incremental         *workspaceIndex
@@ -124,6 +131,21 @@ type completed struct {
 }
 
 func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
+	var traceWriter io.Writer
+	if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+		writer := &worktrace.Writer{Out: errOut}
+		defer writer.Close()
+		errOut = writer
+		traceWriter = errOut
+	}
+	var workSequence uint64
+	newWork := func(ctx context.Context, origin, method string, id json.RawMessage, received time.Time) (context.Context, *worktrace.Recorder) {
+		if traceWriter == nil {
+			return ctx, nil
+		}
+		workSequence++
+		return worktrace.New(ctx, traceWriter, workSequence, origin, method, id, received)
+	}
 	var renderer Renderer
 	if len(renderers) > 0 {
 		renderer = renderers[0]
@@ -137,8 +159,12 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		reader := bufio.NewReader(in)
 		for {
 			m, e := readMessage(reader)
+			var received time.Time
+			if traceWriter != nil {
+				received = time.Now()
+			}
 			select {
-			case messages <- incoming{m, e}:
+			case messages <- incoming{message: m, err: e, received: received}:
 			case <-done:
 				return
 			}
@@ -161,6 +187,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	}()
 	buffers := map[string]buffer{}
 	workspaceState := newWorkspaceIndex()
+	compatibility := new(analysis.CompatibilityAnalyzer)
 	defer workspaceState.close()
 	workEvents := workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 	diskGenerations := map[string]uint64{}
@@ -173,6 +200,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	shutdown := false
 	canEdit := false
 	canWatch := false
+	canShowDocument := false
+	canExplainAction := false
 	override := ""
 	var cancel, cancelDocument context.CancelFunc
 	var latest completed
@@ -229,9 +258,13 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	reply := func(id json.RawMessage, value any) {
 		_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "result": value})
 	}
-	reject := func(id json.RawMessage, code int, why string) {
+	reject := func(id json.RawMessage, code int, why string, details ...any) {
 		if len(id) > 0 {
-			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": why}})
+			failure := map[string]any{"code": code, "message": why}
+			if len(details) > 0 && details[0] != nil {
+				failure["data"] = details[0]
+			}
+			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": failure})
 		}
 	}
 	var active, pending, documentActive, documentPending bool
@@ -314,11 +347,20 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		if documentPending && !documentActive {
 			documentPending, documentActive = false, true
 			ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, work := newWork(ctx, "document-background", "", nil, time.Time{})
 			cancelDocument = stop
 			previous := documents
 			go func() {
 				defer stop()
+				work.Start()
 				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous, "")
+				local.work = work
+				work.Finish()
+				if ctx.Err() != nil {
+					work.Complete("cancelled")
+				} else {
+					work.Complete("finished")
+				}
 				select {
 				case results <- local:
 				case <-done:
@@ -330,12 +372,21 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		}
 		pending, active = false, true
 		ctx, stop := context.WithCancel(context.Background())
+		ctx, work := newWork(ctx, "workspace-background", "", nil, time.Time{})
 		cancel = stop
 		events := workEvents
 		workEvents = workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 		go func() {
 			defer stop()
+			work.Start()
 			result := workspaceState.advance(ctx, current, copyRoots, copyBuffers, selected, events)
+			result.work = work
+			work.Finish()
+			if ctx.Err() != nil {
+				work.Complete("cancelled")
+			} else {
+				work.Complete("finished")
+			}
 			select {
 			case results <- result:
 			case <-done:
@@ -361,14 +412,27 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		case r := <-rendered:
 			renderBusy = false
 			if request, ok := requests[string(r.id)]; ok && request.ctx == r.ctx {
+				// Some clients show only a generic execute-command error. Surface
+				// the concrete saved-input refusal for this explicit preflight,
+				// before any rendering proof exists. Cancelled or obsolete render
+				// completions must not produce a later notification.
+				preflightNotice := r.err != nil && r.proof == nil && r.ctx.Err() == nil
+				if r.err == nil && !r.proof.valid(r.ctx, buffers, roots, override, workspaceState.renderEvents(roots)) {
+					r.err = fmt.Errorf("render inputs changed while running; request a fresh render action")
+				}
 				request.stop()
 				delete(requests, string(r.id))
 				if r.err != nil {
 					reject(r.id, -32803, r.err.Error())
+					if preflightNotice {
+						_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 2, "message": "Argo CD render-check: " + r.err.Error()}})
+					}
 				} else {
 					reply(r.id, r.result)
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": r.result.Message}})
-					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-render-output", "method": "window/showDocument", "params": map[string]any{"uri": workspace.FileURI(r.result.Output), "takeFocus": true}})
+					if canShowDocument {
+						_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-render-output", "method": "window/showDocument", "params": map[string]any{"uri": workspace.FileURI(r.result.Output), "takeFocus": true}})
+					}
 				}
 			}
 
@@ -384,13 +448,22 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			request.stop()
 			delete(requests, key)
 			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
-				reject(q.id, -32801, "analysis changed")
+				reject(q.id, -32801, "analysis changed", analysis.Refuse("STALE_INPUT", "analysis changed"))
+				request.work.Reply("stale")
 				continue
 			}
 			if q.code != 0 {
-				reject(q.id, q.code, q.why)
+				reject(q.id, q.code, q.why, q.refusal)
+				request.work.Reply("refused")
 			} else {
 				reply(q.id, q.answer)
+				request.work.Reply("delivered")
+				if status, ok := q.answer.(analysisStatus); ok && q.showExplanation {
+					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": status.message()}})
+				}
+				if report, ok := q.answer.(analysis.CompatibilityReport); ok && q.showExplanation {
+					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": report.Message()}})
+				}
 			}
 		case result := <-results:
 			if result.documentOnly {
@@ -412,6 +485,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			}
 
 			if result.epoch != epoch || shutdown {
+				result.work.Publish("discarded")
 				if !shutdown && !result.documentOnly && len(result.publications) > 0 {
 					for _, clear := range workspaceState.retryPublications(result.publications, buffers) {
 						publish(map[string]any{"uri": clear.uri, "diagnostics": clear.diagnostics})
@@ -427,6 +501,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				continue
 			}
+			result.work.Publish("accepted")
 			if result.documentOnly {
 				if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 					trace, _ := json.Marshal(result.stats)
@@ -515,6 +590,16 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				var p struct {
 					Capabilities struct {
+						Window struct {
+							ShowDocument struct {
+								Support bool `json:"support"`
+							} `json:"showDocument"`
+						} `json:"window"`
+						TextDocument struct {
+							CodeAction struct {
+								LiteralSupport json.RawMessage `json:"codeActionLiteralSupport"`
+							} `json:"codeAction"`
+						} `json:"textDocument"`
 						Workspace struct {
 							DidChangeWatchedFiles struct {
 								DynamicRegistration bool `json:"dynamicRegistration"`
@@ -554,6 +639,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
+				canShowDocument = p.Capabilities.Window.ShowDocument.Support
+				canExplainAction = len(p.Capabilities.TextDocument.CodeAction.LiteralSupport) > 0 && string(p.Capabilities.TextDocument.CodeAction.LiteralSupport) != "null"
 				capabilities := map[string]any{
 					"textDocumentSync":        map[string]any{"openClose": true, "change": 2, "save": true},
 					"hoverProvider":           true,
@@ -566,13 +653,17 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
 					},
 				}
-				if canEdit {
+				commands := []string{explainCommand, compatibilityCommand}
+				if canEdit || canExplainAction {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+				}
+				if canEdit {
 					if renderer != nil {
-						capabilities["executeCommandProvider"] = map[string]any{"commands": []string{renderCommand}}
+						commands = append(commands, renderCommand)
 					}
 					capabilities["renameProvider"] = map[string]any{"prepareProvider": true}
 				}
+				capabilities["executeCommandProvider"] = map[string]any{"commands": commands}
 				reply(m.ID, map[string]any{
 					"capabilities": capabilities,
 					"serverInfo":   map[string]any{"name": "argocd-ls", "version": buildinfo.ServerVersion},
@@ -586,6 +677,49 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			if shutdown {
 				reject(m.ID, -32600, "server is shut down")
 				continue
+			}
+			showExplanation := false
+			if m.Method == "workspace/executeCommand" {
+				converted, refusal, handled := explainRequest(m, buffers)
+				if handled && refusal != nil {
+					reject(m.ID, -32801, refusal.Message, refusal)
+					continue
+				}
+				if handled {
+					m, showExplanation = converted, true
+				}
+			}
+			if m.Method == "codeAction/resolve" {
+				var envelope struct {
+					Command json.RawMessage `json:"command"`
+				}
+				if json.Unmarshal(m.Params, &envelope) == nil && len(envelope.Command) > 0 {
+					_, refusal, handled := explainRequest(message{Params: envelope.Command}, buffers)
+					if handled {
+						if refusal != nil {
+							reject(m.ID, -32801, refusal.Message, refusal)
+						} else {
+							reply(m.ID, json.RawMessage(m.Params))
+						}
+						continue
+					}
+				}
+			}
+			if m.Method == analysisStatusMethod || m.Method == compatibilityMethod {
+				b, opened := buffers[queryURI(m)]
+				if !opened || b.unavailable != "" {
+					refusal := analysis.Refuse("INPUT_UNAVAILABLE", "editor analysis status requires an accepted open buffer")
+					reject(m.ID, -32602, refusal.Message, refusal)
+					continue
+				}
+			}
+			var extraActions []any
+			if canExplainAction && m.Method == "textDocument/codeAction" {
+				extraActions = explainActions(m, buffers, roots)
+				if len(extraActions) > 0 && explainOnly(m) {
+					reply(m.ID, extraActions)
+					continue
+				}
 			}
 			switch m.Method {
 			case "initialized":
@@ -885,7 +1019,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 30*time.Second)
-				requests[string(m.ID)] = pendingQuery{ctx, stop}
+				requests[string(m.ID)] = pendingQuery{ctx: ctx, stop: stop}
 				renderBusy = true
 				copied := map[string]buffer{}
 				for uri, b := range buffers {
@@ -893,22 +1027,23 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				selectedRoots := append([]string(nil), roots...)
 				target := override
+				renderEvents := workspaceState.renderEvents(selectedRoots)
 				go func() {
-					result, err := renderSaved(ctx, renderer, params.Arguments[0], copied, selectedRoots, target)
+					result, proof, err := renderSaved(ctx, renderer, params.Arguments[0], copied, selectedRoots, target, renderEvents)
 					select {
-					case rendered <- renderResponse{ctx, m.ID, result, err}:
+					case rendered <- renderResponse{ctx, m.ID, result, proof, err}:
 					case <-done:
 					}
 				}()
 
-			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
+			case analysisStatusMethod, compatibilityMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
 					continue
 				}
 				slots := readSlots
-				if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+				if m.Method == analysisStatusMethod || m.Method == compatibilityMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
 					slots = editSlots
 				}
 				select {
@@ -918,7 +1053,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					continue
 				}
 				ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
-				requests[key] = pendingQuery{ctx, stop}
+				ctx, work := newWork(ctx, "request", m.Method, m.ID, event.received)
+				requests[key] = pendingQuery{ctx: ctx, stop: stop, work: work}
 				input, localInput, current := latest, documents, epoch
 				selected := override
 				var queryRoots []string
@@ -936,7 +1072,12 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				editable := canEdit
 				go func() {
-					defer func() { <-slots }()
+					work.Start()
+					terminal := "finished"
+					defer func() {
+						<-slots
+						work.Release(terminal)
+					}()
 					var proof *readProof
 					var symbolProof *symbolReadProof
 					var editProof *uint64
@@ -944,7 +1085,26 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					var answer any
 					var code int
 					var why string
-					if m.Method == "workspace/symbol" {
+					if m.Method == compatibilityMethod {
+						var err error
+						var compatibilityTrace io.Writer
+						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+							compatibilityTrace = &trace
+						}
+						answer, input, err = explainCompatibility(ctx, compatibility, m, localInput, copied, queryRoots, selected, compatibilityTrace)
+						if err != nil {
+							code, why, input.refusal = -32803, err.Error(), analysis.ExplainRefusal(err)
+						} else {
+							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+							if proof != nil {
+								proof.localize(queryURI(m))
+							}
+						}
+					} else if m.Method == analysisStatusMethod {
+						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
+						answer = workspaceState.explainAnalysis(ctx, m, &input, copied, queryRoots, editable)
+						proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+					} else if m.Method == "workspace/symbol" {
 						var params struct {
 							Query string `json:"query"`
 						}
@@ -981,7 +1141,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								input.scopes[i].options.Trace = &trace
 							}
 						}
-						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected)
+						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected, workspaceState.renderEvents(queryRoots))
 						if code == 0 {
 							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
 							if proof != nil && localFixAnswer(m, answer) {
@@ -991,6 +1151,16 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								generation := input.editGeneration
 								editProof = &generation
 							}
+						}
+						if len(extraActions) > 0 {
+							if actions, ok := answer.([]any); code == 0 && ok {
+								answer = append(actions, extraActions...)
+							} else if code == -32801 {
+								answer, code, why = extraActions, 0, ""
+							}
+						}
+						if code == -32801 {
+							input.refusal = analysis.Refuse("STALE_INPUT", why)
 						}
 					} else {
 						fresh := workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
@@ -1011,8 +1181,15 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					if ctx.Err() != nil {
 						code, why = -32800, "request cancelled"
 					}
+					if code != 0 {
+						terminal = "refused"
+					}
+					if ctx.Err() != nil {
+						terminal = "cancelled"
+					}
+					work.Finish()
 					select {
-					case queries <- queryResult{proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
+					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()
@@ -1023,9 +1200,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				if json.Unmarshal(m.Params, &p) == nil {
 					key := string(p.ID)
 					if request, ok := requests[key]; ok {
+						request.work.Cancel()
 						request.stop()
 						delete(requests, key)
 						reject(p.ID, -32800, "request cancelled")
+						request.work.Reply("cancelled")
 					}
 				}
 			case "$/setTrace":
@@ -1265,6 +1444,8 @@ rootLoop:
 						// sharing this acquisition's equal whole-root path facts.
 						old.options.LocalPaths = input.LocalPaths
 						result.scopes = append(result.scopes, old)
+						worktrace.Add(ctx, "factsRestored", int64(len(old.documents)))
+						worktrace.Add(ctx, "resultCacheHits", 1)
 						// Keep the completed input and reused documents on the same
 						// immutable snapshots after exact fresh-text comparison.
 						for _, f := range old.files {
@@ -1327,6 +1508,8 @@ rootLoop:
 					if oldFile, ok := priorFiles[f.Snapshot.URI()]; ok && sameFile(oldFile, f) {
 						if old, ok := priorScope.checked[f.Snapshot.URI()]; ok && analyzer.ReuseProjections(old.Documents) {
 							checked = old
+							worktrace.Add(ctx, "factsRestored", int64(len(old.Documents)))
+							worktrace.Add(ctx, "resultCacheHits", 1)
 							reusedFile = true
 						} else if documentOnly && documentURI == "" && previous.documentOnly {
 							if publication, ok := oldPublications[uri]; ok {
@@ -1567,7 +1750,11 @@ func replacementEdit(snapshot source.Snapshot, span source.Span, text string) an
 	return analysis.TextEdit{Range: analysis.Range{Start: analysis.Position{Line: a.Line, Character: a.UTF16Column}, End: analysis.Position{Line: b.Line, Character: b.UTF16Column}}, NewText: text}
 }
 
-func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string) (any, int, string) {
+func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string, eventMaps ...map[string]uint64) (any, int, string) {
+	events := map[string]uint64{}
+	if len(eventMaps) > 0 {
+		events = eventMaps[0]
+	}
 	if m.Method == "codeAction/resolve" {
 		var action struct {
 			Command struct {
@@ -1580,14 +1767,11 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 				return nil, -32602, "invalid render action"
 			}
 			arg := action.Command.Arguments[0]
-			b, open := buffers[arg.URI]
-			if !open || b.version != arg.Version {
-				return nil, -32801, "render action is stale"
+			request, err := renderCurrent(ctx, arg, buffers, roots, override, events, false)
+			if err != nil {
+				return nil, -32801, err.Error()
 			}
-			if fresh, ok := renderAction(ctx, arg.URI, buffers, roots); ok {
-				return fresh, 0, ""
-			}
-			return nil, -32801, "render source is no longer available"
+			return renderAction(request, arg), 0, ""
 		}
 	}
 	if result, status, message, handled := pinRequest(ctx, m, latest, buffers, epoch, canEdit, roots, override); handled {
@@ -1615,9 +1799,7 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 			return []any{}, 0, ""
 		}
 		actions := []any{}
-		if action, ok := renderAction(ctx, p.TextDocument.URI, buffers, roots); ok {
-			actions = append(actions, action)
-		}
+		actions = append(actions, renderActions(ctx, p.TextDocument.URI, buffers, roots, override, events)...)
 		for _, scope := range latest.scopes {
 			for _, doc := range scope.documents {
 				if string(doc.Snapshot.URI()) != p.TextDocument.URI {

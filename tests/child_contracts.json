@@ -3612,13 +3612,60 @@
           "identity": {
             "id": "cancel-recovery"
           },
-          "passKey": "passed"
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "cancel_reply_within_200ms",
+              "immediate_read_is_current",
+              "semantics_match_fresh",
+              "single_cancel_reply",
+              "worker_released_within_5s"
+            ]
+          }
         },
         {
           "identity": {
             "id": "edit-candidates"
           },
           "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "applied-project-rename"
+          },
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "applied_diagnostics_clear",
+              "bindings_remain_scope_local",
+              "disk_bytes_unchanged",
+              "exact_expected_texts",
+              "incremental_matches_fresh",
+              "nonempty_current_edits",
+              "other_scope_unchanged",
+              "utf16_crlf_preserved"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "applied-field-edits"
+          },
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "applied_diagnostics_clear",
+              "bindings_remain_scope_local",
+              "disk_bytes_unchanged",
+              "exact_expected_texts",
+              "incremental_matches_fresh",
+              "nonempty_current_edits",
+              "other_scope_unchanged",
+              "quickfix_bindings_valid",
+              "quickfix_expected_texts",
+              "utf16_crlf_preserved"
+            ]
+          }
         }
       ],
       "passKey": "passed",
@@ -18532,6 +18579,18 @@
             "build.exit": 0,
             "oracle.exit": 1
           }
+        },
+        {
+          "identity": {
+            "id": "R-09-discovery-in-document-identity"
+          },
+          "passKey": "passed",
+          "required": {
+            "positiveControl": true,
+            "detected": true,
+            "build.exit": 0,
+            "oracle.exit": 1
+          }
         }
       ]
     },
@@ -18725,6 +18784,1590 @@
           }
         }
       ]
+    },
+    "analysis-status": {
+      "file": "analysis-status/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "cold-index-current-document"
+          },
+          "assertions": {
+            "keys": [
+              "currentDocumentIndependent",
+              "hoverUsable",
+              "indexNotDeclaredComplete",
+              "noUnsolicitedMessage"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "closed-file"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "open-file-recovery"
+          },
+          "assertions": {
+            "keys": [
+              "affectedFileIdentified",
+              "noMutation",
+              "renameRecovered"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "proven-zero-references"
+          },
+          "assertions": {
+            "keys": [
+              "completeScope",
+              "knownZero"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "explicit-explanation-and-stale-action"
+          },
+          "assertions": {
+            "keys": [
+              "currentBufferExplained",
+              "explicitMessageOnly",
+              "freshStatusNotOverwritten",
+              "noUnsolicitedFlood",
+              "oneDiscoverableAction",
+              "staleActionRefused"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "reopened-input-identity"
+          },
+          "assertions": {
+            "keys": [
+              "closedBufferNotMislabelled",
+              "noExtraNotification",
+              "reusedClientVersionIsStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "disk-configuration-provenance"
+          },
+          "assertions": {
+            "keys": [
+              "configIdentity",
+              "exitZero",
+              "explicitDiskInput",
+              "notAnalysisProof"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "incomplete"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "independentCompleteness",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError",
+              "unknownIsNotZero"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "ambiguous"
+          },
+          "assertions": {
+            "keys": [
+              "ambiguityDiagnosticUnchanged",
+              "bufferIdentity",
+              "documentComplete",
+              "duplicateCauseExplained",
+              "duplicateRecoveryExplained",
+              "guardReason",
+              "noFalseZero",
+              "noNamespaceReconfigurationAdvice",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "dynamic"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noFalseZero",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "namespace"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noFalseZero",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "open-policy"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "isolated"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "exclusionExplained",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "referencesRemainIsolated",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-ref-ambiguity"
+          },
+          "assertions": {
+            "keys": [
+              "noEdit",
+              "sameErrorReason",
+              "sourceGuardNotProjectGuard"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "local-rename-with-incomplete-scope"
+          },
+          "assertions": {
+            "keys": [
+              "documentComplete",
+              "localRenameStillAvailable",
+              "referenceAbsenceUnproved",
+              "scopeIncomplete"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "nested-root-ownership"
+          },
+          "assertions": {
+            "keys": [
+              "childScopeKnown",
+              "deepestRoot",
+              "noBorrowedParentBinding",
+              "onlySuppliedRoots"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "implicit-default-references"
+          },
+          "assertions": {
+            "keys": [
+              "implicitOrDynamicUncertaintyExplained",
+              "notAProvenZero",
+              "scopeAnalysisComplete"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "projected-dynamic-source-references"
+          },
+          "assertions": {
+            "keys": [
+              "implicitOrDynamicUncertaintyExplained",
+              "notAProvenZero",
+              "scopeAnalysisComplete"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/analysis_status_e2e.py"
+    },
+    "compatibility-explanation": {
+      "file": "compatibility-explanation/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "whole-resource-valid"
+          },
+          "assertions": {
+            "keys": [
+              "boundedBranchWork",
+              "diskIdentity",
+              "honestLabel",
+              "readOnly",
+              "schemaAndJoint",
+              "success"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "whole-schema-not-field-union"
+          },
+          "assertions": {
+            "keys": [
+              "actionableSchemaReasons",
+              "explanationSucceeds",
+              "noJointCandidates",
+              "noWholeSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "schema-field-evolution"
+          },
+          "assertions": {
+            "keys": [
+              "introducedAtCollectedBoundary",
+              "removedAtCollectedBoundary"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "schema-semantic-empty-intersection"
+          },
+          "assertions": {
+            "keys": [
+              "intersectionEmpty",
+              "ruleReason",
+              "schemaNonempty",
+              "semanticsOpposeSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "single-source-ref-boundary"
+          },
+          "assertions": {
+            "keys": [
+              "afterIncluded",
+              "beforeExcluded",
+              "schemaBeforeAndAfter"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "appset-schema-dependent-rule-profile"
+          },
+          "assertions": {
+            "keys": [
+              "newOptionalSourceIncluded",
+              "oldRequiredSourceExcluded",
+              "threeProfiles"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "dynamic-coverage-remains-unknown"
+          },
+          "assertions": {
+            "keys": [
+              "noDeploymentProof",
+              "retainsStaticCandidates",
+              "unknownExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "yaml-stream-independent-resources"
+          },
+          "assertions": {
+            "keys": [
+              "independentCandidates",
+              "noInventedCommonTarget",
+              "twoResourceResults"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "damaged-input-not-confident"
+          },
+          "assertions": {
+            "keys": [
+              "incomplete",
+              "partialResourcesLabelled",
+              "reasonRetained"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unowned-input-explicit"
+          },
+          "assertions": {
+            "keys": [
+              "noCandidateClaim",
+              "scopeExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "project-schema-only-coverage"
+          },
+          "assertions": {
+            "keys": [
+              "crossResourcePolicyOmitted",
+              "noInventedLocalPolicyProof",
+              "wholeProjectSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "bounded-resource-explanation"
+          },
+          "assertions": {
+            "keys": [
+              "boundedAndIncomplete",
+              "completedResourcesRetained",
+              "omittedWorkExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "catalog-and-source-evidence-scope"
+          },
+          "assertions": {
+            "keys": [
+              "coverageNotInventory",
+              "exactSelectionExplained",
+              "inventoryIdentity",
+              "ruleEvidenceIdentity"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-maintenance-independent-of-schemas"
+          },
+          "assertions": {
+            "keys": [
+              "equalSchemaSourcesStillChecked",
+              "exactSourcesChecked",
+              "functionAndCallerDiffs",
+              "reproducibleMetadata"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unreviewed-source-pin-blocks-regeneration"
+          },
+          "assertions": {
+            "keys": [
+              "noCandidateMetadataProduced",
+              "sameSchemaDoesNotBypassReview"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "ordinary-auto-and-exact-unchanged"
+          },
+          "assertions": {
+            "keys": [
+              "autoSuccessControl",
+              "boundaryBehaviorPreserved",
+              "exactFrozenOracle"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-unsaved-buffer-and-explicit-action"
+          },
+          "assertions": {
+            "keys": [
+              "bufferCandidates",
+              "bufferIdentity",
+              "discoverableReadOnlyAction",
+              "diskUnchanged",
+              "visibleEpistemicLabel"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-stale-action-and-recovery"
+          },
+          "assertions": {
+            "keys": [
+              "currentCandidatesRecover",
+              "noNotificationFlood",
+              "oldActionRefused"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-owning-root-and-current-config"
+          },
+          "assertions": {
+            "keys": [
+              "acceptedUnsavedConfig",
+              "deepestRoot",
+              "localResultIndependent",
+              "noConfigMutation"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/compatibility_e2e.py"
+    },
+    "compatibility-intersection-ablation": {
+      "file": "compatibility-intersection-ablation/report.json",
+      "rowsKey": null,
+      "rootRow": true,
+      "rows": [
+        {
+          "identity": {},
+          "passKey": "passed",
+          "required": {
+            "buildExit": 0,
+            "testExit": 1,
+            "ordinaryCheckUnchanged": true,
+            "schemaStillNonempty": true,
+            "falseJointCandidates": true,
+            "expectedFailures": [
+              "schema-semantic-empty-intersection",
+              "single-source-ref-boundary",
+              "yaml-stream-independent-resources",
+              "lsp-unsaved-buffer-and-explicit-action"
+            ],
+            "failedCases": [
+              "schema-semantic-empty-intersection",
+              "single-source-ref-boundary",
+              "yaml-stream-independent-resources",
+              "lsp-unsaved-buffer-and-explicit-action"
+            ]
+          }
+        }
+      ]
+    },
+    "work-observability": {
+      "file": "work-observability/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "mixed-first-open"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "actualAcquisitionBytes",
+              "boundedCounterContract",
+              "closedReadBytes",
+              "closedSymbolNonempty",
+              "coldSchemaWork",
+              "currentDocumentChecked",
+              "definitionIsExactOwner",
+              "originsSeparated",
+              "readyCoversMixedWorkspace",
+              "warmFactsRestored",
+              "warmQueryResultsExact"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "queries-during-indexing"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "hoverHasTypeAndTarget",
+              "queryIssuedBeforeReady",
+              "recoveredFieldHasExpectedEdit",
+              "recoveryParseCounted",
+              "schemaQueryWorkCounted"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "continuous-current-edits"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "changedInputActualParse",
+              "currentVersionSemantics",
+              "domainWorkVisible",
+              "eightRealEdits"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "scope-target-rotation"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "dependencyInvalidatesLocally",
+              "invalidationWorkVisible",
+              "targetRoundtripInvalidates",
+              "threeScopeSelectionsExact"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "cancel-and-recover"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "cancelReplyWithinExistingBudget",
+              "cancelledWorkWasReal",
+              "nextQueryHasCurrentResult",
+              "sameLaneReusedAfterRelease",
+              "workerReleaseSeparateFromReply"
+            ]
+          }
+        },
+        {
+          "identity": {
+            "id": "trace-off-control"
+          },
+          "passKey": "passed",
+          "checks": {
+            "keys": [
+              "boundedCounterContract",
+              "publicResultUnchanged",
+              "sourceRefPlanDomainWork",
+              "sourceRefRenameApplied",
+              "traceOffHasNoDetailedRecords",
+              "traceOnHasActualWork"
+            ]
+          }
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/work_observability_e2e.py"
+    },
+    "ci-evidence-cas": {
+      "file": "ci-evidence-cas/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "legacy-pack"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "legacy-verify"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "cas-pack"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "cas-verify"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "physical-dedup"
+          },
+          "checks": {
+            "keys": [
+              "allPhysicalRegular",
+              "exactLogicalInventory",
+              "externalUnread",
+              "oneObjectPerDigest",
+              "originalUnchanged"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "detached-export"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "exported-v1-verify"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "exported-source-headers"
+          },
+          "checks": {
+            "keys": [
+              "exactHeadersAndContent",
+              "noLogicalTreeCreated"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "legacy-export"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "legacy-bytes-preserved"
+          },
+          "checks": {
+            "keys": [
+              "identicalArchive",
+              "identicalManifest"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-verify-case-distinct"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-export-case-distinct"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-bytes-case-distinct"
+          },
+          "checks": {
+            "keys": [
+              "exactExport",
+              "frozenHashes",
+              "noExtraction"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-verify-unix-names"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-export-unix-names"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-bytes-unix-names"
+          },
+          "checks": {
+            "keys": [
+              "exactExport",
+              "frozenHashes",
+              "noExtraction"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-verify-non-utf8"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-export-non-utf8"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "old-v1-bytes-non-utf8"
+          },
+          "checks": {
+            "keys": [
+              "exactExport",
+              "frozenHashes",
+              "noExtraction"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "literal-types-verify"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "literal-types-export"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "literal-headers"
+          },
+          "checks": {
+            "keys": [
+              "allSevenTypesAndMetadata",
+              "noSpecialInstantiated"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "large-native-inventory"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "large-native-inventory-complete"
+          },
+          "checks": {
+            "keys": [
+              "allMembersVerified",
+              "exceedsOldManifestLimit",
+              "sharedObjectVerified"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "duplicate-json-key"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "boolean-format"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unknown-field"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "duplicate-logical"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "case-alias"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "file-directory-alias"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "file-parent"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-absolute"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-traversal"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-dot-alias"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-drive"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-trailing-dot"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unsafe-backslash"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "non-utf8-v2"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unknown-type"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "boolean-mode"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "boolean-owner"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "fractional-mtime"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "special-size"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "negative-device"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "object-size-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "logical-size-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "inventory-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "manifest-byte-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "digest-size-conflict"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "invalid-digest"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "outer-metadata-not-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "wrong-archive-digest"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "missing-object"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "duplicate-object"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unexpected-object"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "changed-object-bytes"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "physical-special"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "physical-owner"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "physical-pax"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "inventory-header"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "truncated-gzip"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "expanded-tail-bound"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "empty-second-gzip-member"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "compressed-zero-tail"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "export-existing"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "export-outside"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "intendedReason"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-tree-add"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "mutationControl"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-tree-delete"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "mutationControl"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-same-mtime-content"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "mutationControl"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-owner-ctime"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "mutationControl"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "retain-cas"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "retention-selection"
+          },
+          "checks": {
+            "keys": [
+              "noFallback",
+              "preferredVerified",
+              "sourceUnchanged"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "verified-v1-fallback"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "fallbackContract"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "double-failure-retained"
+          },
+          "checks": {
+            "keys": [
+              "exit",
+              "fallbackContract"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runner": "tests/ci_evidence_cas_e2e.py",
+      "runnerKey": "runnerSHA256"
     }
   },
   "platforms": {
