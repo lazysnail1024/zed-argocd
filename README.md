@@ -162,6 +162,9 @@ extensions are installed, add `"argo-workflows-ls"` to that server list. No
 `.zed/tasks.json` is required. Opening a common parent directory lets the server
 index multiple Git repositories beneath it. The server indexes the roots supplied
 by the editor; worktrees hosted by separate server processes keep separate indexes.
+See [Zed workspaces and multiple repositories](docs/zed-workspaces.md) for parent
+configuration, actual root/scope explanations and the pinned host's sharing and
+request-routing boundaries.
 
 The same operation is available from a chart directory, or for a selected file:
 
