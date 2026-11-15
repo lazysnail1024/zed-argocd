@@ -10,7 +10,7 @@ cluster connection.
 | Module | Responsibility |
 | --- | --- |
 | [cmd/argocd-ls](../cmd/argocd-ls/) | Native process entry point. |
-| [internal/cli](../internal/cli/) | `version`, `check`, `explain-config`, `explain-compatibility`, `render-check` and `serve`; reports, exits, explicit Helm process lifecycle and output handling. |
+| [internal/cli](../internal/cli/) | `version`, `check`, `explain-config`, `explain-compatibility`, `render-check`, `render-cache` and `serve`; reports, exits, explicit Helm process lifecycle and output handling. |
 | [internal/workspace](../internal/workspace/) | Root ownership, strict configuration, targets/scopes, exclusions, bounded acquisition, repository mappings, chart discovery and target pin configuration. |
 | [internal/assets](../internal/assets/) | Embedded catalog, exact/automatic schemas, compiled-schema readiness and source identities. |
 | [analysis/schema.go](../internal/analysis/schema.go) and [projection.go](../internal/analysis/projection.go) | Parse immutable inputs, identify supported resources, project YAML values/origins and validate schemas. |
@@ -110,15 +110,33 @@ and inspect the resulting bytes and diagnostics.
 
 ## Helm and external processes
 
+`workspace.RenderRequest` is the shared product-local preflight for CLI and editor
+execution. It resolves the owning root/scope, profile arguments and ordered value
+identities without starting Helm. Each editor action binds that input fingerprint
+to the accepted source revision and existing root/configuration event. Saved
+buffer checks include canonical aliases and chosen values outside the chart.
+Disk inputs and the executable are verified before and after rendering; the LSP
+checks current buffer and root authority again before publishing success.
+
+Default output belongs to `internal/rendercache`, which holds parent and entry
+`os.Root` handles and verifies the native directory identity, fixed artifact names
+and exact sealed inventory. Explicit cleanup never traverses arbitrary output
+paths or uses recursive removal. Failed/cancelled execution artifacts can be
+sealed for inspection and explicit removal. Custom output is always user-owned. Its writer holds the selected directory and
+checks pathname identity before writes/publication; staged replacements avoid
+truncating an existing input inode through a hardlink.
+
+
 Ordinary YAML in charts follows the normal path. Raw Helm source can expose
 literal navigation only when structure and origins remain safe. Dynamic values
 stay unknown; structural control flow, includes and unsafe projections withhold
 navigation. This path offers no semantic edits or rendered-validation claim.
 
 Only an explicit `render-check` command or selected editor render action runs
-Helm. The editor action requires saved chart/configuration buffers, finds the
-nearest ancestor `Chart.yaml` and uses default chart values. CLI overrides are
-explicit. Process deadlines/cleanup and reports belong to `internal/cli`;
+Helm. The editor action requires saved chart/configuration/selected-values buffers,
+finds the nearest ancestor `Chart.yaml` and uses default values or an explicitly
+selected matching profile. CLI overrides are explicit and cannot be mixed with a
+profile. Process deadlines/cleanup and reports belong to `internal/cli`;
 diagnostic locations point to generated YAML. Opening, saving and code-action
 listing never silently run Helm.
 

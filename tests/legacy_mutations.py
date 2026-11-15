@@ -33,7 +33,7 @@ VARIANTS = [
 ]
 COUNTS = {'cd3_e2e.py': 8, 'domain_e2e.py': 16, 'appset_e2e.py': 6,
           'workspace_e2e.py': 9, 'lsp_e2e.py': 25, 'candidates_e2e.py': 10,
-          'pin_e2e.py': 3, 'pin_review_e2e.py': 13}
+          'pin_e2e.py': 3, 'pin_review_e2e.py': 14}
 
 
 def sha(path):

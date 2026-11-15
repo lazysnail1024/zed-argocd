@@ -177,6 +177,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	shutdown := false
 	canEdit := false
 	canWatch := false
+	canShowDocument := false
 	canExplainAction := false
 	override := ""
 	var cancel, cancelDocument context.CancelFunc
@@ -370,6 +371,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		case r := <-rendered:
 			renderBusy = false
 			if request, ok := requests[string(r.id)]; ok && request.ctx == r.ctx {
+				if r.err == nil && !r.proof.valid(r.ctx, buffers, roots, override, workspaceState.renderEvents(roots)) {
+					r.err = fmt.Errorf("render inputs changed while running; request a fresh render action")
+				}
 				request.stop()
 				delete(requests, string(r.id))
 				if r.err != nil {
@@ -377,7 +381,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				} else {
 					reply(r.id, r.result)
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": r.result.Message}})
-					_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-render-output", "method": "window/showDocument", "params": map[string]any{"uri": workspace.FileURI(r.result.Output), "takeFocus": true}})
+					if canShowDocument {
+						_ = send(map[string]any{"jsonrpc": "2.0", "id": "argocd-render-output", "method": "window/showDocument", "params": map[string]any{"uri": workspace.FileURI(r.result.Output), "takeFocus": true}})
+					}
 				}
 			}
 
@@ -530,6 +536,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				var p struct {
 					Capabilities struct {
+						Window struct {
+							ShowDocument struct {
+								Support bool `json:"support"`
+							} `json:"showDocument"`
+						} `json:"window"`
 						TextDocument struct {
 							CodeAction struct {
 								LiteralSupport json.RawMessage `json:"codeActionLiteralSupport"`
@@ -574,6 +585,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
+				canShowDocument = p.Capabilities.Window.ShowDocument.Support
 				canExplainAction = len(p.Capabilities.TextDocument.CodeAction.LiteralSupport) > 0 && string(p.Capabilities.TextDocument.CodeAction.LiteralSupport) != "null"
 				capabilities := map[string]any{
 					"textDocumentSync":        map[string]any{"openClose": true, "change": 2, "save": true},
@@ -961,10 +973,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				selectedRoots := append([]string(nil), roots...)
 				target := override
+				renderEvents := workspaceState.renderEvents(selectedRoots)
 				go func() {
-					result, err := renderSaved(ctx, renderer, params.Arguments[0], copied, selectedRoots, target)
+					result, proof, err := renderSaved(ctx, renderer, params.Arguments[0], copied, selectedRoots, target, renderEvents)
 					select {
-					case rendered <- renderResponse{ctx, m.ID, result, err}:
+					case rendered <- renderResponse{ctx, m.ID, result, proof, err}:
 					case <-done:
 					}
 				}()
@@ -1068,7 +1081,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								input.scopes[i].options.Trace = &trace
 							}
 						}
-						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected)
+						answer, code, why = fixRequest(ctx, m, input, copied, current, editable, queryRoots, selected, workspaceState.renderEvents(queryRoots))
 						if code == 0 {
 							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
 							if proof != nil && localFixAnswer(m, answer) {
@@ -1664,7 +1677,11 @@ func replacementEdit(snapshot source.Snapshot, span source.Span, text string) an
 	return analysis.TextEdit{Range: analysis.Range{Start: analysis.Position{Line: a.Line, Character: a.UTF16Column}, End: analysis.Position{Line: b.Line, Character: b.UTF16Column}}, NewText: text}
 }
 
-func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string) (any, int, string) {
+func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string, eventMaps ...map[string]uint64) (any, int, string) {
+	events := map[string]uint64{}
+	if len(eventMaps) > 0 {
+		events = eventMaps[0]
+	}
 	if m.Method == "codeAction/resolve" {
 		var action struct {
 			Command struct {
@@ -1677,14 +1694,11 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 				return nil, -32602, "invalid render action"
 			}
 			arg := action.Command.Arguments[0]
-			b, open := buffers[arg.URI]
-			if !open || b.version != arg.Version {
-				return nil, -32801, "render action is stale"
+			request, err := renderCurrent(ctx, arg, buffers, roots, override, events, false)
+			if err != nil {
+				return nil, -32801, err.Error()
 			}
-			if fresh, ok := renderAction(ctx, arg.URI, buffers, roots); ok {
-				return fresh, 0, ""
-			}
-			return nil, -32801, "render source is no longer available"
+			return renderAction(request, arg), 0, ""
 		}
 	}
 	if result, status, message, handled := pinRequest(ctx, m, latest, buffers, epoch, canEdit, roots, override); handled {
@@ -1712,9 +1726,7 @@ func fixRequest(ctx context.Context, m message, latest completed, buffers map[st
 			return []any{}, 0, ""
 		}
 		actions := []any{}
-		if action, ok := renderAction(ctx, p.TextDocument.URI, buffers, roots); ok {
-			actions = append(actions, action)
-		}
+		actions = append(actions, renderActions(ctx, p.TextDocument.URI, buffers, roots, override, events)...)
 		for _, scope := range latest.scopes {
 			for _, doc := range scope.documents {
 				if string(doc.Snapshot.URI()) != p.TextDocument.URI {

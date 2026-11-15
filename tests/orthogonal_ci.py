@@ -36,6 +36,10 @@ CASES = {
         ('snippets', 'editors/zed/tests/snippets_e2e.py', ['{binary}', '{case}'], 'results.json', 60),
     ],
     'boundaries': [
+        ('render-profiles-helm3', 'tests/render_profiles_e2e.py', ['{binary}', '{helm}', '{case}'], 'report.json', 180),
+        ('render-profiles-helm4', 'tests/render_profiles_e2e.py', ['{binary}', '{helm4}', '{case}'], 'report.json', 180),
+        ('render-profile-guards', 'tests/render_profile_guards_e2e.py', ['{binary}', '{case}'], 'report.json', 180),
+        ('render-cache', 'tests/render_cache_e2e.py', ['{binary}', '{helm}', '{case}'], 'report.json', 180),
         ('render-defaults-helm3', 'tests/render_defaults_e2e.py', ['--helm', '{helm}'], 'report.json', 120),
         ('render-defaults-helm4', 'tests/render_defaults_e2e.py', ['--helm', '{helm4}'], 'report.json', 120),
         ('render-selected-scope', 'tests/render_scope_e2e.py', ['--helm', '{helm}'], 'report.json', 120),

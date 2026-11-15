@@ -5,6 +5,7 @@
       "tests/orthogonal_ci.py": [
         "editors/zed/tests/snippets_e2e.py",
         "tests/ablate_audit_repair.py",
+        "tests/ablate_config_helm.py",
         "tests/ablate_schema_boundaries.py",
         "tests/ablate_schema_queries.py",
         "tests/alias_provenance_edges_e2e.py",
@@ -24,6 +25,11 @@
         "tests/output_failure_e2e.py",
         "tests/readiness_render_e2e.py",
         "tests/render_acquisition_e2e.py",
+        "tests/render_cache_e2e.py",
+        "tests/render_defaults_e2e.py",
+        "tests/render_profile_guards_e2e.py",
+        "tests/render_profiles_e2e.py",
+        "tests/render_scope_e2e.py",
         "tests/renderer_input_e2e.py",
         "tests/schema_constraints_ablation.py",
         "tests/schema_fixture_e2e.py",
@@ -31,10 +37,7 @@
         "tests/schema_query_comment_e2e.py",
         "tests/scope_glob_e2e.py",
         "tests/scope_refresh_e2e.py",
-        "tests/shared_lifecycle_mutations.py",
-        "tests/render_defaults_e2e.py",
-        "tests/render_scope_e2e.py",
-        "tests/ablate_config_helm.py"
+        "tests/shared_lifecycle_mutations.py"
       ]
     },
     "aliases": {

@@ -34,7 +34,7 @@ def synthetic_platform(folder, platform, version, commit, omit=None, different_b
     archive_name = root + (".zip" if platform.startswith("windows/") else ".tar.gz")
     binary = b"Synthetic aggregate fixture, not a native executable: " + platform.encode()
     identity = {"product": "argo-cd", "serverVersion": version, "adapterContractVersion": 1,
-                "analysisReady": True, "configSchemaVersions": [1], "reportSchemaVersions": [1],
+                "analysisReady": True, "configSchemaVersions": [1, 2], "reportSchemaVersions": [1],
                 "toolkitVersion": "fixture", "catalogHash": "a" * 64,
                 "sourceCommit": commit, "dirty": False, "buildMode": "release"}
     provenance = encoded({"identity": identity, "platform": platform, "binarySHA256": sha(binary)})

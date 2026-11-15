@@ -36,13 +36,14 @@ type Repository struct {
 	Path           string `json:"path"`
 }
 type Config struct {
-	SchemaVersion         int          `json:"schemaVersion"`
-	TargetVersion         string       `json:"targetVersion"`
-	ReferencePolicy       string       `json:"referencePolicy"`
-	ControlPlaneNamespace string       `json:"controlPlaneNamespace"`
-	Exclude               []string     `json:"exclude"`
-	Scopes                []Scope      `json:"scopes"`
-	Repositories          []Repository `json:"repositories"`
+	SchemaVersion         int                      `json:"schemaVersion"`
+	TargetVersion         string                   `json:"targetVersion"`
+	ReferencePolicy       string                   `json:"referencePolicy"`
+	ControlPlaneNamespace string                   `json:"controlPlaneNamespace"`
+	Exclude               []string                 `json:"exclude"`
+	Scopes                []Scope                  `json:"scopes"`
+	Repositories          []Repository             `json:"repositories"`
+	RenderProfiles        map[string]RenderProfile `json:"renderProfiles,omitempty"`
 }
 type Target struct {
 	SchemaHash string `json:"schemaHash"`
@@ -147,8 +148,18 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 			return input, failure("CONFIG_INVALID", err.Error())
 		}
 	}
-	if cfg.SchemaVersion != 1 || (cfg.ReferencePolicy != "open" && cfg.ReferencePolicy != "closed") {
+	if (cfg.SchemaVersion != 1 && cfg.SchemaVersion != 2) || (cfg.ReferencePolicy != "open" && cfg.ReferencePolicy != "closed") {
 		return input, failure("CONFIG_INVALID", "unsupported schemaVersion or referencePolicy")
+	}
+	var presence map[string]any
+	if err == nil {
+		_ = yaml.UnmarshalStrict(raw, &presence)
+	}
+	if _, present := presence["renderProfiles"]; present && cfg.SchemaVersion == 1 {
+		return input, failure("CONFIG_INVALID", "renderProfiles requires schemaVersion: 2")
+	}
+	if err := validateRenderProfiles(cfg.RenderProfiles); err != nil {
+		return input, failure("CONFIG_INVALID", err.Error())
 	}
 	hash := sha256.Sum256(raw)
 	configHash := hex.EncodeToString(hash[:])

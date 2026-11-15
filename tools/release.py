@@ -39,7 +39,7 @@ def identity_matches(identity, version, commit):
                 "sourceCommit": commit, "dirty": False, "buildMode": "release"}
     if any(identity.get(key) != value for key, value in required.items()):
         raise ValueError("Native identity must match the clean pinned release and source commit")
-    if identity.get("configSchemaVersions") != [1] or identity.get("reportSchemaVersions") != [1]:
+    if identity.get("configSchemaVersions") != [1, 2] or identity.get("reportSchemaVersions") != [1]:
         raise ValueError("Unsupported native release capabilities")
 
 

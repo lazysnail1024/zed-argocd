@@ -138,6 +138,8 @@ semantic edits. Escaped ApplicationSet tags can coexist with static neighbors.
 In Zed, open the command palette, choose **editor: toggle code actions**, then
 **Render chart and check Argo CD (saved files)** on an owned chart document. It uses Helm from `PATH`, finds the nearest ancestor
 `Chart.yaml`, renders with the chart's default values, and opens generated YAML.
+With `schemaVersion: 2`, matching `renderProfiles` add explicit named profile
+actions with ordered values files. See [profiles and retained artifacts](docs/configuration.md#render-profiles-and-artifacts).
 Save all open chart/configuration buffers first. The action runs only when
 selected; collecting actions, opening a file and saving never render a chart.
 The result message includes a durable `report.json` path beside generated YAML.
@@ -166,12 +168,16 @@ The same operation is available from a chart directory, or for a selected file:
 ```sh
 argocd-ls render-check --format json
 argocd-ls render-check --root . --file chart/templates/app.yaml --format json
+argocd-ls render-check --root . --profile dev --format json
+argocd-ls render-cache
 ```
 
 Helm 3 and 4 are accepted. `--chart`, `--helm-binary`, `--values`, `--output`,
 `--release-name`, `--namespace`, `--kube-version` and `--api-version` remain explicit
-overrides. Automatic output uses a fresh temporary directory; preserve it if you
-need a lasting report. Rendered diagnostic locations refer to generated YAML.
+overrides for the default operation. Profiles reject conflicting overrides.
+Automatic output is retained in the owned user cache; `render-cache` lists it and
+`render-cache --remove DIRECTORY` removes one verified entry explicitly. Custom
+outputs remain user-owned. Rendered diagnostic locations refer to generated YAML.
 
 Analysis is local: it does not access a cluster, execute controllers or render Helm
 implicitly. The alpha includes automated CLI/LSP and package checks; real Zed GUI

@@ -52,7 +52,7 @@ func Current() Info {
 	return Info{
 		Product: Product, ServerVersion: ServerVersion, AdapterContractVersion: 1,
 		DefaultTargetVersion: assets.DefaultVersion(), SupportedVersions: assets.SupportedVersions(),
-		ConfigSchemaVersions: []int{1}, ReportSchemaVersions: []int{1}, PackFormatVersions: []int{},
+		ConfigSchemaVersions: []int{1, 2}, ReportSchemaVersions: []int{1}, PackFormatVersions: []int{},
 		SourceCommit: commit, Dirty: Dirty != "false", BuildMode: BuildMode,
 		AnalysisReady: assets.DefaultVersion() != "", CatalogHash: &catalogHash, ToolkitVersion: toolkitVersion,
 	}
