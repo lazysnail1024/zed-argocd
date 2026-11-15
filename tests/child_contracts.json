@@ -18570,6 +18570,18 @@
             "build.exit": 0,
             "oracle.exit": 1
           }
+        },
+        {
+          "identity": {
+            "id": "R-09-discovery-in-document-identity"
+          },
+          "passKey": "passed",
+          "required": {
+            "positiveControl": true,
+            "detected": true,
+            "build.exit": 0,
+            "oracle.exit": 1
+          }
         }
       ]
     },
@@ -19366,6 +19378,7 @@
               "definitionIsExactOwner",
               "originsSeparated",
               "readyCoversMixedWorkspace",
+              "warmFactsRestored",
               "warmQueryResultsExact"
             ]
           }

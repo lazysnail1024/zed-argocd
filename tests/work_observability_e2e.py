@@ -90,12 +90,16 @@ def mixed(output):
     records = finished(client)
     count = totals(records)
     closed_work = [r for r in records if r.get('requestId') == closed_id]
+    warm_work = totals([r for r in records if r.get('requestId') in warm_ids])
     checks.update(actualAcquisitionBytes=count['readBytes'] >= 1000 * len(FOREIGN.encode()),
                   coldSchemaWork=count['schemaLoads'] > 0 and count['schemaCompiles'] > 0,
                   originsSeparated={'request', 'document-background', 'workspace-background'} <= {r['origin'] for r in records},
                   closedReadBytes=bool(closed_work) and closed_work[-1]['work']['readBytes'] == len(wire.PROJECT.encode()))
+    checks['warmFactsRestored'] = (warm_work['parseCalls'] == 0 and warm_work['projectionCalls'] == 0
+                                  and warm_work['readBytes'] == 0 and warm_work['schemaCompiles'] == 0
+                                  and warm_work['factsRestored'] == len(warm_ids) and warm_work['schemaQueries'] > 0)
     return checks, {'totals': count, 'closedRequest': closed_work, 'readiness': ready,
-                    'warmRequestIds': warm_ids, 'warmWork': totals([r for r in records if r.get('requestId') in warm_ids])}, records
+                    'warmRequestIds': warm_ids, 'warmWork': warm_work}, records
 
 
 def during_indexing(output):
@@ -282,6 +286,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--case', choices=['all'], default='all', help='Existing mutation runner selection; all six controls remain required')
     args = parser.parse_args()
     wire.BINARY = args.binary.resolve()
     output = args.output.resolve()

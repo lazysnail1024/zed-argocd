@@ -81,6 +81,14 @@ not CPU usage. For example, schema loading/compilation and domain recursion can
 overlap an enclosing operation's measured duration; summing all durations does
 not produce total CPU or request latency.
 
+Queries can restore the existing retained document's intrinsic schema result
+when its URI, server revision, complete text and target/configuration identity
+match. Workspace discovery completeness is excluded from that document identity
+comparison; current scope completeness, dependencies and delivery proofs are
+still recomputed. This uses the existing single-file retention bound and adds no
+document cache. The required warm-hover control verifies that source parsing and
+projection are skipped while the actual schema query still runs.
+
 ## Queue and cancellation timings
 
 `ownerWaitNs` measures decoded-message arrival to owner admission. `dispatchNs`

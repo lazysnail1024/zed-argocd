@@ -208,7 +208,12 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	}
 	for _, scope := range local.scopes {
 		for _, previous := range scope.files {
-			if previous.Snapshot.URI() == snapshot.URI() && previous.Target == file.Target && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
+			// Discovery completeness is not part of this file's schema identity.
+			// Reuse only intrinsic checked data; current scope completeness,
+			// dependencies and delivery proof are still derived below.
+			priorTarget, currentTarget := previous.Target, file.Target
+			priorTarget.Complete, currentTarget.Complete = false, false
+			if previous.Snapshot.URI() == snapshot.URI() && priorTarget == currentTarget && previous.Snapshot.Text() == snapshot.Text() && previous.Snapshot.Revision() == snapshot.Revision() {
 				if value, ok := scope.checked[snapshot.URI()]; ok {
 					checked, reused = value, true
 					worktrace.Add(ctx, "factsRestored", int64(len(value.Documents)))

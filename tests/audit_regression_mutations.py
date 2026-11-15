@@ -92,6 +92,17 @@ MUTATIONS = [
              "func (r referenceRecovery) permits(ctx context.Context, parts []string) bool {\n\treturn true",
              "semantic_regressions_e2e.py", "recovery", "recovery-duplicate-project", ("definition_is_empty",),
              positive_cases=("recovery-positive-control", "recovery-unfinished-key-control"), assertion_error=True),
+    # Treating workspace discovery completeness as source/schema identity loses
+    # exact current-document restoration. Public answers remain correct; the
+    # actual work counter must detect the repeated parser/projection work.
+    mutation("R-09-discovery-in-document-identity", "internal/lsp/incremental_query.go",
+             "priorTarget == currentTarget", "previous.Target == file.Target",
+             "work_observability_e2e.py", "all", "mixed-first-open", ("warmFactsRestored",),
+             ("currentDocumentChecked", "readyCoversMixedWorkspace", "definitionIsExactOwner",
+              "warmQueryResultsExact", "closedSymbolNonempty", "actualAcquisitionBytes",
+              "coldSchemaWork", "originsSeparated", "closedReadBytes", "boundedCounterContract"),
+             positive_cases=("queries-during-indexing", "continuous-current-edits",
+                             "scope-target-rotation", "cancel-and-recover", "trace-off-control")),
 ]
 
 
