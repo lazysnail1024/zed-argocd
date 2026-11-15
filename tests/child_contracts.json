@@ -18905,10 +18905,14 @@
           },
           "assertions": {
             "keys": [
+              "ambiguityDiagnosticUnchanged",
               "bufferIdentity",
               "documentComplete",
+              "duplicateCauseExplained",
+              "duplicateRecoveryExplained",
               "guardReason",
               "noFalseZero",
+              "noNamespaceReconfigurationAdvice",
               "noUnsafeEdit",
               "readOnly",
               "rootAndScope",

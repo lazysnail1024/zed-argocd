@@ -81,7 +81,7 @@ def run(binary, output):
         client = Client(folder, [root])
         try:
             client.open(app, text, 7)
-            client.diag(app, 7)
+            diagnostics = client.diag(app, 7)
             params = query(app, text)
             status_response = request(client, METHOD, params)
             status = status_response.get('result') or {}
@@ -95,12 +95,21 @@ def run(binary, output):
             if name in ['ambiguous', 'dynamic', 'namespace']:
                 refs = availability(status, 'references')
                 common.update(noFalseZero=refs.get('allowed') is False and 'resultCount' not in refs and refs.get('reasonCode') == expected)
+            if name == 'ambiguous':
+                duplicate_diagnostics = [item for item in diagnostics if item.get('code') == 'CD_PROJECT_AMBIGUOUS']
+                message = duplicate_diagnostics[0].get('message', '').lower() if len(duplicate_diagnostics) == 1 else ''
+                common.update(
+                    ambiguityDiagnosticUnchanged=len(duplicate_diagnostics) == 1 and duplicate_diagnostics[0].get('severity') == 2 and duplicate_diagnostics[0].get('range') == {'start': {'line': 5, 'character': 11}, 'end': {'line': 5, 'character': 15}},
+                    duplicateCauseExplained='multiple appproject declarations' in message and 'configured control-plane namespace' in message,
+                    duplicateRecoveryExplained='resolve duplicate declarations' in message and 'scope' in message,
+                    noNamespaceReconfigurationAdvice='set controlplanenamespace' not in message,
+                )
             if name == 'isolated':
                 common.update(exclusionExplained=any(r.get('reasonCode') == 'ISOLATED_DOCUMENT' for r in status.get('reasons', [])), referencesRemainIsolated=availability(status, 'references').get('reasonCode') == 'ISOLATED_DOCUMENT')
             if name == 'incomplete':
                 references = availability(status, 'references')
                 common.update(independentCompleteness=status.get('completeness', {}).get('workspace') is False, unknownIsNotZero=references.get('allowed') is False and 'resultCount' not in references and references.get('reasonCode') == 'INDEX_INCOMPLETE')
-            record(name, common, {'status': status_response, 'rename': renamed})
+            record(name, common, {'diagnostics': diagnostics, 'status': status_response, 'rename': renamed})
             if name == 'closed-file':
                 locations = operation.get('relatedLocations', [])
                 client.open(project, wire.PROJECT, 3)
