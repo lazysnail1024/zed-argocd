@@ -165,15 +165,19 @@ def kind(metadata):
     raise ValueError("Unsupported filesystem entry type")
 
 
-def signature(metadata, *, permissions=True):
+def signature(metadata, *, permissions=True, birthtime=False):
     return (metadata.st_dev, metadata.st_ino, metadata.st_size,
             metadata.st_mtime_ns, metadata.st_mode if permissions else stat.S_IFMT(metadata.st_mode),
-            metadata.st_uid, metadata.st_gid, metadata.st_ctime_ns, getattr(metadata, "st_rdev", None))
+            metadata.st_uid, metadata.st_gid,
+            metadata.st_birthtime_ns if birthtime else metadata.st_ctime_ns,
+            getattr(metadata, "st_rdev", None))
 
 
-def check_snapshot(path, expected, actual, phase, *, permissions=True):
-    before, after = signature(expected, permissions=permissions), signature(actual, permissions=permissions)
-    fields = ("device", "inode", "size", "mtime_ns", "mode" if permissions else "file type", "uid", "gid", "ctime_ns", "rdev")
+def check_snapshot(path, expected, actual, phase, *, permissions=True, birthtime=False):
+    before = signature(expected, permissions=permissions, birthtime=birthtime)
+    after = signature(actual, permissions=permissions, birthtime=birthtime)
+    fields = ("device", "inode", "size", "mtime_ns", "mode" if permissions else "file type", "uid", "gid",
+              "birthtime_ns" if birthtime else "ctime_ns", "rdev")
     changed = [field for field, left, right in zip(fields, before, after) if left != right]
     if changed:
         raise ValueError("Evidence changed " + phase + ": " + str(path) + " (" + ", ".join(changed) + ")")
@@ -194,9 +198,12 @@ def open_regular(path, metadata):
             raise ValueError("Expected regular evidence file: " + str(path))
         # CPython's Windows path stat adds execute bits for .exe/.bat/.cmd/.com;
         # fd stat derives permissions from attributes without that suffix rule.
+        # Its path stat also aliases ctime to creation time, while fd stat uses
+        # metadata change time. Python 3.12+ exposes birthtime in both APIs.
         # Compare identity across APIs, then full mode within each API. Preserve
-        # the path mode in the archive; never normalize away actual mode changes.
-        check_snapshot(path, metadata, opened, "before it was read", permissions=os.name != "nt")
+        # full ctime checks within each API and the path mode in the archive.
+        check_snapshot(path, metadata, opened, "before it was read", permissions=os.name != "nt",
+                       birthtime=os.name == "nt" and hasattr(metadata, "st_birthtime_ns"))
         check_snapshot(path, metadata, path.lstat(), "before it was read")
         yield stream
         check_snapshot(path, opened, os.fstat(stream.fileno()), "while it was read")

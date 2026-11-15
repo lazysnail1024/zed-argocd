@@ -223,6 +223,12 @@ These generated inputs remain in the archive. Individual streaming reads remain
 bounded to 64 MiB. Device identity is compared when the operating system exposes
 it; Windows ordinary files have no `st_rdev` field, while their other identity and
 metadata checks remain active.
+Windows path and descriptor stat results use different meanings for `ctime` in
+the pinned Python runtime ([CPython #157671](https://github.com/python/cpython/issues/157671)).
+Their initial identity comparison uses the shared
+creation timestamp when available; subsequent path-to-path and
+descriptor-to-descriptor checks retain full `ctime` and mode comparisons. This
+does not accept changes to either API's metadata during a read.
 
 `ci_evidence_cas_e2e.py` fixes the seven-type header and duplicate-content
 expectations independently, tests malformed containers and actual source changes,
