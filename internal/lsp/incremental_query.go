@@ -240,7 +240,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	summary := analysis.Summarize(checked.Documents, catalog.Input.Config.ControlPlaneNamespace)
 	selected := &indexedFile{uri: source.URI(workspace.FileURI(path)), path: path, spelling: string(snapshot.URI()), root: catalog.Input.Root, target: file.Target, hash: sha256.Sum256([]byte(snapshot.Text())), summary: summary}
 	allProjects := m.Method == "textDocument/completion" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
-	references := m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
+	references := m.Method == analysisStatusMethod || m.Method == "textDocument/references" || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve"
 	var candidates *index.SymbolQueryResult
 	var candidateGeneration uint64
 	if allProjects {

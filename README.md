@@ -95,6 +95,21 @@ argocd-ls check --root . --format json
 argocd-ls serve --stdio
 ```
 
+## Explain the current analysis
+
+In Zed, select **editor: toggle code actions → Explain current Argo CD analysis**.
+The explanation identifies the current editor buffer, actual owning root and
+scope, target/configuration identity, indexing phase, and separate document and
+workspace completeness. A completed document check does not imply a completed
+workspace reference search or permission to rename across files.
+
+Rename refusals include a stable reason and a next step, such as opening an
+affected file, resolving an ambiguous binding, or reviewing an unknown
+control-plane namespace. An unknown reference count is not reported as zero.
+Explanations do not change configuration or source text. See the
+[status interface and refusal codes](docs/configuration.md#analysis-explanations)
+for client integration and the difference from disk-based `explain-config`.
+
 ## Helm sources and explicit rendering
 
 Plain YAML inside a chart receives normal analysis. For Helm sources, literal

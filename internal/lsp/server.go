@@ -75,19 +75,22 @@ type pendingQuery struct {
 }
 
 type queryResult struct {
-	proof          *readProof
-	symbolProof    *symbolReadProof
-	editGeneration *uint64 // Configuration pin proofs cover the complete workspace.
-	trace          string
-	ctx            context.Context
-	id             json.RawMessage
-	epoch          uint64
-	answer         any
-	code           int
-	why            string
+	refusal         *analysis.Refusal
+	showExplanation bool
+	proof           *readProof
+	symbolProof     *symbolReadProof
+	editGeneration  *uint64 // Configuration pin proofs cover the complete workspace.
+	trace           string
+	ctx             context.Context
+	id              json.RawMessage
+	epoch           uint64
+	answer          any
+	code            int
+	why             string
 }
 
 type completed struct {
+	refusal             *analysis.Refusal // Request-local guard explanation; never retained by the index.
 	candidatesTruncated bool
 	more                bool
 	incremental         *workspaceIndex
@@ -173,6 +176,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	shutdown := false
 	canEdit := false
 	canWatch := false
+	canExplainAction := false
 	override := ""
 	var cancel, cancelDocument context.CancelFunc
 	var latest completed
@@ -229,9 +233,13 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	reply := func(id json.RawMessage, value any) {
 		_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "result": value})
 	}
-	reject := func(id json.RawMessage, code int, why string) {
+	reject := func(id json.RawMessage, code int, why string, details ...any) {
 		if len(id) > 0 {
-			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": why}})
+			failure := map[string]any{"code": code, "message": why}
+			if len(details) > 0 && details[0] != nil {
+				failure["data"] = details[0]
+			}
+			_ = send(map[string]any{"jsonrpc": "2.0", "id": id, "error": failure})
 		}
 	}
 	var active, pending, documentActive, documentPending bool
@@ -384,13 +392,16 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			request.stop()
 			delete(requests, key)
 			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
-				reject(q.id, -32801, "analysis changed")
+				reject(q.id, -32801, "analysis changed", analysis.Refuse("STALE_INPUT", "analysis changed"))
 				continue
 			}
 			if q.code != 0 {
-				reject(q.id, q.code, q.why)
+				reject(q.id, q.code, q.why, q.refusal)
 			} else {
 				reply(q.id, q.answer)
+				if status, ok := q.answer.(analysisStatus); ok && q.showExplanation {
+					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": status.message()}})
+				}
 			}
 		case result := <-results:
 			if result.documentOnly {
@@ -515,6 +526,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				}
 				var p struct {
 					Capabilities struct {
+						TextDocument struct {
+							CodeAction struct {
+								LiteralSupport json.RawMessage `json:"codeActionLiteralSupport"`
+							} `json:"codeAction"`
+						} `json:"textDocument"`
 						Workspace struct {
 							DidChangeWatchedFiles struct {
 								DynamicRegistration bool `json:"dynamicRegistration"`
@@ -554,6 +570,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				initialized = true
 				canEdit = p.Capabilities.Workspace.WorkspaceEdit.DocumentChanges
 				canWatch = p.Capabilities.Workspace.DidChangeWatchedFiles.DynamicRegistration
+				canExplainAction = len(p.Capabilities.TextDocument.CodeAction.LiteralSupport) > 0 && string(p.Capabilities.TextDocument.CodeAction.LiteralSupport) != "null"
 				capabilities := map[string]any{
 					"textDocumentSync":        map[string]any{"openClose": true, "change": 2, "save": true},
 					"hoverProvider":           true,
@@ -566,13 +583,17 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
 					},
 				}
-				if canEdit {
+				commands := []string{explainCommand}
+				if canEdit || canExplainAction {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
+				}
+				if canEdit {
 					if renderer != nil {
-						capabilities["executeCommandProvider"] = map[string]any{"commands": []string{renderCommand}}
+						commands = append(commands, renderCommand)
 					}
 					capabilities["renameProvider"] = map[string]any{"prepareProvider": true}
 				}
+				capabilities["executeCommandProvider"] = map[string]any{"commands": commands}
 				reply(m.ID, map[string]any{
 					"capabilities": capabilities,
 					"serverInfo":   map[string]any{"name": "argocd-ls", "version": buildinfo.ServerVersion},
@@ -586,6 +607,49 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			if shutdown {
 				reject(m.ID, -32600, "server is shut down")
 				continue
+			}
+			showExplanation := false
+			if m.Method == "workspace/executeCommand" {
+				converted, refusal, handled := explainRequest(m, buffers)
+				if handled && refusal != nil {
+					reject(m.ID, -32801, refusal.Message, refusal)
+					continue
+				}
+				if handled {
+					m, showExplanation = converted, true
+				}
+			}
+			if m.Method == "codeAction/resolve" {
+				var envelope struct {
+					Command json.RawMessage `json:"command"`
+				}
+				if json.Unmarshal(m.Params, &envelope) == nil && len(envelope.Command) > 0 {
+					_, refusal, handled := explainRequest(message{Params: envelope.Command}, buffers)
+					if handled {
+						if refusal != nil {
+							reject(m.ID, -32801, refusal.Message, refusal)
+						} else {
+							reply(m.ID, json.RawMessage(m.Params))
+						}
+						continue
+					}
+				}
+			}
+			if m.Method == analysisStatusMethod {
+				b, opened := buffers[queryURI(m)]
+				if !opened || b.unavailable != "" {
+					refusal := analysis.Refuse("INPUT_UNAVAILABLE", "editor analysis status requires an accepted open buffer")
+					reject(m.ID, -32602, refusal.Message, refusal)
+					continue
+				}
+			}
+			var extraAction any
+			if canExplainAction && m.Method == "textDocument/codeAction" {
+				extraAction, _ = explainAction(m, buffers, roots)
+				if extraAction != nil && explainOnly(m) {
+					reply(m.ID, []any{extraAction})
+					continue
+				}
 			}
 			switch m.Method {
 			case "initialized":
@@ -901,14 +965,14 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 				}()
 
-			case "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
+			case analysisStatusMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
 					continue
 				}
 				slots := readSlots
-				if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+				if m.Method == analysisStatusMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
 					slots = editSlots
 				}
 				select {
@@ -944,7 +1008,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					var answer any
 					var code int
 					var why string
-					if m.Method == "workspace/symbol" {
+					if m.Method == analysisStatusMethod {
+						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
+						answer = workspaceState.explainAnalysis(ctx, m, &input, copied, queryRoots, editable)
+						proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+					} else if m.Method == "workspace/symbol" {
 						var params struct {
 							Query string `json:"query"`
 						}
@@ -992,6 +1060,16 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								editProof = &generation
 							}
 						}
+						if extraAction != nil {
+							if actions, ok := answer.([]any); code == 0 && ok {
+								answer = append(actions, extraAction)
+							} else if code == -32801 {
+								answer, code, why = []any{extraAction}, 0, ""
+							}
+						}
+						if code == -32801 {
+							input.refusal = analysis.Refuse("STALE_INPUT", why)
+						}
 					} else {
 						fresh := workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						var localAnswer bool
@@ -1012,7 +1090,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						code, why = -32800, "request cancelled"
 					}
 					select {
-					case queries <- queryResult{proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
+					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()

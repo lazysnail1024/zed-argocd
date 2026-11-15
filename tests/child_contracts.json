@@ -18725,6 +18725,292 @@
           }
         }
       ]
+    },
+    "analysis-status": {
+      "file": "analysis-status/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "cold-index-current-document"
+          },
+          "assertions": {
+            "keys": [
+              "currentDocumentIndependent",
+              "hoverUsable",
+              "indexNotDeclaredComplete",
+              "noUnsolicitedMessage"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "closed-file"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "open-file-recovery"
+          },
+          "assertions": {
+            "keys": [
+              "affectedFileIdentified",
+              "noMutation",
+              "renameRecovered"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "proven-zero-references"
+          },
+          "assertions": {
+            "keys": [
+              "completeScope",
+              "knownZero"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "explicit-explanation-and-stale-action"
+          },
+          "assertions": {
+            "keys": [
+              "currentBufferExplained",
+              "explicitMessageOnly",
+              "freshStatusNotOverwritten",
+              "noUnsolicitedFlood",
+              "oneDiscoverableAction",
+              "staleActionRefused"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "reopened-input-identity"
+          },
+          "assertions": {
+            "keys": [
+              "closedBufferNotMislabelled",
+              "noExtraNotification",
+              "reusedClientVersionIsStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "disk-configuration-provenance"
+          },
+          "assertions": {
+            "keys": [
+              "configIdentity",
+              "exitZero",
+              "explicitDiskInput",
+              "notAnalysisProof"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "incomplete"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "independentCompleteness",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError",
+              "unknownIsNotZero"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "ambiguous"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noFalseZero",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "dynamic"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noFalseZero",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "namespace"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noFalseZero",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "open-policy"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "isolated"
+          },
+          "assertions": {
+            "keys": [
+              "bufferIdentity",
+              "documentComplete",
+              "exclusionExplained",
+              "guardReason",
+              "noUnsafeEdit",
+              "readOnly",
+              "referencesRemainIsolated",
+              "rootAndScope",
+              "structuredError"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-ref-ambiguity"
+          },
+          "assertions": {
+            "keys": [
+              "noEdit",
+              "sameErrorReason",
+              "sourceGuardNotProjectGuard"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "local-rename-with-incomplete-scope"
+          },
+          "assertions": {
+            "keys": [
+              "documentComplete",
+              "localRenameStillAvailable",
+              "referenceAbsenceUnproved",
+              "scopeIncomplete"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "nested-root-ownership"
+          },
+          "assertions": {
+            "keys": [
+              "childScopeKnown",
+              "deepestRoot",
+              "noBorrowedParentBinding",
+              "onlySuppliedRoots"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "implicit-default-references"
+          },
+          "assertions": {
+            "keys": [
+              "implicitOrDynamicUncertaintyExplained",
+              "notAProvenZero",
+              "scopeAnalysisComplete"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "projected-dynamic-source-references"
+          },
+          "assertions": {
+            "keys": [
+              "implicitOrDynamicUncertaintyExplained",
+              "notAProvenZero",
+              "scopeAnalysisComplete"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/analysis_status_e2e.py"
     }
   },
   "platforms": {

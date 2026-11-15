@@ -91,19 +91,41 @@ func Definition(documents []Document, options DomainOptions, uri string, p Posit
 }
 
 func References(documents []Document, options DomainOptions, uri string, p Position, includeDeclaration bool) []Location {
+	locations, _ := referenceQuery(documents, options, uri, p, includeDeclaration, false)
+	return locations
+}
+
+// ReferencesExplained retains the ordinary static locations while distinguishing
+// a proved result from limitations in selection, uniqueness and dynamic uses.
+func ReferencesExplained(documents []Document, options DomainOptions, uri string, p Position, includeDeclaration bool) ([]Location, *Refusal) {
+	return referenceQuery(documents, options, uri, p, includeDeclaration, true)
+}
+
+func referenceQuery(documents []Document, options DomainOptions, uri string, p Position, includeDeclaration, explain bool) ([]Location, *Refusal) {
 	result := []Location{}
+	original := documents
 	documents = queryDocuments(documents)
 	for _, doc := range documents {
 		if string(doc.Snapshot.URI()) == uri {
 			if name, definitions, uses, found := sourceReferences(doc, p); found {
 				if len(definitions[name]) != 1 {
-					return result
+					code := "AMBIGUOUS_BINDING"
+					if len(definitions[name]) == 0 {
+						code = "BINDING_NOT_FOUND"
+					}
+					return result, Refuse(code, "source reference has no unique mapped definition")
 				}
 				result = append(result, uses[name]...)
 				if includeDeclaration {
 					result = append(result, definitions[name]...)
 				}
-				return result
+				if explain {
+					if limitation := sourceReferenceLimit(options.Context, doc); limitation != nil {
+						return result, limitation
+					}
+					return result, projectionReferenceLimit(original, uri)
+				}
+				return result, nil
 			}
 		}
 	}
@@ -118,8 +140,17 @@ func References(documents []Document, options DomainOptions, uri string, p Posit
 			project = literal(object(doc.Value["spec"])["project"])
 		}
 	}
-	if project == "" || options.ControlPlaneNamespace == "" {
-		return result
+	if options.ControlPlaneNamespace == "" {
+		return result, Refuse("TARGET_UNKNOWN", "Project references require a known controlPlaneNamespace")
+	}
+	if project == "" {
+		return result, Refuse("NOT_REFERENCE_TARGET", "position is not a supported literal reference binding")
+	}
+	if explain && strings.ContainsAny(project, "${}") {
+		return result, Refuse("DYNAMIC_REFERENCE", "the selected Project reference is dynamic")
+	}
+	if explain && project == "default" {
+		return result, Refuse("BUILTIN_BINDING", "the default Project has implicit uses; an explicit location list cannot prove their absence")
 	}
 	matches := 0
 	for _, doc := range documents {
@@ -129,7 +160,11 @@ func References(documents []Document, options DomainOptions, uri string, p Posit
 		}
 	}
 	if matches != 1 {
-		return result
+		code := "AMBIGUOUS_BINDING"
+		if matches == 0 {
+			code = "BINDING_NOT_FOUND"
+		}
+		return result, Refuse(code, "Project references require one declaration in the control-plane namespace")
 	}
 	for _, doc := range documents {
 		if doc.Kind == "Application" && literal(object(doc.Value["spec"])["project"]) == project {
@@ -143,7 +178,13 @@ func References(documents []Document, options DomainOptions, uri string, p Posit
 			}
 		}
 	}
-	return result
+	if explain {
+		if limitation := projectReferenceLimit(options.Context, documents); limitation != nil {
+			return result, limitation
+		}
+		return result, projectionReferenceLimit(original, "")
+	}
+	return result, nil
 }
 func SchemaHover(ctx context.Context, doc Document, p Position) *Hover {
 	offset, e := doc.Snapshot.Offset(source.Position{Line: p.Line, UTF16Column: p.Character})

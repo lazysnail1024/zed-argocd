@@ -25,10 +25,36 @@ type sourceOccurrence struct {
 	precise    bool
 }
 
+// SourceRefRenamePosition selects the relevant guard family before preparation.
+// This does not authorize an edit: preparation still proves unique literal uses.
+func SourceRefRenamePosition(doc Document, pos Position) bool {
+	if doc.Kind != "Application" {
+		return false
+	}
+	offset, err := doc.Snapshot.Offset(source.Position{Line: pos.Line, UTF16Column: pos.Character})
+	if err != nil {
+		return false
+	}
+	for i, value := range objectSlice(object(doc.Value["spec"])["sources"]) {
+		prefix := []string{"spec", "sources", fmt.Sprint(i)}
+		paths := [][]string{appendPath(prefix, "ref")}
+		for _, use := range helmValuePaths(object(object(value)["helm"])) {
+			paths = append(paths, appendPath(prefix, append([]string{"helm"}, use.path...)...))
+		}
+		for _, path := range paths {
+			span := doc.location(path).Span()
+			if span.End > span.Start && offset >= span.Start && offset <= span.End {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func sourceOccurrences(ctx context.Context, doc Document) ([]sourceOccurrence, error) {
 	sources := objectSlice(object(doc.Value["spec"])["sources"])
 	if doc.Kind != "Application" || !sourceRefsActive(doc.Target, len(sources)) {
-		return nil, fmt.Errorf("rename is available for Application source ref names")
+		return nil, Refuse("NOT_RENAME_TARGET", "rename is available for Application source ref names")
 	}
 	result := []sourceOccurrence{}
 	add := func(path []string, value string, definition bool) error {
@@ -40,7 +66,7 @@ func sourceOccurrences(ctx context.Context, doc Document) ([]sourceOccurrence, e
 			name = strings.SplitN(value[1:], "/", 2)[0]
 		}
 		if strings.ContainsAny(name, "${}") {
-			return fmt.Errorf("dynamic source names prevent a complete rename")
+			return Refuse("DYNAMIC_REFERENCE", "dynamic source names prevent a complete rename")
 		}
 		if name == "" {
 			return nil
@@ -96,7 +122,7 @@ func sourceRenameSelection(ctx context.Context, doc Document, pos Position) (*So
 		}
 	}
 	if selected == nil {
-		return nil, nil, fmt.Errorf("position is not an independently editable source ref name")
+		return nil, nil, Refuse("NOT_RENAME_TARGET", "position is not an independently editable source ref name")
 	}
 	definitions := 0
 	for _, item := range items {
@@ -104,14 +130,14 @@ func sourceRenameSelection(ctx context.Context, doc Document, pos Position) (*So
 			continue
 		}
 		if !item.precise {
-			return nil, nil, fmt.Errorf("a source reference has a shared or derived location")
+			return nil, nil, Refuse("SOURCE_NOT_EDITABLE", "a source reference has a shared or derived location")
 		}
 		if item.definition {
 			definitions++
 		}
 	}
 	if definitions != 1 {
-		return nil, nil, fmt.Errorf("source ref definition is missing or ambiguous")
+		return nil, nil, Refuse("AMBIGUOUS_BINDING", "source ref definition is missing or ambiguous")
 	}
 	start, err := doc.Snapshot.Position(selected.span.Start)
 	if err != nil {
@@ -135,7 +161,7 @@ func RenameSourceRef(ctx context.Context, doc Document, pos Position, newName st
 		return edit.Plan{}, err
 	}
 	if !sourceRefName.MatchString(newName) {
-		return edit.Plan{}, fmt.Errorf("source ref names contain only letters, digits, underscores and hyphens")
+		return edit.Plan{}, Refuse("INVALID_NAME", "source ref names contain only letters, digits, underscores and hyphens")
 	}
 	plan := edit.Plan{BaseRevision: doc.Snapshot.Revision()}
 	if newName == target.Placeholder {
@@ -143,7 +169,7 @@ func RenameSourceRef(ctx context.Context, doc Document, pos Position, newName st
 	}
 	for _, item := range items {
 		if item.name == newName {
-			return edit.Plan{}, fmt.Errorf("new source ref name is already declared or referenced")
+			return edit.Plan{}, Refuse("AMBIGUOUS_BINDING", "new source ref name is already declared or referenced")
 		}
 		if item.name != target.Placeholder {
 			continue
@@ -160,7 +186,7 @@ func RenameSourceRef(ctx context.Context, doc Document, pos Position, newName st
 		plan.Replacements = append(plan.Replacements, edit.Replacement{Span: node.Span(), ExpectedText: node.Raw(), NewText: string(encoded)})
 	}
 	if !safeScopePlan(ctx, doc, []Document{doc}, DomainOptions{Complete: false}, plan, "") {
-		return edit.Plan{}, fmt.Errorf("rename introduces a schema or local semantic error")
+		return edit.Plan{}, Refuse("SEMANTIC_CHANGE", "rename introduces a schema or local semantic error")
 	}
 	return plan, nil
 }

@@ -306,7 +306,7 @@ func explainConfig(args []string, out, errOut io.Writer) int {
 		}
 		return 2
 	}
-	if e = json.NewEncoder(out).Encode(map[string]any{"product": buildinfo.Product, "schemaVersion": 1, "root": input.Root, "config": input.Config, "targets": input.Targets, "analysisReady": buildinfo.Current().AnalysisReady}); e != nil {
+	if e = json.NewEncoder(out).Encode(map[string]any{"product": buildinfo.Product, "schemaVersion": 1, "root": input.Root, "config": input.Config, "targets": input.Targets, "analysisReady": buildinfo.Current().AnalysisReady, "inputSource": "disk", "coverage": "configuration-only", "workspaceDiscoveryComplete": input.Complete}); e != nil {
 		fmt.Fprintln(errOut, e)
 		return 2
 	}

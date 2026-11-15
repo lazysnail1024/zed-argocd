@@ -19,6 +19,7 @@ type renameParams struct {
 // acquire the entire selected scope and retain its generation instead.
 func (s *workspaceIndex) renameRequest(ctx context.Context, m message, input *completed, buffers map[string]buffer, canEdit bool) (any, int, string, bool) {
 	if !canEdit {
+		input.refusal = analysis.Refuse("CLIENT_CAPABILITY_MISSING", "client does not support versioned documentChanges")
 		return nil, -32602, "client does not support versioned documentChanges", false
 	}
 	var params renameParams
@@ -27,6 +28,7 @@ func (s *workspaceIndex) renameRequest(ctx context.Context, m message, input *co
 	}
 	b, exists := buffers[params.TextDocument.URI]
 	if !exists || b.unavailable != "" || input.err != nil {
+		input.refusal = analysis.Refuse("INPUT_UNAVAILABLE", "rename requires the current accepted open document")
 		return nil, -32801, "rename requires the current accepted open document", false
 	}
 	for _, scope := range input.scopes {
@@ -34,18 +36,23 @@ func (s *workspaceIndex) renameRequest(ctx context.Context, m message, input *co
 			if string(doc.Snapshot.URI()) != params.TextDocument.URI || doc.Snapshot.Revision() != b.snapshot.Revision() {
 				continue
 			}
-			if m.Method == "textDocument/prepareRename" {
-				target, err := analysis.PrepareSourceRefRename(ctx, doc, params.Position)
-				if err == nil {
-					return target, 0, "", true
-				}
+			if !analysis.SourceRefRenamePosition(doc, params.Position) {
 				continue
 			}
-			if _, err := analysis.PrepareSourceRefRename(ctx, doc, params.Position); err != nil {
-				continue
+			target, err := analysis.PrepareSourceRefRename(ctx, doc, params.Position)
+			if err != nil {
+				input.refusal = analysis.ExplainRefusal(err)
+				if m.Method == "textDocument/prepareRename" {
+					return nil, 0, "", true
+				}
+				return nil, -32602, err.Error(), true
+			}
+			if m.Method == "textDocument/prepareRename" {
+				return target, 0, "", true
 			}
 			plan, err := analysis.RenameSourceRef(ctx, doc, params.Position, params.NewName)
 			if err != nil {
+				input.refusal = analysis.ExplainRefusal(err)
 				return nil, -32602, err.Error(), true
 			}
 			edits := []analysis.TextEdit{}

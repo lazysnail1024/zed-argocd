@@ -40,7 +40,7 @@ type projectRenameSite struct {
 func projectName(value any) (string, error) {
 	name, ok := value.(string)
 	if !ok || name == "" || strings.ContainsAny(name, "${}") {
-		return "", fmt.Errorf("an unknown or dynamic Project binding prevents a complete rename")
+		return "", Refuse("DYNAMIC_REFERENCE", "an unknown or dynamic Project binding prevents a complete rename")
 	}
 	return name, nil
 }
@@ -91,8 +91,14 @@ func appSetProjectSite(doc, variant Document, name string) projectRenameSite {
 }
 
 func projectRenameSites(ctx context.Context, documents []Document, options DomainOptions) ([]projectRenameSite, error) {
-	if !options.Complete || options.ReferencePolicy != "closed" || options.ControlPlaneNamespace == "" {
-		return nil, fmt.Errorf("Project rename requires a complete closed scope and an explicit controlPlaneNamespace")
+	if !options.Complete {
+		return nil, Refuse("INDEX_INCOMPLETE", "Project rename requires a completely analyzed scope")
+	}
+	if options.ControlPlaneNamespace == "" {
+		return nil, Refuse("TARGET_UNKNOWN", "Project rename requires an explicit controlPlaneNamespace")
+	}
+	if options.ReferencePolicy != "closed" {
+		return nil, Refuse("REFERENCE_SCOPE_OPEN", "Project rename requires an intentionally closed reference scope")
 	}
 	sites := []projectRenameSite{}
 	for _, doc := range documents {
@@ -103,7 +109,7 @@ func projectRenameSites(ctx context.Context, documents []Document, options Domai
 			meta := object(doc.Value["metadata"])
 			namespace := literal(meta["namespace"])
 			if strings.ContainsAny(namespace, "${}") {
-				return nil, fmt.Errorf("an unknown Project namespace prevents a complete rename")
+				return nil, Refuse("TARGET_UNKNOWN", "an unknown Project namespace prevents a complete rename")
 			}
 			if namespace != options.ControlPlaneNamespace {
 				continue
@@ -121,7 +127,7 @@ func projectRenameSites(ctx context.Context, documents []Document, options Domai
 			variants, diagnostics = appSetVariants(doc)
 			for _, diagnostic := range diagnostics {
 				if diagnostic.Severity == 1 {
-					return nil, fmt.Errorf("ApplicationSet projection errors prevent a complete Project rename")
+					return nil, Refuse("INPUT_UNAVAILABLE", "ApplicationSet projection errors prevent a complete Project rename")
 				}
 			}
 		}
@@ -135,10 +141,10 @@ func projectRenameSites(ctx context.Context, documents []Document, options Domai
 			spec, objectSpec := variant.Value["spec"].(map[string]any)
 			if !objectSpec {
 				if doc.Kind == "ApplicationSet" {
-					return nil, fmt.Errorf("an unknown ApplicationSet template prevents a complete Project rename")
+					return nil, Refuse("DYNAMIC_REFERENCE", "an unknown ApplicationSet template prevents a complete Project rename")
 				}
 				if _, present := variant.Value["spec"]; present {
-					return nil, fmt.Errorf("an unknown Application spec prevents a complete Project rename")
+					return nil, Refuse("INPUT_UNAVAILABLE", "an unknown Application spec prevents a complete Project rename")
 				}
 				continue
 			}
@@ -151,7 +157,7 @@ func projectRenameSites(ctx context.Context, documents []Document, options Domai
 				return nil, err
 			}
 			if variant.UnknownPaths["spec/project"] {
-				return nil, fmt.Errorf("an unknown Project field prevents a complete rename")
+				return nil, Refuse("DYNAMIC_REFERENCE", "an unknown Project field prevents a complete rename")
 			}
 			site := projectSite(doc, []string{"spec", "project"}, name, false)
 			if doc.Kind == "ApplicationSet" {
@@ -180,16 +186,16 @@ func projectRenameSelection(ctx context.Context, documents []Document, options D
 		}
 		if offset >= site.span.Start && offset <= site.span.End {
 			if selected != nil && selected.name != site.name {
-				return nil, nil, fmt.Errorf("Project selection is ambiguous")
+				return nil, nil, Refuse("AMBIGUOUS_BINDING", "Project selection is ambiguous")
 			}
 			selected = site
 		}
 	}
 	if selected == nil {
-		return nil, nil, fmt.Errorf("position is not an independently editable Project binding")
+		return nil, nil, Refuse("NOT_RENAME_TARGET", "position is not an independently editable Project binding")
 	}
 	if selected.name == "default" {
-		return nil, nil, fmt.Errorf("the built-in default Project has implicit bindings and cannot be renamed")
+		return nil, nil, Refuse("BUILTIN_BINDING", "the built-in default Project has implicit bindings and cannot be renamed")
 	}
 	declarations := 0
 	uris := map[string]bool{}
@@ -202,15 +208,18 @@ func projectRenameSelection(ctx context.Context, documents []Document, options D
 		}
 		if site.document.compact != nil {
 			if requireFull {
-				return nil, nil, fmt.Errorf("every affected Project document must be reacquired before rename")
+				return nil, nil, Refuse("STALE_INPUT", "every affected Project document must be reacquired before rename")
 			}
 		} else if !site.exact {
-			return nil, nil, fmt.Errorf("a Project binding has a shared, derived or unmapped source")
+			return nil, nil, Refuse("SOURCE_NOT_EDITABLE", "a Project binding has a shared, derived or unmapped source")
 		}
 		uris[string(site.document.Snapshot.URI())] = true
 	}
 	if declarations != 1 {
-		return nil, nil, fmt.Errorf("Project declaration is missing or ambiguous in the control-plane namespace")
+		if declarations == 0 {
+			return nil, nil, Refuse("BINDING_NOT_FOUND", "Project declaration is missing in the control-plane namespace")
+		}
+		return nil, nil, Refuse("AMBIGUOUS_BINDING", "Project declaration is missing or ambiguous in the control-plane namespace")
 	}
 	span := selected.span
 	raw, _ := selected.document.Snapshot.Slice(span)
@@ -247,17 +256,17 @@ func RenameProject(ctx context.Context, documents []Document, options DomainOpti
 		return nil, err
 	}
 	if newName == "default" {
-		return nil, fmt.Errorf("the built-in default Project name has implicit bindings")
+		return nil, Refuse("BUILTIN_BINDING", "the built-in default Project name has implicit bindings")
 	}
 	if len(newName) > 253 || !projectResourceName.MatchString(newName) {
-		return nil, fmt.Errorf("Project name must be a DNS subdomain of at most 253 characters")
+		return nil, Refuse("INVALID_NAME", "Project name must be a DNS subdomain of at most 253 characters")
 	}
 	if newName == target.Placeholder {
 		return []DocumentPlan{}, nil
 	}
 	for _, site := range sites {
 		if site.name == newName {
-			return nil, fmt.Errorf("new Project name is already declared or used by another binding")
+			return nil, Refuse("AMBIGUOUS_BINDING", "new Project name is already declared or used by another binding")
 		}
 	}
 	encoded, _ := json.Marshal(newName)
@@ -279,7 +288,7 @@ func RenameProject(ctx context.Context, documents []Document, options DomainOpti
 			byURI[snapshot.URI()] = plan
 		}
 		if plan.Document.Target != site.document.Target || plan.Document.Snapshot.Revision() != snapshot.Revision() || plan.Document.Snapshot.Text() != snapshot.Text() {
-			return nil, fmt.Errorf("affected document has inconsistent snapshot or target identity")
+			return nil, Refuse("STALE_INPUT", "affected document has inconsistent snapshot or target identity")
 		}
 		expected, err := snapshot.Slice(site.span)
 		if err != nil {
@@ -291,7 +300,7 @@ func RenameProject(ctx context.Context, documents []Document, options DomainOpti
 	for _, uri := range target.URIs {
 		plan := byURI[source.URI(uri)]
 		if plan == nil {
-			return nil, fmt.Errorf("affected Project document has no proved replacement")
+			return nil, Refuse("SOURCE_NOT_EDITABLE", "affected Project document has no proved replacement")
 		}
 		sort.Slice(plan.Plan.Replacements, func(i, j int) bool {
 			return plan.Plan.Replacements[i].Span.Start < plan.Plan.Replacements[j].Span.Start
@@ -332,14 +341,14 @@ func safeProjectRename(ctx context.Context, documents []Document, options Domain
 			return err
 		}
 		if before.Incomplete {
-			return fmt.Errorf("Project rename input analysis is incomplete")
+			return Refuse("INDEX_INCOMPLETE", "Project rename input analysis is incomplete")
 		}
 		after, err := afterAnalyzer.Analyze(ctx, next[plan.Document.Snapshot.URI()], plan.Document.Target)
 		if err != nil {
 			return err
 		}
 		if after.Incomplete {
-			return fmt.Errorf("Project rename result analysis is incomplete")
+			return Refuse("INDEX_INCOMPLETE", "Project rename result analysis is incomplete")
 		}
 		beforeDiagnostics = append(beforeDiagnostics, before.Diagnostics...)
 		afterDiagnostics = append(afterDiagnostics, after.Diagnostics...)
@@ -361,7 +370,7 @@ func safeProjectRename(ctx context.Context, documents []Document, options Domain
 		key := d.URI + "\n" + d.Code + "\n" + d.Message
 		counts[key]--
 		if counts[key] < 0 {
-			return fmt.Errorf("Project rename introduces a schema or scope error")
+			return Refuse("SEMANTIC_CHANGE", "Project rename introduces a schema or scope error")
 		}
 	}
 	return ctx.Err()

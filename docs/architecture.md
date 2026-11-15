@@ -19,6 +19,7 @@ cluster connection.
 | [analysis/summary.go](../internal/analysis/summary.go) | Compact resource facts, dependency keys, retained locations and meaning identities without retaining closed-file source or syntax trees. |
 | [analysis/fixes.go](../internal/analysis/fixes.go), [rename.go](../internal/analysis/rename.go), [project_rename.go](../internal/analysis/project_rename.go) | Candidate construction, semantic simulation and exact-origin edit planning. |
 | [internal/lsp](../internal/lsp/) | Protocol transport, open-buffer authority, incremental orchestration, current-document analysis, publications, request limits, query/edit freshness and explicit render actions. |
+| [lsp/status.go](../internal/lsp/status.go), [analysis/availability.go](../internal/analysis/availability.go) | Read-only current-buffer status projection, explicit explanation action and typed refusals selected by the actual guards. Reference completeness and edit authorization remain separate. |
 | [internal/buildinfo](../internal/buildinfo/) | Product, version, source and contract identity. |
 | [editors/zed/src](../editors/zed/src/) | Zed settings/process integration, native selection, download/cache activation and identity verification. |
 

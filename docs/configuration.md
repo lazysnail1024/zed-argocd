@@ -125,6 +125,54 @@ Other clients can set `initializationOptions.targetVersion` and later send
 not read editor settings. [Distribution](distribution.md#server-selection-and-offline-use)
 describes executable selection and identity checks.
 
+## Analysis explanations
+
+The **Explain current Argo CD analysis** source action is available to clients
+advertising CodeAction literal support, including clients without versioned edit
+support. It invokes `argocd.explainAnalysis` and displays one `window/showMessage`
+for that explicit request. Background analysis does not emit these messages.
+Actions bind both the client version and the server's input revision, so an old
+action is rejected after editing or closing and reopening the same file.
+
+Other clients can request `argocd/analysisStatus` with ordinary
+`textDocument.uri` and `position` parameters. The selected document must be an
+accepted open buffer. The structured response includes:
+
+- `root`, the deepest owning root, `roots`, exactly the roots supplied by the
+  client, and the selected `scope`.
+- `inputIdentity`: buffer URI, client version, server revision, text SHA-256,
+  configuration hash/source and target version/source.
+- `phase` and independent `completeness.document` and
+  `completeness.workspace` facts. Completeness describes performed analysis,
+  not whether the document is error-free.
+- `operations`: reference-query and Rename preparation availability for the
+  current position. A reference `resultCount` is emitted only when the selected
+  scope and supported static binding establish the count. Dynamic, ambiguous,
+  implicit-default and unmapped uses remain unknown. Rename still validates the
+  new name and simulates edits when it is actually requested.
+
+The status is a projection of current analysis and existing guards. It does not
+create another index, change `referencePolicy` or fill in a namespace. Stable
+codes in refusals and Rename `error.data` include:
+
+| Reason code | Meaning and recovery |
+| --- | --- |
+| `INDEX_INCOMPLETE` | Discovery or relevant analysis is incomplete; wait or correct the reported unavailable inputs. |
+| `ISOLATED_DOCUMENT` | The opened file is excluded from workspace indexing; its independent checks do not authorize cross-resource operations. |
+| `TARGET_UNKNOWN` | The control-plane namespace or a relevant namespace is unknown; review the intended target. |
+| `REFERENCE_SCOPE_OPEN` | Cross-resource Rename requires an intentionally closed scope; an open policy is not changed automatically. |
+| `AMBIGUOUS_BINDING` / `BINDING_NOT_FOUND` | Resolve duplicate definitions or the missing binding in the selected scope. |
+| `AFFECTED_FILE_NOT_OPEN` | Open the identified affected file so its client version can participate in the edit proof. |
+| `DYNAMIC_REFERENCE` / `REFERENCE_COVERAGE_UNKNOWN` | Dynamic or unmapped uses prevent a complete reference count or safe edit. |
+| `BUILTIN_BINDING` | The default Project has implicit uses and cannot provide an ordinary complete explicit-reference proof. |
+| `STALE_INPUT` | Request a new action against the current buffer and configuration. |
+
+Each refusal includes `message`, `relatedLocations` and `nextStep`. Read-only
+reference availability does not require affected files to be open or the scope
+to authorize edits. Separately, `explain-config` always reads disk configuration
+and reports `inputSource: "disk"` and `coverage: "configuration-only"`; successful
+configuration acquisition does not certify Schema or domain analysis.
+
 ## CLI output and limits
 
 ```sh

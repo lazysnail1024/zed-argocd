@@ -29,6 +29,7 @@ def audit_consumers(platform):
   ('projection-aggregate','projection_aggregate_e2e.py',[],180),
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
+  ('analysis-status','analysis_status_e2e.py',[],120),
   ('navigation-editing','navigation_editing_e2e.py',[],120),
   ('navigation-editing-guards','navigation_editing_guards_e2e.py',[],180),
   ('bounded-symbol-queries','bounded_symbol_queries_e2e.py',[],180),

@@ -99,6 +99,7 @@
         "tests/ablate_shared_schemaquery.py",
         "tests/alias_projection_cli_e2e.py",
         "tests/alias_projection_lsp_e2e.py",
+        "tests/analysis_status_e2e.py",
         "tests/appset_overrides_e2e.py",
         "tests/audit_regression_mutations.py",
         "tests/bounded_symbol_queries_e2e.py",
@@ -107,7 +108,9 @@
         "tests/ci_shards_e2e.py",
         "tests/cli_e2e.py",
         "tests/config_uri_e2e.py",
+        "tests/helm_source_e2e.py",
         "tests/host_capabilities_e2e.py",
+        "tests/incremental_equivalence_e2e.py",
         "tests/incremental_performance_e2e.py",
         "tests/interaction_remediation_e2e.py",
         "tests/lsp_regressions_e2e.py",
@@ -116,6 +119,7 @@
         "tests/native_environment_e2e.py",
         "tests/native_package_e2e.py",
         "tests/native_process_e2e.py",
+        "tests/navigation_defaults_e2e.py",
         "tests/navigation_editing_ablation.py",
         "tests/navigation_editing_e2e.py",
         "tests/navigation_editing_guards_e2e.py",
@@ -135,10 +139,7 @@
         "tests/semantic_regressions_e2e.py",
         "tests/shared_schemaquery_e2e.py",
         "tests/target_e2e.py",
-        "tests/workspace_regressions_e2e.py",
-        "tests/navigation_defaults_e2e.py",
-        "tests/helm_source_e2e.py",
-        "tests/incremental_equivalence_e2e.py"
+        "tests/workspace_regressions_e2e.py"
       ]
     },
     "resources": {
