@@ -68,11 +68,44 @@ source inventory are checked through `toolkit.lock.json`, `toolkit-snapshot.json
 and `vendor-toolkit-sources.json`. Preserve it when editing prose documentation;
 it is a build input.
 
-When advancing the source pin, update the Go dependency, contract snapshot and
-lock identities together. Run `go mod vendor`, then `python3 tools/vendor_c.py`
-to restore and verify the parser's native source trees. Commit `go.sum`, vendor
-content and provenance records together. Verify the native provenance lane and
-the affected real-process consumers. The
+Treat an upgrade as six separate gates:
+
+1. Compare the candidate contract with the adopted snapshot and describe the
+   consumer benefit and changed cancellation, ownership, budget or edit behavior.
+2. Pin the toolkit implementation to a full source SHA and immutable module
+   version. Preserve the previous consumer SHA and its locks/vendor so the old
+   combination remains rebuildable.
+3. Validate that library against fixed downstream source SHAs, recording any
+   temporary module substitution. This proves compatibility with those inputs;
+   it does not mean a consumer has adopted the library.
+4. In the consumer candidate, update the Go dependency, byte-identical contract,
+   lock, source snapshot and provenance together. With `GOWORK=off` and no local
+   `replace`, run `go mod vendor`, then `python3 tools/vendor_c.py` to restore
+   native parser sources and check them against the snapshot. Include `go.sum`,
+   vendor content and license/provenance records in the same adoption change.
+   Derive the runtime source digest, file inventory and contract digest from the
+   fixed provider snapshot. For the consumer's `zipSHA256`, run
+   `GOWORK=off go mod download -json <module>@<immutable-version>` and hash the
+   exact file named by its `Zip` field with `sha256sum`. Check `Origin.Hash`
+   against the full implementation SHA and check `Sum` against `go.sum`
+   separately. The Go `h1:` checksum, downloaded ZIP SHA-256 and source-content
+   digest describe different inputs. A provider-generated snapshot archive can
+   contain the same runtime sources with different ZIP bytes; do not substitute
+   its archive hash for the downloaded Go module ZIP hash.
+5. From an independent checkout, build and run the actual product CLI/LSP with
+   `GOWORK=off` and `-mod=vendor`. Run the provenance lane and affected consumers
+   for diagnostics, projection, cancellation, edits and memory; retain input and
+   binary identities, commands, outputs and reports. Rebuild the previous
+   consumer SHA independently with its own pins and toolchain when validating
+   rollback. A current sibling checkout must not supply either build's inputs.
+6. Record consumer adoption only when its source records the verified pin.
+   Validate the selected native/adapter package in the real host and release
+   them independently through the existing distribution gates and authorization.
+
+Report **fixed-consumer compatibility**, **consumer candidate passed**,
+**consumer adopted**, and **released** separately. A toolkit tag or a successful
+provider test establishes none of the later states. An adopted source pin does
+not change a published binary or the adapter's native download pin. The
 [ownership table](docs/architecture.md#shared-toolkit-boundary) identifies the
 behavior retained in this repository.
 
