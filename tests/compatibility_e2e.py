@@ -79,8 +79,12 @@ def run(binary, output):
         folder = output / name
         root = folder / 'workspace'
         root.mkdir(parents=True, exist_ok=True)
-        wire.write(root, '.argocd-ls.yaml', CONFIG)
-        file = wire.write(root, 'input.yaml', text)
+        # The frozen oracle binds these exact UTF-8 bytes, including configHash.
+        # Text-mode writes would translate LF to CRLF on Windows and silently
+        # select different inputs before comparing the recorded identities.
+        (root / '.argocd-ls.yaml').write_bytes(CONFIG.encode('utf-8'))
+        file = root / 'input.yaml'
+        file.write_bytes(text.encode('utf-8'))
         args = [str(binary), command, '--root', str(root), '--file', str(file), '--target-version', target]
         if command == 'check': args += ['--format', 'json']
         process = subprocess.run(args, capture_output=True, timeout=20, env=dict(os.environ, ARGOCD_LS_TRACE='1'))

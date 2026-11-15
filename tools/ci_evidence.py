@@ -24,8 +24,11 @@ TYPES = {"file": tarfile.REGTYPE, "directory": tarfile.DIRTYPE,
          "symlink": tarfile.SYMTYPE, "fifo": tarfile.FIFOTYPE,
          "character": tarfile.CHRTYPE, "block": tarfile.BLKTYPE,
          "socket": b"s"}
-MAX_MANIFEST_BYTES = 64 * 1024 * 1024
-MAX_MEMBERS = 250_000
+# The three existing large-workspace consumers alone retain over 250,000
+# regular files. Keep finite transport limits without dropping their inputs.
+MAX_MANIFEST_BYTES = 256 * 1024 * 1024
+MAX_MEMBERS = 1_000_000
+MAX_READ_BYTES = 64 * 1024 * 1024
 MAX_FILE_BYTES = 16 * 1024**3
 MAX_OBJECT_BYTES = 8 * 1024**3 - 1  # Canonical physical USTAR size field.
 MAX_LOGICAL_BYTES = 64 * 1024**3
@@ -51,7 +54,7 @@ class BoundedReader:
     def read(self, size=-1):
         # The legacy TAR parser may ask for an attacker-declared PAX payload.
         # No single read may allocate an unbounded header or expanded stream.
-        if size < 0 or size > MAX_MANIFEST_BYTES:
+        if size < 0 or size > MAX_READ_BYTES:
             raise ValueError("Expanded evidence read exceeds byte limit")
         value = self.stream.read(min(size, self.limit - self.total + 1))
         self.total += len(value)
@@ -69,7 +72,7 @@ class SingleGzipReader:
         self.finished = False
 
     def read(self, size):
-        if size < 0 or size > MAX_MANIFEST_BYTES:
+        if size < 0 or size > MAX_READ_BYTES:
             raise ValueError("Compressed read exceeds byte limit")
         result = bytearray()
         while len(result) < size and not self.finished:
@@ -165,7 +168,7 @@ def kind(metadata):
 def signature(metadata, *, permissions=True):
     return (metadata.st_dev, metadata.st_ino, metadata.st_size,
             metadata.st_mtime_ns, metadata.st_mode if permissions else stat.S_IFMT(metadata.st_mode),
-            metadata.st_uid, metadata.st_gid, metadata.st_ctime_ns, metadata.st_rdev)
+            metadata.st_uid, metadata.st_gid, metadata.st_ctime_ns, getattr(metadata, "st_rdev", None))
 
 
 def check_snapshot(path, expected, actual, phase, *, permissions=True):

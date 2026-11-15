@@ -216,12 +216,12 @@ def main():
     rows, sockets = [], []
     applicability = {}
 
-    def invoke(name, arguments, expected=0, reason=None, tool=TOOL):
+    def invoke(name, arguments, expected=0, reason=None, tool=TOOL, timeout=40):
         directory = out / "commands" / name
         directory.mkdir(parents=True)
         command = [sys.executable, str(tool), *map(str, arguments)]
         started = time.monotonic()
-        process = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=40)
+        process = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=timeout)
         (directory / "stdout").write_bytes(process.stdout)
         (directory / "stderr").write_bytes(process.stderr)
         checks = {"exit": process.returncode == expected}
@@ -321,6 +321,29 @@ def main():
               and tar_inventory(out / "literal-export/evidence.tar.gz") == inventory["members"],
               noSpecialInstantiated=not (out / "literal-export/portable-fixture").exists())
 
+        # The existing native workloads produce more than 250,000 input files.
+        # Exercise that legitimate inventory through the wire format without
+        # creating another quarter-million physical fixtures on every runner.
+        # Long valid paths also put the manifest above the former 64 MiB cap.
+        large_root = "large-native-fixture"
+        large_parent = large_root + "/" + "e" * 192
+        shared = b"complete original fixture bytes\n"
+        shared_hash = sha(shared)
+        large_records = [dict(name=name, type="directory", mode=0o750, size=0,
+                              uid=123, gid=456, mtime=1_600_000_123)
+                         for name in (large_root, large_parent)]
+        large_records.extend(dict(name=large_parent + "/" + str(index), type="file", mode=0o640,
+                                  size=len(shared), uid=123, gid=456, mtime=1_600_000_123,
+                                  sha256=shared_hash) for index in range(250_001))
+        large_fixture = bundle(out / "large-native-inventory", dict(formatVersion=2, roots=[large_root],
+                               excluded=[], members=large_records), {shared_hash: shared})
+        del large_records
+        large_result = invoke("large-native-inventory", ["verify", "--manifest", large_fixture], timeout=120)
+        observed = json.loads(large_result.stdout) if large_result.returncode == 0 else {}
+        check("large-native-inventory-complete", allMembersVerified=observed.get("members") == 250_003,
+              sharedObjectVerified=observed.get("objects") == 1 and observed.get("verified") is True,
+              exceedsOldManifestLimit=large_fixture.stat().st_size > 64 * 1024 * 1024)
+
         def negative(name, reason, edit=None, alter=None, external=None, raw_manifest=None, raw_archive=None):
             changed = copy.deepcopy(inventory)
             if edit:
@@ -364,10 +387,10 @@ def main():
                 if record["type"] == "file":
                     record["size"] = 8 * 1024**3 - 1
         negative("logical-size-bound", "limit", edit=excessive_logical_bytes)
-        negative("inventory-bound", "limit", edit=lambda m: m.update(members=[{}] * 250_001))
+        negative("inventory-bound", "limit", edit=lambda m: m.update(members=[{}] * 1_000_001))
         oversized = bundle(out / "variants/manifest-byte-bound", inventory, payloads)
         with oversized.open("r+b") as stream:
-            stream.truncate(64 * 1024 * 1024 + 1)
+            stream.truncate(256 * 1024 * 1024 + 1)
         invoke("manifest-byte-bound", ["verify", "--manifest", oversized], 2, "limit")
         negative("digest-size-conflict", "size", edit=lambda m: m["members"][2].update(size=1))
         negative("invalid-digest", "SHA-256", edit=lambda m: m["members"][1].update(sha256="a" * 63))

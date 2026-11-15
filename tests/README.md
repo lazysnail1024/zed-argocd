@@ -206,7 +206,7 @@ by its verifier. V1 uses the original surrogateescape byte encoding for those
 metadata bounds; v2 remains strict UTF-8. Pinned old production
 archives exercise those compatibility cases on every native test host.
 
-Both readers bound a manifest to 64 MiB, the logical inventory to 250,000 members,
+Both readers bound a manifest to 256 MiB, the logical inventory to 1,000,000 members,
 total logical bytes and compressed archive bytes to 64 GiB, encoded names to 4,096
 bytes and link metadata to 16 KiB. V1 regular files are bounded to 16 GiB; v2 content
 objects are bounded to 8 GiB minus one byte by its canonical USTAR size field.
@@ -216,6 +216,13 @@ Packing checks actual file identity, size, mode, owner/group, mtime and ctime
 around reads, then checks the entire selected member inventory again. These are
 observed stability checks, not an atomic snapshot against a hostile concurrent
 writer. Roots and exclusions use sorted/set lookups rather than pairwise scans.
+The inventory allowance covers the existing full native lane: its 150,000-file
+persistent workspace, 50,000-file mixed parent and 50,001-file repository exclusion
+fixtures already exceed the former 250,000-member limit before any other evidence.
+These generated inputs remain in the archive. Individual streaming reads remain
+bounded to 64 MiB. Device identity is compared when the operating system exposes
+it; Windows ordinary files have no `st_rdev` field, while their other identity and
+metadata checks remain active.
 
 `ci_evidence_cas_e2e.py` fixes the seven-type header and duplicate-content
 expectations independently, tests malformed containers and actual source changes,

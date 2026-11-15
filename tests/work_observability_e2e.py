@@ -62,6 +62,10 @@ def setup(output, name, config=wire.CONFIG):
 
 def mixed(output):
     folder, root, app, project = setup(output, 'mixed-first-open')
+    # Fix the physical byte oracle independently of text-mode newline handling.
+    # Exercise CRLF even on Unix; readBytes counts acquired bytes, not LF text.
+    closed_source = wire.PROJECT.replace('\n', '\r\n').encode('utf-8')
+    project.write_bytes(closed_source)
     for index in range(1000):
         wire.write(root, 'foreign/%04d.yaml' % index, FOREIGN)
     client = Client(folder, [root])
@@ -94,11 +98,12 @@ def mixed(output):
     checks.update(actualAcquisitionBytes=count['readBytes'] >= 1000 * len(FOREIGN.encode()),
                   coldSchemaWork=count['schemaLoads'] > 0 and count['schemaCompiles'] > 0,
                   originsSeparated={'request', 'document-background', 'workspace-background'} <= {r['origin'] for r in records},
-                  closedReadBytes=bool(closed_work) and closed_work[-1]['work']['readBytes'] == len(wire.PROJECT.encode()))
+                  closedReadBytes=bool(closed_work) and closed_work[-1]['work']['readBytes'] == len(closed_source))
     checks['warmFactsRestored'] = (warm_work['parseCalls'] == 0 and warm_work['projectionCalls'] == 0
                                   and warm_work['readBytes'] == 0 and warm_work['schemaCompiles'] == 0
                                   and warm_work['factsRestored'] == len(warm_ids) and warm_work['schemaQueries'] > 0)
-    return checks, {'totals': count, 'closedRequest': closed_work, 'readiness': ready,
+    return checks, {'totals': count, 'closedRequest': closed_work, 'closedSourceBytes': len(closed_source),
+                    'closedSourceNewlines': 'CRLF', 'readiness': ready,
                     'warmRequestIds': warm_ids, 'warmWork': warm_work}, records
 
 

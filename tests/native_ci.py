@@ -232,7 +232,7 @@ def main():
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
   run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
   run('ci-evidence',[sys.executable,str(ROOT/'tests/ci_evidence_e2e.py'),'--output',str(out/'ci-evidence')],timeout=90)
-  run('ci-evidence-cas',[sys.executable,str(ROOT/'tests/ci_evidence_cas_e2e.py'),'--output',str(out/'ci-evidence-cas')],timeout=120)
+  run('ci-evidence-cas',[sys.executable,str(ROOT/'tests/ci_evidence_cas_e2e.py'),'--output',str(out/'ci-evidence-cas')],timeout=180)
   run('ci-shard-gate',[sys.executable,str(ROOT/'tests/ci_shards_e2e.py'),'--output',str(out/'ci-shard-gate')],timeout=90)
   if a.suite=='all':
    security_suite('provenance');security_suite('compiler-environment')

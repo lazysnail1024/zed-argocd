@@ -3612,7 +3612,16 @@
           "identity": {
             "id": "cancel-recovery"
           },
-          "passKey": "passed"
+          "passKey": "passed",
+          "assertions": {
+            "keys": [
+              "cancel_reply_within_200ms",
+              "immediate_read_is_current",
+              "semantics_match_fresh",
+              "single_cancel_reply",
+              "worker_released_within_5s"
+            ]
+          }
         },
         {
           "identity": {
@@ -19727,6 +19736,30 @@
             "keys": [
               "allSevenTypesAndMetadata",
               "noSpecialInstantiated"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "large-native-inventory"
+          },
+          "checks": {
+            "keys": [
+              "exit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "large-native-inventory-complete"
+          },
+          "checks": {
+            "keys": [
+              "allMembersVerified",
+              "exceedsOldManifestLimit",
+              "sharedObjectVerified"
             ]
           },
           "passKey": "passed"
