@@ -108,6 +108,7 @@
         "tests/audit_regression_mutations.py",
         "tests/bounded_symbol_queries_e2e.py",
         "tests/candidate_concurrency_e2e.py",
+        "tests/ci_evidence_cas_e2e.py",
         "tests/ci_evidence_e2e.py",
         "tests/ci_shards_e2e.py",
         "tests/cli_e2e.py",

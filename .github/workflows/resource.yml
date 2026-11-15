@@ -57,16 +57,13 @@ jobs:
     - name: Replay CLI deadline rejection controls
       if: matrix.suite == 'lifecycle'
       run: python tests/observation_evidence_e2e.py --resources artifacts/resources --output artifacts/resources/observation-controls
-    - name: Pack complete resource evidence
+    - name: Archive and verify resource evidence with verified v1 fallback
       if: always()
       run: 'mkdir -p artifacts/resource-gate artifacts/resource-build artifacts/resources
 
-        python tools/ci_evidence.py pack --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
+        python tools/ci_evidence.py retain --root artifacts/resource-gate --root artifacts/resource-build --root artifacts/resources --output artifacts/resource-evidence
 
         '
-    - name: Verify archived resource evidence
-      if: always()
-      run: python tools/ci_evidence.py verify --manifest artifacts/resource-evidence/manifest.json
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       if: always()
       with:

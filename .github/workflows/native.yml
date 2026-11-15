@@ -178,12 +178,9 @@ jobs:
           artifacts/native-ci/child-evidence/*.json
         if-no-files-found: error
         retention-days: 30
-    - name: Archive complete replay evidence without disposable compiler caches
+    - name: Archive and verify complete replay evidence with verified v1 fallback
       if: always()
-      run: python tools/ci_evidence.py pack --root artifacts/native-ci --output artifacts/native-evidence
-    - name: Verify archived bytes and metadata without extracting fixtures
-      if: always()
-      run: python tools/ci_evidence.py verify --manifest artifacts/native-evidence/manifest.json
+      run: python tools/ci_evidence.py retain --root artifacts/native-ci --output artifacts/native-evidence
     - name: Retain successful and failed native evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -256,12 +253,9 @@ jobs:
     - name: Replay designated mutation rejection controls
       if: matrix.suite == 'mutations'
       run: python tests/observation_evidence_e2e.py --mutations artifacts/orthogonal-ci/tests --output artifacts/orthogonal-ci/observation-controls
-    - name: Archive complete success and failure evidence
+    - name: Archive and verify success and failure evidence with verified v1 fallback
       if: always()
-      run: python tools/ci_evidence.py pack --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence
-    - name: Verify archived evidence
-      if: always()
-      run: python tools/ci_evidence.py verify --manifest artifacts/orthogonal-evidence/manifest.json
+      run: python tools/ci_evidence.py retain --root artifacts/orthogonal-ci --output artifacts/orthogonal-evidence
     - name: Retain orthogonal acceptance evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

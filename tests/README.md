@@ -28,7 +28,7 @@ The inventory describes wiring; it does not replace execution evidence.
 | Go owner contracts | `go test` for `internal/assets`, `internal/analysis`, `internal/cli`; `-race -count=1` for `internal/lsp` and `internal/workspace` | Schema compile constraints, derived AppSet budgets, summary identity, CLI behavior, real index state transitions, rename proofs and document budgets. These supplement executable consumers where ownership/synchronization cannot be directly observed through the protocol. |
 | Zed adapter and package | Cargo tests plus `adapter_e2e.py`, `package_e2e.py`, `ablate_identity.py`, `ablate_distribution.py` in [zed.yml](../.github/workflows/zed.yml) | Rust distribution selection and runtime identity, compiled WASM and packaged assets, exact pin isolation, valid alternate-version packages, and named runtime rejection of single corruptions. The adapter builds without the native repository contents. |
 | Editor content and installation | `editors/zed/tests/snippets_e2e.py`; `install_e2e.py` in [zed-install.yml](../.github/workflows/zed-install.yml) | All three shipped snippets execute through the current native checker. Installation tests download real published release assets on their configured hosts. The installer workflow is path-triggered for installer changes; package/WASM validation runs in adapter CI. Neither boundary claims GUI interaction with Zed. |
-| CI evidence and controls | `native_ci_process_e2e.py`, `ci_evidence_e2e.py`, `ci_shards_e2e.py`, `resource_gate_e2e.py`, `test_inventory.py` | Cleanup, archive refusal, source/tool/step/job mismatch and missing evidence. Synthetic reports test validators only; native and resource jobs must independently execute the real workload. |
+| CI evidence and controls | `native_ci_process_e2e.py`, `ci_evidence_e2e.py`, `ci_evidence_cas_e2e.py`, `ci_shards_e2e.py`, `resource_gate_e2e.py`, `test_inventory.py` | Cleanup, typed archive/export and verified fallback, source/tool/step/job mismatch and missing evidence. Synthetic reports test validators only; native and resource jobs must independently execute the real workload. |
 
 Every test file, including helpers, aliases and consumers invoked by another
 consumer, has one primary classification in the machine-readable inventory.
@@ -155,6 +155,117 @@ producer serves native consumers and orthogonal baselines; a separate ordinary
 development producer serves resource lanes. Both start with empty compilation
 and module caches. No warm compiler cache is enabled. Compressed evidence is
 uploaded without recompression.
+
+### Typed replay transport
+
+`tools/ci_evidence.py` owns both archive formats. `pack` defaults to historical
+format 1; `pack --format cas-v2` stores one ordinary content object per SHA-256.
+Both use gzip level 1 and keep the designated compiler/module-cache exclusions.
+Every logical file still has its own path and mode. The v2 inventory also binds
+numeric UID/GID and integer-second mtime, matching the original packer's timestamp
+precision; owner/group names stay empty. Directories, symlinks, FIFOs, sockets and
+character/block devices remain typed metadata. Physical hardlinks retain the old
+behavior of independent regular logical files. The first ordinary TAR entry is
+the canonical inventory; the archive hash binds it and all unique objects. This
+is a self-contained manifest/archive pair, with no external producer references.
+
+CI invokes `retain`: it packs and verifies `cas-v2/`, then tries `v1/` if the new
+codec fails. `retention.json` records `actualFormat`, `fallbackReason`, each real
+attempt and verification outcome. A fallback succeeds only after v1 verification.
+First-attempt error text, partial outputs and all source evidence remain intact;
+no source tree is deleted. If both formats fail, the command fails and marks
+retention incomplete. The uploaded directory retains the available partial bytes
+and diagnostic report; complete retention is not claimed. Earlier test/job
+failures remain failures. Original receipts, child reports and raw streams are
+ordinary payload bytes, never reconstructed or restamped as successful evidence.
+
+```sh
+python tools/ci_evidence.py retain --root artifacts/native-ci --output artifacts/native-evidence
+# Read retention.json for the selected relative manifest path.
+python tools/ci_evidence.py verify --manifest artifacts/native-evidence/cas-v2/manifest.json
+python tools/ci_evidence.py export --manifest artifacts/native-evidence/cas-v2/manifest.json --output artifacts/offline-replay
+```
+
+`export` first verifies its input and writes a complete typed v1 TAR plus manifest
+into a new output directory. It only spools ordinary object bytes into an anonymous
+temporary file; it never creates logical symlinks, FIFOs, sockets or devices.
+V1 input is copied byte for byte, including the original compressed archive and
+manifest. V2 expands each logical regular member independently and restores every
+recorded header field. Exported v1 is verified again before success. Verification
+and export work after source trees are detached. This is a byte-complete offline
+export, not evidence of newly executing the original tests or the whole CI plan.
+
+V2 accepts canonical relative portable paths, rejects case/NFC aliases and
+file/directory conflicts, and requires exact object membership, ordinary physical
+USTAR headers, zero TAR padding and one gzip member with no compressed tail. It
+rejects duplicate JSON keys, boolean numeric fields, undeclared fields, hash/size
+disagreement and missing raw objects. Historical v1 keeps its original relative
+path policy, including Unix names such as `con.txt`, `revision:one.txt` and distinct
+`A.txt`/`a.txt` and POSIX non-UTF-8 filename/link bytes; no logical path is extracted
+by its verifier. V1 uses the original surrogateescape byte encoding for those
+metadata bounds; v2 remains strict UTF-8. Pinned old production
+archives exercise those compatibility cases on every native test host.
+
+Both readers bound a manifest to 64 MiB, the logical inventory to 250,000 members,
+total logical bytes and compressed archive bytes to 64 GiB, encoded names to 4,096
+bytes and link metadata to 16 KiB. V1 regular files are bounded to 16 GiB; v2 content
+objects are bounded to 8 GiB minus one byte by its canonical USTAR size field.
+V2's expanded byte allowance is derived from the exact inventory/object sizes,
+headers and TAR padding; the legacy reader separately allows bounded PAX headers.
+Packing checks actual file identity, size, mode, owner/group, mtime and ctime
+around reads, then checks the entire selected member inventory again. These are
+observed stability checks, not an atomic snapshot against a hostile concurrent
+writer. Roots and exclusions use sorted/set lookups rather than pairwise scans.
+
+`ci_evidence_cas_e2e.py` fixes the seven-type header and duplicate-content
+expectations independently, tests malformed containers and actual source changes,
+and requires a verified fallback under a controlled codec failure. Filesystem
+capability limits are recorded separately from the literal metadata checks.
+The native lane and its child contract require this consumer alongside the
+unchanged v1 and production gate controls. `ci_gate.py`, build receipts, run/attempt
+trust and domain acceptance remain separate from this transport verifier.
+
+Transport measurements must count the archive, external manifest and required
+retention/index files together. Compare current production v1 with v2 using the
+same logical input, compression level, runtime and selection; report pack, verify
+and offline export separately. Local historical replay samples do not establish
+hosted upload/download/queue savings, critical-path improvements or new domain
+execution coverage.
+
+The initial three alternating local pairs used the exact `ec32e5d` production v1
+tool and CAS candidate tool SHA-256 `cf4e7e66baa787aaf2c13bee2c39069d9ff81a6e11b8cf1b54fcebc4baf04fbc`,
+Python 3.12.14 / zlib 1.3.2 / gzip level 1. The reconstructed historical input
+contained 4,220 regular files (206,187,799 bytes), 1,008 directories and one FIFO.
+Both tools read the same physical paths and metadata; the original archive's
+UID/GID 1001 was recorded separately from the reconstructed owner's 1000.
+Every pair preserved the complete typed inventory and produced identical full
+offline TAR bytes. Each CAS trial also ran the actual retention wrapper to count
+its required metadata, separately from the timed pack/verify/export commands.
+
+| Local measurement | Frozen production v1 | CAS v2 |
+| --- | ---: | ---: |
+| Archive bytes, each trial | 39,486,139 | 30,249,613 |
+| External manifest bytes, each trial | 1,152,329 | 1,366,718 |
+| Required retention metadata bytes, each trial | 0 | 927 |
+| Total transport bytes, each trial | 40,638,468 | 31,617,258 |
+| Pack median, three samples | 3.093 s | 4.750 s |
+| Verify median, three samples | 1.266 s | 1.648 s |
+| New offline export median, three samples | 3.119 s | 5.202 s |
+
+This is a 22.20% reduction in transport bytes in exchange for **more local packing,
+verification and offline recovery time** in this sample. It is not an overall CI
+speedup claim. Export is a new interface in both columns; v1 copies its verified
+full archive, while v2 restores every logical member from verified unique content.
+The historical tests were not reexecuted, and hosted transfer/queue samples are
+absent. The scratch comparison and its raw phase observations remain separate
+from product test results.
+The final follow-up only changes two v1 metadata byte-length expressions to
+preserve POSIX surrogateescape names. A frozen old-producer archive tests that
+compatibility; all 5,229 measured logical names have identical strict/surrogateescape
+bytes, and v2's strict encoding is unchanged. The timings above remain bound to
+the stated measured candidate, rather than being restamped onto that follow-up.
+
+### Producer identity and execution plans
 
 Consumers require the producer receipt digest from the same workflow dependency,
 run and attempt, then verify source inputs, bytes and the executable identity.

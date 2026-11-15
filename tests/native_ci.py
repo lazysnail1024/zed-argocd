@@ -7,7 +7,7 @@ SUITES=('consumers','provenance','compiler-environment')
 PLATFORM_COMPILERS={'linux/amd64':'13.3.0','linux/arm64':'13.3.0','darwin/amd64':'Apple clang version 17.0.0','darwin/arm64':'Apple clang version 17.0.0','windows/amd64':'15.2.0'}
 SECURITY_STEPS={'provenance':'provenance-and-archive','compiler-environment':'compiler-environment'}
 COMPILER_CASES=('normal','flags','search','link','persisted-go')
-BASE_STEPS=('build','package','ci-process-boundary','ci-evidence','ci-shard-gate','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
+BASE_STEPS=('build','package','ci-process-boundary','ci-evidence','ci-evidence-cas','ci-shard-gate','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
 SOURCE_ABLATIONS=(('compatibility-intersection-ablation','ablate_compatibility_intersection.py',300),('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240))
 
 def audit_consumers(platform):
@@ -232,6 +232,7 @@ def main():
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
   run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
   run('ci-evidence',[sys.executable,str(ROOT/'tests/ci_evidence_e2e.py'),'--output',str(out/'ci-evidence')],timeout=90)
+  run('ci-evidence-cas',[sys.executable,str(ROOT/'tests/ci_evidence_cas_e2e.py'),'--output',str(out/'ci-evidence-cas')],timeout=120)
   run('ci-shard-gate',[sys.executable,str(ROOT/'tests/ci_shards_e2e.py'),'--output',str(out/'ci-shard-gate')],timeout=90)
   if a.suite=='all':
    security_suite('provenance');security_suite('compiler-environment')

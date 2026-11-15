@@ -1,0 +1,19 @@
+{
+  "sourceCommit": "ec32e5d5285b748a9c10c4a4d0dd5c9fe0b7dbbf",
+  "sourceSHA256": "0f3bc50db4111c5d4a191e33c526237bfd74b84076016defc6bed26767181857",
+  "scope": "Exact old production v1 pack/verify artifacts; metadata-only portability controls, no extraction.",
+  "fixtures": {
+    "case-distinct": {
+      "evidence.tar.gz": "72b27ba7085afd49ac21ac58d97f7d67fe4e3758dc52e60b0e1eeae7ae97a279",
+      "manifest.json": "59cb891bb3fd56380f74c10936dd943cda67bc698f53a0f71f6e7bf7099f9aed"
+    },
+    "unix-names": {
+      "evidence.tar.gz": "aae42b73e85d23d6a38893bf84699c4f350e2cbff3a222bf0004f81086ee9ab1",
+      "manifest.json": "d2cd6554db15274198fcadd40cf5667461c27faf83db6db566604afeb9d4067e"
+    },
+    "non-utf8": {
+      "evidence.tar.gz": "b73e220ce7e203836018421f7c6e1d4b7840d60f0520734da59abe661adb2b1b",
+      "manifest.json": "562ee0af02872b32921d01ea620914cfdf86ced385d2c8b28b5d1a630eaaf31e"
+    }
+  }
+}
