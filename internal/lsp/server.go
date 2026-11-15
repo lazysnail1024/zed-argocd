@@ -371,6 +371,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 		case r := <-rendered:
 			renderBusy = false
 			if request, ok := requests[string(r.id)]; ok && request.ctx == r.ctx {
+				// Some clients show only a generic execute-command error. Surface
+				// the concrete saved-input refusal for this explicit preflight,
+				// before any rendering proof exists. Cancelled or obsolete render
+				// completions must not produce a later notification.
+				preflightNotice := r.err != nil && r.proof == nil && r.ctx.Err() == nil
 				if r.err == nil && !r.proof.valid(r.ctx, buffers, roots, override, workspaceState.renderEvents(roots)) {
 					r.err = fmt.Errorf("render inputs changed while running; request a fresh render action")
 				}
@@ -378,6 +383,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				delete(requests, string(r.id))
 				if r.err != nil {
 					reject(r.id, -32803, r.err.Error())
+					if preflightNotice {
+						_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 2, "message": "Argo CD render-check: " + r.err.Error()}})
+					}
 				} else {
 					reply(r.id, r.result)
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": r.result.Message}})

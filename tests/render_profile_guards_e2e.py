@@ -112,7 +112,10 @@ def run(binary, out):
         values = root / 'env/dev.yaml'
         client.open(values, 'environment: unsaved\n', 1)
         rejected = execute(client, dev)
-        record('external-values-must-be-saved', {'refusedBeforeHelm': refused(rejected, 'save') and not (folder / 'calls.jsonl').exists(), 'diskUnchanged': values.read_text() == 'environment: dev\n'}, rejected)
+        notice = None
+        try: notice = client.wait(lambda item: item.get('method') == 'window/showMessage' and item.get('params', {}).get('type') == 2, timeout=.5)
+        except TimeoutError: pass
+        record('external-values-must-be-saved', {'refusedBeforeHelm': refused(rejected, 'save') and not (folder / 'calls.jsonl').exists(), 'diskUnchanged': values.read_text() == 'environment: dev\n', 'visibleSaveReason': bool(notice) and 'save' in notice['params']['message'].lower() and 'values' in notice['params']['message'].lower() and str(values) in notice['params']['message']}, {'response': rejected, 'notice': notice})
         client.send('textDocument/didClose', {'textDocument': {'uri': values.as_uri()}})
 
         fresh = selected(actions(client, file), 'dev')

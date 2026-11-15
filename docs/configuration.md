@@ -271,7 +271,11 @@ requires the selected source, every open chart input, the root configuration and
 all chosen values buffers to be saved, including values outside the chart and
 alternate file URIs. An old action is rejected after input, configuration, root
 membership or source lifetime changes. Save the inputs and request a fresh action
-to recover. Rendering uses disk inputs; it does not save buffers for the user.
+to recover. Explicit execution preflight also displays its actionable refusal
+with `window/showMessage`, so clients that show generic command errors still
+explain which inputs must be saved. Listing/resolving actions and cancelled or
+obsolete render completions do not emit this warning. Rendering uses disk inputs;
+it does not save buffers for the user.
 
 Defaults remain release `argo-ls`, namespace `default`, Kubernetes version
 `1.31.0` and the chart's default values. Both Helm 3 and Helm 4 are accepted.

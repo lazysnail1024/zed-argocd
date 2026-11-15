@@ -180,7 +180,7 @@ func renderInputsSaved(ctx context.Context, request workspace.RenderRequest, buf
 		}
 		text, e := workspace.ReadFile(ctx, file)
 		if e != nil || opened.unavailable != "" || text != opened.snapshot.Text() {
-			return fmt.Errorf("save all open chart, configuration and selected values files before render-check")
+			return fmt.Errorf("save all open chart, configuration and selected values files before render-check: %s", file)
 		}
 	}
 	return nil
