@@ -10,7 +10,7 @@ cluster connection.
 | Module | Responsibility |
 | --- | --- |
 | [cmd/argocd-ls](../cmd/argocd-ls/) | Native process entry point. |
-| [internal/cli](../internal/cli/) | `version`, `check`, `explain-config`, `render-check` and `serve`; reports, exits, explicit Helm process lifecycle and output handling. |
+| [internal/cli](../internal/cli/) | `version`, `check`, `explain-config`, `explain-compatibility`, `render-check` and `serve`; reports, exits, explicit Helm process lifecycle and output handling. |
 | [internal/workspace](../internal/workspace/) | Root ownership, strict configuration, targets/scopes, exclusions, bounded acquisition, repository mappings, chart discovery and target pin configuration. |
 | [internal/assets](../internal/assets/) | Embedded catalog, exact/automatic schemas, compiled-schema readiness and source identities. |
 | [analysis/schema.go](../internal/analysis/schema.go) and [projection.go](../internal/analysis/projection.go) | Parse immutable inputs, identify supported resources, project YAML values/origins and validate schemas. |
@@ -20,6 +20,7 @@ cluster connection.
 | [analysis/fixes.go](../internal/analysis/fixes.go), [rename.go](../internal/analysis/rename.go), [project_rename.go](../internal/analysis/project_rename.go) | Candidate construction, semantic simulation and exact-origin edit planning. |
 | [internal/lsp](../internal/lsp/) | Protocol transport, open-buffer authority, incremental orchestration, current-document analysis, publications, request limits, query/edit freshness and explicit render actions. |
 | [lsp/status.go](../internal/lsp/status.go), [analysis/availability.go](../internal/analysis/availability.go) | Read-only current-buffer status projection, explicit explanation action and typed refusals selected by the actual guards. Reference completeness and edit authorization remain separate. |
+| [analysis/compatibility.go](../internal/analysis/compatibility.go), [lsp/compatibility.go](../internal/lsp/compatibility.go) | Explicit whole-resource compatibility explanations, immutable Schema reuse, release bitsets and current local-rule profiles; no retained document state or workspace-target inference. |
 | [internal/buildinfo](../internal/buildinfo/) | Product, version, source and contract identity. |
 | [editors/zed/src](../editors/zed/src/) | Zed settings/process integration, native selection, download/cache activation and identity verification. |
 

@@ -19011,6 +19011,301 @@
       "runnerKey": "runnerSHA256",
       "binaryKey": "binarySHA256",
       "runner": "tests/analysis_status_e2e.py"
+    },
+    "compatibility-explanation": {
+      "file": "compatibility-explanation/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "whole-resource-valid"
+          },
+          "assertions": {
+            "keys": [
+              "boundedBranchWork",
+              "diskIdentity",
+              "honestLabel",
+              "readOnly",
+              "schemaAndJoint",
+              "success"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "whole-schema-not-field-union"
+          },
+          "assertions": {
+            "keys": [
+              "actionableSchemaReasons",
+              "explanationSucceeds",
+              "noJointCandidates",
+              "noWholeSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "schema-field-evolution"
+          },
+          "assertions": {
+            "keys": [
+              "introducedAtCollectedBoundary",
+              "removedAtCollectedBoundary"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "schema-semantic-empty-intersection"
+          },
+          "assertions": {
+            "keys": [
+              "intersectionEmpty",
+              "ruleReason",
+              "schemaNonempty",
+              "semanticsOpposeSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "single-source-ref-boundary"
+          },
+          "assertions": {
+            "keys": [
+              "afterIncluded",
+              "beforeExcluded",
+              "schemaBeforeAndAfter"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "appset-schema-dependent-rule-profile"
+          },
+          "assertions": {
+            "keys": [
+              "newOptionalSourceIncluded",
+              "oldRequiredSourceExcluded",
+              "threeProfiles"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "dynamic-coverage-remains-unknown"
+          },
+          "assertions": {
+            "keys": [
+              "noDeploymentProof",
+              "retainsStaticCandidates",
+              "unknownExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "yaml-stream-independent-resources"
+          },
+          "assertions": {
+            "keys": [
+              "independentCandidates",
+              "noInventedCommonTarget",
+              "twoResourceResults"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "damaged-input-not-confident"
+          },
+          "assertions": {
+            "keys": [
+              "incomplete",
+              "partialResourcesLabelled",
+              "reasonRetained"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unowned-input-explicit"
+          },
+          "assertions": {
+            "keys": [
+              "noCandidateClaim",
+              "scopeExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "project-schema-only-coverage"
+          },
+          "assertions": {
+            "keys": [
+              "crossResourcePolicyOmitted",
+              "noInventedLocalPolicyProof",
+              "wholeProjectSchema"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "bounded-resource-explanation"
+          },
+          "assertions": {
+            "keys": [
+              "boundedAndIncomplete",
+              "completedResourcesRetained",
+              "omittedWorkExplicit"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "catalog-and-source-evidence-scope"
+          },
+          "assertions": {
+            "keys": [
+              "coverageNotInventory",
+              "exactSelectionExplained",
+              "inventoryIdentity",
+              "ruleEvidenceIdentity"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-maintenance-independent-of-schemas"
+          },
+          "assertions": {
+            "keys": [
+              "equalSchemaSourcesStillChecked",
+              "exactSourcesChecked",
+              "functionAndCallerDiffs",
+              "reproducibleMetadata"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "unreviewed-source-pin-blocks-regeneration"
+          },
+          "assertions": {
+            "keys": [
+              "noCandidateMetadataProduced",
+              "sameSchemaDoesNotBypassReview"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "ordinary-auto-and-exact-unchanged"
+          },
+          "assertions": {
+            "keys": [
+              "autoSuccessControl",
+              "boundaryBehaviorPreserved",
+              "exactFrozenOracle"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-unsaved-buffer-and-explicit-action"
+          },
+          "assertions": {
+            "keys": [
+              "bufferCandidates",
+              "bufferIdentity",
+              "discoverableReadOnlyAction",
+              "diskUnchanged",
+              "visibleEpistemicLabel"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-stale-action-and-recovery"
+          },
+          "assertions": {
+            "keys": [
+              "currentCandidatesRecover",
+              "noNotificationFlood",
+              "oldActionRefused"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "lsp-owning-root-and-current-config"
+          },
+          "assertions": {
+            "keys": [
+              "acceptedUnsavedConfig",
+              "deepestRoot",
+              "localResultIndependent",
+              "noConfigMutation"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/compatibility_e2e.py"
+    },
+    "compatibility-intersection-ablation": {
+      "file": "compatibility-intersection-ablation/report.json",
+      "rowsKey": null,
+      "rootRow": true,
+      "rows": [
+        {
+          "identity": {},
+          "passKey": "passed",
+          "required": {
+            "buildExit": 0,
+            "testExit": 1,
+            "ordinaryCheckUnchanged": true,
+            "schemaStillNonempty": true,
+            "falseJointCandidates": true,
+            "expectedFailures": [
+              "schema-semantic-empty-intersection",
+              "single-source-ref-boundary",
+              "yaml-stream-independent-resources",
+              "lsp-unsaved-buffer-and-explicit-action"
+            ],
+            "failedCases": [
+              "schema-semantic-empty-intersection",
+              "single-source-ref-boundary",
+              "yaml-stream-independent-resources",
+              "lsp-unsaved-buffer-and-explicit-action"
+            ]
+          }
+        }
+      ]
     }
   },
   "platforms": {

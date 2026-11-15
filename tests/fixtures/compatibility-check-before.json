@@ -1,0 +1,1081 @@
+{
+  "sourceCommit": "6a2b5c89e124d9391dafb2828d7bf0b850a28562",
+  "binarySHA256": "ce7a59c181ee9854090599918a8947eff80cb87f7c79af9bf15cf344b05d8ca4",
+  "normalization": "only elapsed time, build marketing version and temporary root spelling are removed",
+  "cases": {
+    "valid/auto": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "17679405eacc5e4424194e3a290670176198b95ac6c6adce586cacd6338b937a",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:auto",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "auto",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "valid/3.4.13": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "f92ceb5ab436e51f432f52196bab32526608f40558e23843aae05bd681630927",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.4.13",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.4.13",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "valid/3.5.0": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "cde9584b18dc19222f29e87b5d6d95f34909508cce5198e5fc28dd96d7703d3c",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.5.0",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.5.0",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "valid/3.6.1": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "b1b70951811582e1577827fa8ab1a98274433cfb6b49726c6e3e8547ae5f9791",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.6.1",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.6.1",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "intersection/auto": {
+      "exit": 1,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "17679405eacc5e4424194e3a290670176198b95ac6c6adce586cacd6338b937a",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:auto",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "auto",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          },
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 45
+              },
+              "end": {
+                "line": 6,
+                "character": 52
+              }
+            },
+            "code": "CD_VALUES_REF_INVALID",
+            "source": "argocd-ls",
+            "severity": 1,
+            "message": "Source ref cannot contain a path or be combined with chart"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "intersection/3.4.13": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "f92ceb5ab436e51f432f52196bab32526608f40558e23843aae05bd681630927",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.4.13",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.4.13",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 54
+              },
+              "end": {
+                "line": 6,
+                "character": 63
+              }
+            },
+            "code": "SCHEMA_UNKNOWN_FIELD",
+            "source": "argocd-ls",
+            "severity": 2,
+            "message": "Field is not declared by this target Schema"
+          },
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "intersection/3.5.0": {
+      "exit": 1,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "cde9584b18dc19222f29e87b5d6d95f34909508cce5198e5fc28dd96d7703d3c",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.5.0",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.5.0",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          },
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 45
+              },
+              "end": {
+                "line": 6,
+                "character": 52
+              }
+            },
+            "code": "CD_VALUES_REF_INVALID",
+            "source": "argocd-ls",
+            "severity": 1,
+            "message": "Source ref cannot contain a path or be combined with chart"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "intersection/3.6.1": {
+      "exit": 1,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "b1b70951811582e1577827fa8ab1a98274433cfb6b49726c6e3e8547ae5f9791",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.6.1",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.6.1",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          },
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 6,
+                "character": 45
+              },
+              "end": {
+                "line": 6,
+                "character": 52
+              }
+            },
+            "code": "CD_VALUES_REF_INVALID",
+            "source": "argocd-ls",
+            "severity": 1,
+            "message": "Source ref cannot contain a path or be combined with chart"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "self-ref/auto": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "17679405eacc5e4424194e3a290670176198b95ac6c6adce586cacd6338b937a",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:auto",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "auto",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "self-ref/3.4.13": {
+      "exit": 1,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "f92ceb5ab436e51f432f52196bab32526608f40558e23843aae05bd681630927",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.4.13",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.4.13",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          },
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 8,
+                "character": 24
+              },
+              "end": {
+                "line": 8,
+                "character": 45
+              }
+            },
+            "code": "CD_VERSION_FEATURE",
+            "source": "argocd-ls",
+            "severity": 1,
+            "message": "This target cannot resolve a ref from a sole sources entry; support starts in Argo CD 3.5"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "self-ref/3.5.0": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "cde9584b18dc19222f29e87b5d6d95f34909508cce5198e5fc28dd96d7703d3c",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.5.0",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.5.0",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "self-ref/3.6.1": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "b1b70951811582e1577827fa8ab1a98274433cfb6b49726c6e3e8547ae5f9791",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.6.1",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.6.1",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "schema-conflict/auto": {
+      "exit": 1,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "17679405eacc5e4424194e3a290670176198b95ac6c6adce586cacd6338b937a",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:auto",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "auto",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 55
+              },
+              "end": {
+                "line": 5,
+                "character": 73
+              }
+            },
+            "code": "SCHEMA_VERSION_COMBINATION",
+            "source": "argocd-ls",
+            "severity": 1,
+            "message": "This field combination is not declared by any supported Argo CD release"
+          },
+          {
+            "targetId": "root:auto",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "schema-conflict/3.4.13": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "f92ceb5ab436e51f432f52196bab32526608f40558e23843aae05bd681630927",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.4.13",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.4.13",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 46
+              },
+              "end": {
+                "line": 5,
+                "character": 53
+              }
+            },
+            "code": "SCHEMA_UNKNOWN_FIELD",
+            "source": "argocd-ls",
+            "severity": 2,
+            "message": "Field is not declared by this target Schema"
+          },
+          {
+            "targetId": "root:3.4.13",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "schema-conflict/3.5.0": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "cde9584b18dc19222f29e87b5d6d95f34909508cce5198e5fc28dd96d7703d3c",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.5.0",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.5.0",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 46
+              },
+              "end": {
+                "line": 5,
+                "character": 53
+              }
+            },
+            "code": "SCHEMA_UNKNOWN_FIELD",
+            "source": "argocd-ls",
+            "severity": 2,
+            "message": "Field is not declared by this target Schema"
+          },
+          {
+            "targetId": "root:3.5.0",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    },
+    "schema-conflict/3.6.1": {
+      "exit": 0,
+      "report": {
+        "resourcesAnalyzed": 1,
+        "reportSchemaVersion": 1,
+        "product": "argo-cd",
+        "catalogHash": "2d823687fa192926477a36aef0bcfdaa14641a23a0d0a17bff378d37ed8a68d4",
+        "inputSource": "filesystem",
+        "validationScope": "local-editing-contract",
+        "analysisComplete": true,
+        "notEvaluated": [
+          "controller-admission-and-runtime",
+          "source-hydration",
+          "helm-value-file-expansion",
+          "template-function-availability",
+          "templatePatch-effects",
+          "controller-generators",
+          "complex-project-policy",
+          "CEL"
+        ],
+        "filesAnalyzed": 2,
+        "targets": [
+          {
+            "schemaHash": "b1b70951811582e1577827fa8ab1a98274433cfb6b49726c6e3e8547ae5f9791",
+            "rulesetId": "argocd-local-static-1",
+            "id": "root:3.6.1",
+            "root": "$ROOT",
+            "scope": "root",
+            "version": "3.6.1",
+            "source": "override",
+            "configHash": "1d3255166c93550d2f0e7c1c61530896c227dfaa2d6bdd79479d214f8390cd54",
+            "complete": true
+          }
+        ],
+        "diagnostics": [
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 5,
+                "character": 46
+              },
+              "end": {
+                "line": 5,
+                "character": 53
+              }
+            },
+            "code": "SCHEMA_UNKNOWN_FIELD",
+            "source": "argocd-ls",
+            "severity": 2,
+            "message": "Field is not declared by this target Schema"
+          },
+          {
+            "targetId": "root:3.6.1",
+            "uri": "file://$ROOT/input.yaml",
+            "range": {
+              "start": {
+                "line": 4,
+                "character": 11
+              },
+              "end": {
+                "line": 4,
+                "character": 18
+              }
+            },
+            "code": "CD_PROJECT_NAMESPACE_UNBOUND",
+            "source": "argocd-ls",
+            "severity": 3,
+            "message": "Local project candidates are available for navigation; project policy and reverse references require an explicit controlPlaneNamespace in .argocd-ls.yaml"
+          }
+        ],
+        "configurationErrors": []
+      }
+    }
+  }
+}

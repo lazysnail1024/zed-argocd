@@ -164,6 +164,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	}()
 	buffers := map[string]buffer{}
 	workspaceState := newWorkspaceIndex()
+	compatibility := new(analysis.CompatibilityAnalyzer)
 	defer workspaceState.close()
 	workEvents := workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 	diskGenerations := map[string]uint64{}
@@ -402,6 +403,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				if status, ok := q.answer.(analysisStatus); ok && q.showExplanation {
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": status.message()}})
 				}
+				if report, ok := q.answer.(analysis.CompatibilityReport); ok && q.showExplanation {
+					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": report.Message()}})
+				}
 			}
 		case result := <-results:
 			if result.documentOnly {
@@ -583,7 +587,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						"workspaceFolders": map[string]any{"supported": true, "changeNotifications": true},
 					},
 				}
-				commands := []string{explainCommand}
+				commands := []string{explainCommand, compatibilityCommand}
 				if canEdit || canExplainAction {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
 				}
@@ -635,7 +639,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 				}
 			}
-			if m.Method == analysisStatusMethod {
+			if m.Method == analysisStatusMethod || m.Method == compatibilityMethod {
 				b, opened := buffers[queryURI(m)]
 				if !opened || b.unavailable != "" {
 					refusal := analysis.Refuse("INPUT_UNAVAILABLE", "editor analysis status requires an accepted open buffer")
@@ -643,11 +647,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					continue
 				}
 			}
-			var extraAction any
+			var extraActions []any
 			if canExplainAction && m.Method == "textDocument/codeAction" {
-				extraAction, _ = explainAction(m, buffers, roots)
-				if extraAction != nil && explainOnly(m) {
-					reply(m.ID, []any{extraAction})
+				extraActions = explainActions(m, buffers, roots)
+				if len(extraActions) > 0 && explainOnly(m) {
+					reply(m.ID, extraActions)
 					continue
 				}
 			}
@@ -965,14 +969,14 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 				}()
 
-			case analysisStatusMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
+			case analysisStatusMethod, compatibilityMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
 					continue
 				}
 				slots := readSlots
-				if m.Method == analysisStatusMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+				if m.Method == analysisStatusMethod || m.Method == compatibilityMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
 					slots = editSlots
 				}
 				select {
@@ -1008,7 +1012,22 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					var answer any
 					var code int
 					var why string
-					if m.Method == analysisStatusMethod {
+					if m.Method == compatibilityMethod {
+						var err error
+						var compatibilityTrace io.Writer
+						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
+							compatibilityTrace = &trace
+						}
+						answer, input, err = explainCompatibility(ctx, compatibility, m, localInput, copied, queryRoots, selected, compatibilityTrace)
+						if err != nil {
+							code, why, input.refusal = -32803, err.Error(), analysis.ExplainRefusal(err)
+						} else {
+							proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
+							if proof != nil {
+								proof.localize(queryURI(m))
+							}
+						}
+					} else if m.Method == analysisStatusMethod {
 						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						answer = workspaceState.explainAnalysis(ctx, m, &input, copied, queryRoots, editable)
 						proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
@@ -1060,11 +1079,11 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								editProof = &generation
 							}
 						}
-						if extraAction != nil {
+						if len(extraActions) > 0 {
 							if actions, ok := answer.([]any); code == 0 && ok {
-								answer = append(actions, extraAction)
+								answer = append(actions, extraActions...)
 							} else if code == -32801 {
-								answer, code, why = []any{extraAction}, 0, ""
+								answer, code, why = extraActions, 0, ""
 							}
 						}
 						if code == -32801 {

@@ -110,6 +110,22 @@ Explanations do not change configuration or source text. See the
 [status interface and refusal codes](docs/configuration.md#analysis-explanations)
 for client integration and the difference from disk-based `explain-config`.
 
+## Explain compatibility candidates
+
+Choose **Explain Argo CD compatibility candidates** from the code actions, or run:
+
+```sh
+argocd-ls explain-compatibility --root . --file applications/example.yaml
+```
+
+The read-only explanation reports **candidates under modeled static constraints**
+for each resource in the file: whole-resource Schema candidates, candidates under
+the implemented local rules, their intersection, exclusion reasons and unknown
+areas. The editor uses the accepted unsaved buffer; the CLI reads disk. It does
+not select a deployment target or change ordinary `check`, `auto` or exact-pin
+validation results. A nonempty candidate set does not prove controller or
+admission compatibility. [Candidate meaning and source evidence](docs/multi-version-support.md#explicit-compatibility-explanation).
+
 ## Helm sources and explicit rendering
 
 Plain YAML inside a chart receives normal analysis. For Helm sources, literal

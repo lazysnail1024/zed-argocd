@@ -173,10 +173,28 @@ to authorize edits. Separately, `explain-config` always reads disk configuration
 and reports `inputSource: "disk"` and `coverage: "configuration-only"`; successful
 configuration acquisition does not certify Schema or domain analysis.
 
+### Compatibility candidates
+
+`argocd/compatibility` accepts `textDocument.uri` for an accepted open buffer and
+returns the independent resources in that file. The source action kind is
+`source.argocd.explainCompatibility`, invoking `argocd.explainCompatibility` with
+the same URI/client-version/server-revision argument binding as the status action.
+The explicit command emits one `window/showMessage` with the candidate label,
+counts, sampled versions, exclusion reason and limitations. Direct requests and
+background analysis do not emit unsolicited compatibility notifications.
+
+The result's `inputIdentity` records the accepted buffer, actual root/scope,
+selected target and disk/default or unsaved-buffer configuration. It is fenced
+again before delivery. A cold/incomplete workspace index does not block this
+document-only explanation. `explain-compatibility --file PATH --root DIR` provides
+the corresponding disk report; paths are relative to that root and excluded files
+are isolated. See [candidate meaning and limits](multi-version-support.md#explicit-compatibility-explanation).
+
 ## CLI output and limits
 
 ```sh
 argocd-ls explain-config --root .
+argocd-ls explain-compatibility --root . --file environments/prod/app.yaml
 argocd-ls check --root . --scope production --format json
 argocd-ls check --root . --file environments/prod/app.yaml --warnings-as-errors
 argocd-ls version --json

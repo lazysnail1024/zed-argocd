@@ -94,6 +94,7 @@
     },
     "native": {
       "tests/native_ci.py": [
+        "tests/ablate_compatibility_intersection.py",
         "tests/ablate_document_budget.py",
         "tests/ablate_project_rename.py",
         "tests/ablate_shared_schemaquery.py",
@@ -107,6 +108,7 @@
         "tests/ci_evidence_e2e.py",
         "tests/ci_shards_e2e.py",
         "tests/cli_e2e.py",
+        "tests/compatibility_e2e.py",
         "tests/config_uri_e2e.py",
         "tests/helm_source_e2e.py",
         "tests/host_capabilities_e2e.py",

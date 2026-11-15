@@ -9,7 +9,6 @@ import argparse
 import hashlib
 import json
 import pathlib
-import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / 'internal/assets/schemas'
@@ -62,6 +61,7 @@ def compatibility(variants):
 
 
 def main():
+    import yaml
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--accept-report', type=pathlib.Path,
                         help='Mark a matching complete bootstrap acceptance report ready')
@@ -131,6 +131,8 @@ def main():
     for old in OUT.glob('*.json'):
         if old.relative_to(ROOT).as_posix() not in active:
             old.unlink()
+    from compatibility_metadata import write_or_check
+    write_or_check()
     print(json.dumps({'targets': len(catalog['versions']), 'uniqueCanonicalSchemas': len(active) - len(groups),
                       'autoSchemas': {kind: len(group) for (api, kind), group in groups.items()},
                       'autoBytes': sum((ROOT / entry['path']).stat().st_size for entry in catalog['autoSchemas'])}))

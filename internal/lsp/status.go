@@ -58,7 +58,7 @@ type analysisStatus struct {
 
 // explainAction depends only on the accepted current buffer. It remains useful
 // while indexing is incomplete, and it cannot authorize an edit or disk write.
-func explainAction(m message, buffers map[string]buffer, roots []string) (any, bool) {
+func explainActions(m message, buffers map[string]buffer, roots []string) []any {
 	var p struct {
 		TextDocument struct {
 			URI string `json:"uri"`
@@ -69,28 +69,33 @@ func explainAction(m message, buffers map[string]buffer, roots []string) (any, b
 		} `json:"context"`
 	}
 	if json.Unmarshal(m.Params, &p) != nil {
-		return nil, false
-	}
-	if len(p.Context.Only) > 0 {
-		allowed := false
-		for _, kind := range p.Context.Only {
-			allowed = allowed || explainActionKind == kind || strings.HasPrefix(explainActionKind, kind+".")
-		}
-		if !allowed {
-			return nil, false
-		}
+		return nil
 	}
 	b, opened := buffers[p.TextDocument.URI]
 	path, err := workspace.PathFromURI(p.TextDocument.URI)
 	if !opened || b.unavailable != "" || err != nil || workspace.Owner(roots, path) == "" {
-		return nil, false
+		return nil
 	}
-	return explanationAction(explainArgument{p.TextDocument.URI, b.version, uint64(b.snapshot.Revision()), p.Range.Start}), true
+	result := []any{}
+	for _, kind := range []string{explainActionKind, compatibilityActionKind} {
+		allowed := len(p.Context.Only) == 0
+		for _, selected := range p.Context.Only {
+			allowed = allowed || kind == selected || strings.HasPrefix(kind, selected+".")
+		}
+		if allowed {
+			result = append(result, explanationAction(explainArgument{p.TextDocument.URI, b.version, uint64(b.snapshot.Revision()), p.Range.Start}, kind))
+		}
+	}
+	return result
 }
 
-func explanationAction(arg explainArgument) any {
-	return map[string]any{"title": "Explain current Argo CD analysis", "kind": explainActionKind,
-		"command": map[string]any{"title": "Explain current Argo CD analysis", "command": explainCommand, "arguments": []explainArgument{arg}}}
+func explanationAction(arg explainArgument, kind string) any {
+	title, command := "Explain current Argo CD analysis", explainCommand
+	if kind == compatibilityActionKind {
+		title, command = "Explain Argo CD compatibility candidates", compatibilityCommand
+	}
+	return map[string]any{"title": title, "kind": kind,
+		"command": map[string]any{"title": title, "command": command, "arguments": []explainArgument{arg}}}
 }
 
 func explainOnly(m message) bool {
@@ -99,7 +104,15 @@ func explainOnly(m message) bool {
 			Only []string `json:"only"`
 		} `json:"context"`
 	}
-	return json.Unmarshal(m.Params, &p) == nil && len(p.Context.Only) == 1 && p.Context.Only[0] == explainActionKind
+	if json.Unmarshal(m.Params, &p) != nil || len(p.Context.Only) == 0 {
+		return false
+	}
+	for _, kind := range p.Context.Only {
+		if kind != explainActionKind && kind != compatibilityActionKind {
+			return false
+		}
+	}
+	return true
 }
 
 func explainRequest(m message, buffers map[string]buffer) (message, *analysis.Refusal, bool) {
@@ -107,7 +120,7 @@ func explainRequest(m message, buffers map[string]buffer) (message, *analysis.Re
 		Command   string            `json:"command"`
 		Arguments []explainArgument `json:"arguments"`
 	}
-	if json.Unmarshal(m.Params, &p) != nil || p.Command != explainCommand {
+	if json.Unmarshal(m.Params, &p) != nil || (p.Command != explainCommand && p.Command != compatibilityCommand) {
 		return m, nil, false
 	}
 	if len(p.Arguments) != 1 {
@@ -123,6 +136,9 @@ func explainRequest(m message, buffers map[string]buffer) (message, *analysis.Re
 		return m, analysis.ExplainRefusal(err), true
 	}
 	m.Method, m.Params = analysisStatusMethod, params
+	if p.Command == compatibilityCommand {
+		m.Method = compatibilityMethod
+	}
 	return m, nil, true
 }
 

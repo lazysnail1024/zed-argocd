@@ -48,7 +48,7 @@ type Report struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		if _, err := fmt.Fprintln(out, "argocd-ls (development)\nCommands:\n  version [--json]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint."); err != nil {
+		if _, err := fmt.Fprintln(out, "argocd-ls (development)\nCommands:\n  version [--json]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human]\n  explain-compatibility --file PATH [--root DIR] [--target-version VERSION]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint."); err != nil {
 			fmt.Fprintln(errOut, err)
 			return 2
 		}
@@ -76,6 +76,8 @@ func Run(args []string, out, errOut io.Writer) int {
 		return 0
 	case "explain-config":
 		return explainConfig(args[1:], out, errOut)
+	case "explain-compatibility":
+		return explainCompatibility(args[1:], out, errOut)
 	case "render-check":
 		return renderCheck(args[1:], out, errOut)
 	case "check":
