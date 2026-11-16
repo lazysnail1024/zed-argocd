@@ -80,6 +80,8 @@ type pendingQuery struct {
 type queryResult struct {
 	refusal         *analysis.Refusal
 	showExplanation bool
+	candidateProof  *readProof
+	candidateOpen   *referenceCandidateOpen
 	proof           *readProof
 	symbolProof     *symbolReadProof
 	editGeneration  *uint64 // Configuration pin proofs cover the complete workspace.
@@ -447,7 +449,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			}
 			request.stop()
 			delete(requests, key)
-			if shutdown || (q.epoch != epoch && q.proof == nil) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
+			if shutdown || (q.epoch != epoch && (q.proof == nil || q.candidateProof != nil)) || (q.editGeneration != nil && *q.editGeneration != editGeneration) || (q.proof != nil && !q.proof.valid(buffers, roots, override, diskGenerations)) || (q.candidateProof != nil && !q.candidateProof.valid(buffers, roots, override, diskGenerations)) || (q.symbolProof != nil && !workspaceState.symbolsValid(q.symbolProof)) {
 				reject(q.id, -32801, "analysis changed", analysis.Refuse("STALE_INPUT", "analysis changed"))
 				request.work.Reply("stale")
 				continue
@@ -458,6 +460,12 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			} else {
 				reply(q.id, q.answer)
 				request.work.Reply("delivered")
+				if q.candidateOpen != nil {
+					if err := deliverReferenceCandidate(send, q.id, q.candidateOpen, canShowDocument); err != nil {
+						fmt.Fprintln(errOut, "candidate navigation delivery failed:", err)
+						return 2
+					}
+				}
 				if status, ok := q.answer.(analysisStatus); ok && q.showExplanation {
 					_ = send(map[string]any{"jsonrpc": "2.0", "method": "window/showMessage", "params": map[string]any{"type": 3, "message": status.message()}})
 				}
@@ -565,6 +573,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				return 2
 			}
 			m := event.message
+			if m.Method == "" && strings.HasPrefix(string(m.ID), `"`+referenceCandidateResponsePrefix) {
+				continue
+			}
 			if m.Method == "" && string(m.ID) == `"argocd-render-output"` {
 				continue
 			}
@@ -654,6 +665,9 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					},
 				}
 				commands := []string{explainCommand, compatibilityCommand}
+				if canExplainAction {
+					commands = append(commands, referenceCandidateCommand)
+				}
 				if canEdit || canExplainAction {
 					capabilities["codeActionProvider"] = map[string]any{"resolveProvider": true}
 				}
@@ -679,6 +693,19 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				continue
 			}
 			showExplanation := false
+			candidateRequest := false
+			if converted, refusal, handled := referenceCandidateRequest(m, buffers); handled {
+				if refusal != nil {
+					reject(m.ID, -32801, refusal.Message, refusal)
+					continue
+				}
+				m = converted
+				candidateRequest = true
+			}
+			if m.Method == referenceCandidateMethod && !candidateRequest {
+				reject(m.ID, -32601, "candidate navigation requires an explicit candidate command")
+				continue
+			}
 			if m.Method == "workspace/executeCommand" {
 				converted, refusal, handled := explainRequest(m, buffers)
 				if handled && refusal != nil {
@@ -1036,14 +1063,14 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 				}()
 
-			case analysisStatusMethod, compatibilityMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
+			case analysisStatusMethod, compatibilityMethod, referenceCandidateMethod, "textDocument/codeAction", "codeAction/resolve", "textDocument/definition", "textDocument/references", "textDocument/documentSymbol", "textDocument/hover", "textDocument/completion", "workspace/symbol", "textDocument/prepareRename", "textDocument/rename":
 				key := string(m.ID)
 				if _, exists := requests[key]; exists {
 					reject(m.ID, -32600, "duplicate request id")
 					continue
 				}
 				slots := readSlots
-				if m.Method == analysisStatusMethod || m.Method == compatibilityMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
+				if m.Method == analysisStatusMethod || m.Method == compatibilityMethod || m.Method == referenceCandidateMethod || m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" || m.Method == "textDocument/rename" || m.Method == "textDocument/prepareRename" || m.Method == "workspace/symbol" || m.Method == "textDocument/references" {
 					slots = editSlots
 				}
 				select {
@@ -1071,6 +1098,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 				}
 				editable := canEdit
+				canCandidates := canExplainAction
 				go func() {
 					work.Start()
 					terminal := "finished"
@@ -1079,6 +1107,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						work.Release(terminal)
 					}()
 					var proof *readProof
+					var candidateProof *readProof
+					var candidateOpen *referenceCandidateOpen
 					var symbolProof *symbolReadProof
 					var editProof *uint64
 					var trace bytes.Buffer
@@ -1100,9 +1130,20 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								proof.localize(queryURI(m))
 							}
 						}
+					} else if m.Method == referenceCandidateMethod {
+						answer, candidateOpen, candidateProof, input.refusal = workspaceState.resolveReferenceCandidate(ctx, m, copied, queryRoots, selected, queryDisk)
+						if input.refusal != nil {
+							code, why = -32801, input.refusal.Message
+						}
 					} else if m.Method == analysisStatusMethod {
 						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
-						answer = workspaceState.explainAnalysis(ctx, m, &input, copied, queryRoots, editable)
+						status := workspaceState.explainAnalysis(ctx, m, &input, copied, queryRoots, editable)
+						read, err := workspaceState.referenceCandidates(ctx, m, copied, queryRoots, selected, queryDisk)
+						if err != nil {
+							code, why, input.refusal = -32801, err.Error(), analysis.Refuse("STALE_INPUT", "Candidate inputs changed; retry the current selection.")
+						}
+						status.ReferenceCandidates, candidateProof = read.report, read.proof
+						answer = status
 						proof = newReadProof(m, input, copied, queryRoots, selected, queryDisk)
 					} else if m.Method == "workspace/symbol" {
 						var params struct {
@@ -1134,6 +1175,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 								proof.localize(queryURI(m))
 							}
 						}
+					} else if m.Method == "textDocument/codeAction" && candidateActionsOnly(m) {
+						answer = []any{}
 					} else if m.Method == "textDocument/codeAction" || m.Method == "codeAction/resolve" {
 						input = workspaceState.query(ctx, m, input, localInput, copied, queryRoots, selected, current)
 						if os.Getenv("ARGOCD_LS_TRACE") == "1" {
@@ -1178,6 +1221,14 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						}
 						traceReadRequest(&trace, m, fresh, proof)
 					}
+					if m.Method == "textDocument/codeAction" && canCandidates && candidateActionAllowed(m) && code == 0 {
+						read, err := workspaceState.referenceCandidates(ctx, m, copied, queryRoots, selected, queryDisk)
+						if err != nil {
+							code, why, input.refusal = -32801, err.Error(), analysis.Refuse("STALE_INPUT", "Candidate inputs changed; request actions again.")
+						} else if actions, ok := answer.([]any); ok {
+							answer, candidateProof = append(actions, read.actions()...), read.proof
+						}
+					}
 					if ctx.Err() != nil {
 						code, why = -32800, "request cancelled"
 					}
@@ -1189,7 +1240,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 					}
 					work.Finish()
 					select {
-					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
+					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, candidateProof: candidateProof, candidateOpen: candidateOpen, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
 					case <-done:
 					}
 				}()

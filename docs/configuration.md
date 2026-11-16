@@ -95,6 +95,33 @@ references and project rename require an explicit `controlPlaneNamespace`. A
 complete scope with no namespace produces informational
 `CD_PROJECT_NAMESPACE_UNBOUND` diagnostics.
 
+For an exact static `spec.project` use, **Explain current Argo CD analysis** also
+lists same-name AppProjects as **binding unproven**. This includes supported
+physical ApplicationSet template project fields. Each candidate carries its
+kind, namespace, file, exact source selection and `TARGET_UNKNOWN` explanation.
+An absent or explicitly empty namespace remains unknown. Dynamic values and
+shared or derived YAML uses do not produce guessed candidates.
+
+Clients with CodeAction literal support can choose a **Candidate: AppProject …**
+source action (`source.openReferenceCandidate`) to invoke
+`argocd.openReferenceCandidate`. No versioned edit capability is required. Listing
+and resolving these actions do not open a file. Execution rechecks the current
+source, target, configuration and candidate membership; an old action fails with
+`STALE_INPUT` after any relevant change. A supporting client receives
+`window/showDocument` with the exact URI and selection. Other clients receive the
+Location and a readable message for manual navigation. The reply never claims
+that a host has already opened the file.
+
+`argocd/analysisStatus.referenceCandidates` separates `scopeComplete`, `truncated`
+and `complete`. These describe candidate enumeration only. Known candidates can
+remain visible while the scope is incomplete. The query retains at most 1000
+index matches and displays at most 20 exact-name declarations; both index and
+display truncation keep `complete=false`. Separate declarations in one file are
+preserved. Candidate ranges select the literal contents of ordinary quotes and
+use current UTF-16/CRLF coordinates. Existing Definition ranges retain their
+original behavior. Excluded files, other scopes and other roots are not searched,
+including excluded files that are open in the editor.
+
 With an explicit namespace, a missing local project is informational under `open`
 and an error under `closed`; duplicate candidates remain ambiguous. Incomplete
 discovery cannot prove absence. Cross-file AppProject rename additionally needs

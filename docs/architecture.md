@@ -103,6 +103,25 @@ exact bindings and every affected file open at an accepted client version. Edits
 are tied to current input and checked again before delivery; clients must support
 versioned `documentChanges` for editing capabilities.
 
+Explicit same-name candidate inspection is a separate read path in
+[`analysis/reference_candidates.go`](../internal/analysis/reference_candidates.go)
+and [`lsp/reference_candidates.go`](../internal/lsp/reference_candidates.go).
+It is available only at exact physical project uses with no configured
+control-plane namespace. A generation is captured before bounded index
+enumeration, and exact name/kind/root/scope filtering is followed by reacquiring
+current target bytes. At most 21 files are materialized to display at most 20
+declarations; each file retains the existing 5 MiB bound. No detached summary
+span supplies the final selection. Shared/derived or unavailable declarations
+make enumeration incomplete, and missing namespace never becomes `default`.
+
+Candidate actions carry source version/revision/hash, configuration identity,
+root event and target identity/location. Resolve and execute derive candidates
+again instead of trusting an argument URI. The serial owner checks request
+membership, epoch, buffers and index proof before delivering an explicit open
+request. Host acknowledgements use a distinct methodless response prefix.
+Candidate viewing does not publish facts or diagnostics, authorize edits, or
+alter the existing Definition/References/Rename binding rules.
+
 Alias-derived, merged or otherwise ambiguous origins do not receive guessed
 edits. Recovery supports navigation/completion while a document is being typed
 without authorizing unsafe rewrites. Regression consumers apply returned edits

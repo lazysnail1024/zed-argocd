@@ -52,8 +52,9 @@ type analysisStatus struct {
 		Document  bool `json:"document"`
 		Workspace bool `json:"workspace"`
 	} `json:"completeness"`
-	Reasons    []*analysis.Refusal     `json:"reasons"`
-	Operations []operationAvailability `json:"operations"`
+	Reasons             []*analysis.Refusal       `json:"reasons"`
+	Operations          []operationAvailability   `json:"operations"`
+	ReferenceCandidates *referenceCandidateReport `json:"referenceCandidates,omitempty"`
 }
 
 // explainAction depends only on the accepted current buffer. It remains useful
@@ -262,6 +263,9 @@ func (s analysisStatus) message() string {
 	lines := []string{fmt.Sprintf("Argo CD analysis — %s input, version %d", s.InputIdentity.Source, s.InputIdentity.Version),
 		fmt.Sprintf("Root: %s\nScope: %s\nPhase: %s", s.Root, s.Scope, s.Phase),
 		fmt.Sprintf("Current document complete: %t; workspace scope complete: %t", s.Completeness.Document, s.Completeness.Workspace)}
+	if s.ReferenceCandidates != nil {
+		lines = append(lines, s.ReferenceCandidates.message())
+	}
 	for _, reason := range s.Reasons {
 		lines = append(lines, reason.ReasonCode+": "+reason.Message+" "+reason.NextStep)
 	}

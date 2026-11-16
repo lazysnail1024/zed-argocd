@@ -8,7 +8,7 @@ PLATFORM_COMPILERS={'linux/amd64':'13.3.0','linux/arm64':'13.3.0','darwin/amd64'
 SECURITY_STEPS={'provenance':'provenance-and-archive','compiler-environment':'compiler-environment'}
 COMPILER_CASES=('normal','flags','search','link','persisted-go')
 BASE_STEPS=('build','package','ci-process-boundary','ci-evidence','ci-evidence-cas','ci-shard-gate','provenance-and-archive','compiler-environment','cli','targets','readiness','config-uris','save-actions','schema-queries','projection','publication','helper-build','native-processes')
-SOURCE_ABLATIONS=(('compatibility-intersection-ablation','ablate_compatibility_intersection.py',300),('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240))
+SOURCE_ABLATIONS=(('compatibility-intersection-ablation','ablate_compatibility_intersection.py',300),('navigation-editing-ablation','navigation_editing_ablation.py',600),('project-rename-ablation','ablate_project_rename.py',240),('shared-schemaquery-ablation','ablate_shared_schemaquery.py',240),('reference-candidates-ablation','ablate_reference_candidates.py',420))
 
 def audit_consumers(platform):
  # Every entry is a required real-process gate, not a documentation-only command.
@@ -31,6 +31,7 @@ def audit_consumers(platform):
   ('interaction-remediation','interaction_remediation_e2e.py',[],180),
   ('host-capabilities','host_capabilities_e2e.py',[],60),
   ('analysis-status','analysis_status_e2e.py',[],120),
+  ('reference-candidates','reference_candidates_e2e.py',[],120),
   ('compatibility-explanation','compatibility_e2e.py',[],180),
   ('navigation-editing','navigation_editing_e2e.py',[],120),
   ('navigation-editing-guards','navigation_editing_guards_e2e.py',[],180),

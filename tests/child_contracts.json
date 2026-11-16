@@ -20368,6 +20368,455 @@
       "passKey": "passed",
       "runner": "tests/ci_evidence_cas_e2e.py",
       "runnerKey": "runnerSHA256"
+    },
+    "reference-candidates": {
+      "file": "reference-candidates/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "unbound-exact-candidates-and-explicit-open"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "completeKnownScope",
+              "diskUnchanged",
+              "exactCandidates",
+              "explicitExplanation",
+              "hostAcknowledgementsAccepted",
+              "oneActionPerCandidate",
+              "ordinaryDefinitionPreserved",
+              "referencesRemainUnbound",
+              "renameRemainsUnbound",
+              "reportIdentity",
+              "resolveHasNoSideEffects",
+              "showDocumentExactSelections"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "readonly-host-explicit-open"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "hostAcknowledgementAccepted",
+              "readOnlyCapability",
+              "resolveHasNoSideEffects",
+              "showDocumentExactSelection"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "host-without-show-document"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "explicitFallbackMessage",
+              "locationAndExplanationReturned",
+              "noShowDocument",
+              "notClaimedOpened",
+              "resolveHasNoSideEffects"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "appset-physical-project-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionsAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "exactCandidates",
+              "ordinaryDefinitionPreserved",
+              "reportIdentity"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "known-namespace-keeps-original-binding"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "namespaceFilteredDefinition",
+              "noCandidateAction",
+              "noCandidateReport",
+              "referencesRemainAvailable"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "dynamic-project-does-not-produce-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "noCandidateAction",
+              "noCandidateReport",
+              "noDefinition"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "incomplete-scope-retains-known-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "knownCandidatesRetained",
+              "notClaimedComplete",
+              "notTruncatedWithoutLimit",
+              "reportIdentity",
+              "scopeIncomplete"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "display-limit-is-explicit"
+          },
+          "assertions": {
+            "keys": [
+              "atMostTwentyKnownItems",
+              "cleanExit",
+              "diskUnchanged",
+              "displayLimitReached",
+              "notClaimedComplete",
+              "scopeComplete",
+              "truncated"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "query-limit-is-explicit"
+          },
+          "assertions": {
+            "keys": [
+              "atMostTwentyKnownItems",
+              "cleanExit",
+              "diskUnchanged",
+              "notClaimedComplete",
+              "scopeComplete",
+              "singleExactItemBelowDisplayLimit",
+              "truncated"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "source-change-refuses-old-action"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "noLateOpen",
+              "oldExecuteIsStale",
+              "oldResolveIsStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "target-change-refuses-old-action"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "noLateOpen",
+              "oldExecuteIsStale",
+              "oldResolveIsStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "config-change-refuses-old-action"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "noLateOpen",
+              "oldExecuteIsStale",
+              "oldResolveIsStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "scope-root-exclusion-boundaries"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "excludedOpenDoesNotLeak",
+              "onlyOwnedScopeActions",
+              "onlyOwnedScopeCandidates",
+              "ordinaryDefinitionPreserved"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "same-file-duplicate-declarations"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "distinctActionTitles",
+              "exactDuplicateCandidates",
+              "exactDuplicateSelections",
+              "ordinaryDefinitionPreserved",
+              "reportIdentity"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "quoted-name-crlf-utf16-ranges"
+          },
+          "assertions": {
+            "keys": [
+              "candidateTokenRange",
+              "cleanExit",
+              "diskUnchanged",
+              "exactShownTokenRange",
+              "ordinaryDefinitionScalarRange",
+              "reportSelectionTokenRange"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "alias-project-refuses-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "noCandidateAction",
+              "noCandidateReport",
+              "noDefinition"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "merge-project-refuses-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "noCandidateAction",
+              "noCandidateReport",
+              "noDefinition"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "derived-target-declarations-excluded"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "onlyExactAction",
+              "onlyExactCandidate",
+              "ordinaryDefinitionPreserved"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "quickfix-filter-excludes-candidates"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionControl",
+              "candidateActionFiltered",
+              "cleanExit",
+              "diskUnchanged",
+              "noOpenSideEffect",
+              "quickfixRequestSucceeds"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "fresh-actions-after-source-target-restoration"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "currentSourceIdentity",
+              "diskUnchanged",
+              "freshCandidateAction",
+              "freshExecuteOpensExactTarget",
+              "freshResolveSucceeds",
+              "oldActionControl",
+              "oldActionStillStale"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "target-prefix-shift"
+          },
+          "assertions": {
+            "keys": [
+              "cleanExit",
+              "diskUnchanged",
+              "freshExecuteOpensShiftedTarget",
+              "freshResolveHasNoSideEffects",
+              "newActionAvailable",
+              "noOldOpen",
+              "oldActionControl",
+              "oldExecuteIsStale",
+              "oldResolveIsStale",
+              "shiftedCandidateRange"
+            ]
+          },
+          "passKey": "passed"
+        },
+        {
+          "identity": {
+            "id": "disk-config-without-watch-refuses-old-action"
+          },
+          "assertions": {
+            "keys": [
+              "candidateActionAvailable",
+              "cleanExit",
+              "diskUnchanged",
+              "externalConfigChangeApplied",
+              "noLateOpen",
+              "oldExecuteIsStale",
+              "oldResolveIsStale"
+            ]
+          },
+          "passKey": "passed"
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "binaryKey": "binarySHA256",
+      "runner": "tests/reference_candidates_e2e.py"
+    },
+    "reference-candidates-ablation": {
+      "file": "reference-candidates-ablation/report.json",
+      "rowsKey": "rows",
+      "rootRow": false,
+      "rows": [
+        {
+          "identity": {
+            "id": "index-truncation"
+          },
+          "assertions": {
+            "keys": [
+              "buildSucceeded",
+              "consumerCompletedNormally",
+              "onlyNamedChecksFailed",
+              "sourceBoundaryMatched",
+              "sourceUnchanged",
+              "specificCounterexample"
+            ]
+          },
+          "passKey": "passed",
+          "required": {
+            "build.exitCode": 0,
+            "consumer.exitCode": 1,
+            "failedChecks": {
+              "query-limit-is-explicit": [
+                "notClaimedComplete",
+                "truncated"
+              ]
+            }
+          }
+        },
+        {
+          "identity": {
+            "id": "target-identity"
+          },
+          "assertions": {
+            "keys": [
+              "buildSucceeded",
+              "consumerCompletedNormally",
+              "onlyNamedChecksFailed",
+              "sourceBoundaryMatched",
+              "sourceUnchanged",
+              "specificCounterexample"
+            ]
+          },
+          "passKey": "passed",
+          "required": {
+            "build.exitCode": 0,
+            "consumer.exitCode": 1,
+            "failedChecks": {
+              "target-change-refuses-old-action": [
+                "noLateOpen",
+                "oldExecuteIsStale",
+                "oldResolveIsStale"
+              ]
+            }
+          }
+        }
+      ],
+      "passKey": "passed",
+      "runnerKey": "runnerSHA256",
+      "runner": "tests/ablate_reference_candidates.py",
+      "kind": "reference-candidates-ablation",
+      "companions": [
+        "baseline/consumer/report.json",
+        "index-truncation/consumer/report.json",
+        "target-identity/consumer/report.json"
+      ]
     }
   },
   "platforms": {
