@@ -192,3 +192,11 @@ def validate_extra(raw, spec, companions):
         lifecycle=next(r for r in rows if r['id']=='False-publication-lifecycle')
         require(lifecycle.get('checks',{}).get('noFalseBudgetInAnyPhase') is False and lifecycle['checks'].get('exit') is True, 'Missing document budget failed assertion')
         require(any(e.get('message',{}).get('params',{}).get('x-argocd-analysis-scope')=='document' for e in lifecycle.get('observed',{}).get('unexpectedBudget',[])), 'Missing original false document budget publication')
+    elif kind=='reference-candidates-ablation':
+        from ablate_reference_candidates import MUTATIONS, mutation_evidence
+        require(raw.get('baselinePassed') is True and raw.get('baselineBuild',{}).get('exitCode')==0 and raw.get('baselineConsumer',{}).get('exitCode')==0, 'Missing compiled passing reference-candidate control')
+        validate(companions['baseline/consumer/report.json'],contracts('linux/amd64')['reference-candidates'],raw.get('baselineBinarySHA256'))
+        require([row.get('id') for row in raw.get('rows',[])]==[mutation['id'] for mutation in MUTATIONS], 'Missing reference-candidate mutations')
+        for row,mutation in zip(raw['rows'],MUTATIONS):
+            require(row.get('build',{}).get('finished') is True and row['build'].get('exitCode')==0 and row.get('consumer',{}).get('finished') is True and row['consumer'].get('exitCode')==1, 'A failed build, timeout or crash cannot kill a candidate mutant')
+            require(mutation_evidence(companions[mutation['id']+'/consumer/report.json'],mutation,row.get('mutantBinarySHA256')), 'Missing exact candidate mutation counterexample: '+mutation['id'])
