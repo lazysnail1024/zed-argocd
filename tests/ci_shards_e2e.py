@@ -19,7 +19,7 @@ def fixture_source(output):
     fixture = output / "synthetic-source"
     fixture.mkdir()
     names = {spec["runner"] for spec in json.loads((ROOT/"tests/child_contracts.json").read_text())["consumers"].values() if "runner" in spec}
-    names.update(("tests/child_evidence.py", "tools/ci_gate.py", "tests/native_ci.py", "go.mod", "VERSION", ".gitignore", "tests/inventory.json", "tests/child_contracts.json"))
+    names.update(("tests/child_evidence.py", "tools/ci_gate.py", "tests/native_ci.py", "tests/support/session.py", "go.mod", "VERSION", ".gitignore", "tests/inventory.json", "tests/child_contracts.json"))
     for name in sorted(names):
         target = fixture / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -83,6 +83,12 @@ def child_fixture(spec):
         positive=child_fixture(deadline);positive['timeoutBuildRequired']=True
         result['rows'][0]['oracle']={'exit':0,'report':positive}
         result['rows'][1]['oracle']={'exit':1,'report':{'passed':False,'rows':[{'id':'six-repositories-deadline','passed':False,'checks':[{'id':k,'passed':True} for k in required]+[{'id':'background-failure-cannot-clear-local-type-error','passed':False}]}]}}
+    if spec.get('kind')=='reference-candidates-ablation':
+        result.update(baselinePassed=True, baselineBuild={'exitCode':0}, baselineConsumer={'exitCode':0}, baselineBinarySHA256='c'*64)
+        for item in result['rows']:
+            item['build']['finished']=True
+            item['consumer']['finished']=True
+            item['mutantBinarySHA256']=hashlib.sha256(item['id'].encode()).hexdigest()
     return result
 
 
@@ -96,6 +102,29 @@ def companion_fixture(spec):
         baseline=child_fixture(definitions['projection-aggregate']);mutant=copy.deepcopy(baseline)
         row=next(r for r in mutant['rows'] if r['id']=='False-publication-lifecycle');row['checks']['noFalseBudgetInAnyPhase']=False;row['observed']={'unexpectedBudget':[{'message':{'params':{'x-argocd-analysis-scope':'document'}}}]}
         return {'baseline/report.json':baseline,'mutant/report.json':mutant}
+    if spec.get('kind')=='reference-candidates-ablation':
+        # Synthetic counterexamples exercise the unchanged production verifier;
+        # they do not stand in for native builds or real consumer execution.
+        baseline=child_fixture(definitions['reference-candidates'])
+        companions={'baseline/consumer/report.json':baseline}
+        for mutation in child_fixture(spec)['rows']:
+            mutant=copy.deepcopy(baseline)
+            mutant.update(passed=False, binarySHA256=mutation['mutantBinarySHA256'])
+            for item in mutant['rows']:
+                failures=mutation['failedChecks'].get(item['id'], [])
+                if failures:
+                    item['passed']=False
+                for check in failures:item['assertions'][check]=False
+            companions[mutation['id']+'/consumer/report.json']=mutant
+        limited=next(r for r in companions['index-truncation/consumer/report.json']['rows'] if r['id']=='query-limit-is-explicit')
+        limited['observed']={'status':{'result':{'referenceCandidates':{
+            'items':[{'kind':'AppProject','name':'team','namespace':'argocd'}],
+            'scopeComplete':True,'truncated':False,'complete':True}}}}
+        stale=next(r for r in companions['target-identity/consumer/report.json']['rows'] if r['id']=='target-change-refuses-old-action')
+        location={'uri':'file:///synthetic/project.yaml','range':{'start':{'line':3,'character':8},'end':{'line':3,'character':12}}}
+        stale['observed']={'oldResolve':{'result':{}},'oldExecute':{'result':{'location':location}},
+                           'hostRequests':[{'method':'window/showDocument','params':{'uri':location['uri'],'selection':location['range']}}]}
+        return companions
     return {}
 
 
@@ -171,11 +200,15 @@ def invoke(fixture, name, reports, assets, head, expected):
     (folder / "stderr").write_bytes(result.stderr)
     checks = {"exit": result.returncode == (0 if expected else 1), "acceptedFile": (folder / "accepted.json").exists() == expected}
     if expected:
-        accepted = json.loads((folder / "accepted.json").read_text())
-        checks["allNativeLanes"] = len(accepted["acceptedLanes"]) == 15 and len(accepted["nativePlatforms"]) == 5
+        checks["allNativeLanes"] = False
+        if checks["acceptedFile"]:
+            accepted = json.loads((folder / "accepted.json").read_text())
+            checks["allNativeLanes"] = len(accepted["acceptedLanes"]) == 15 and len(accepted["nativePlatforms"]) == 5
     else:
         checks["structuredFailure"] = bool(result.stderr) and json.loads(result.stderr).get("passed") is False
-    return {"id": name, "command": command, "exit": result.returncode, "checks": checks, "passed": all(checks.values())}
+    row = {"id": name, "command": command, "exit": result.returncode, "checks": checks, "passed": all(checks.values())}
+    if not row["passed"]:row["stderr"] = result.stderr.decode("utf-8", errors="replace")
+    return row
 
 
 def main():
