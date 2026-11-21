@@ -127,10 +127,16 @@ def rename_guards():
 def capacity_guards():
     out, root = wire.setup('capacity')
     wire.write(root, 'project.yaml', wire.PROJECT)
-    text = wire.APP + '  info:\n' + ''.join('    - {name: item-%d, value: value-%d}\n' % (n, n) for n in range(4000))
+    first = wire.write(root, 'a.yaml', wire.APP)
+    text = wire.APP + '  info:\n' + ''.join('    - {name: item-%d, value: value-%d}\n' % (n, n) for n in range(1800))
     file = wire.write(root, 'app.yaml', text)
     client = wire.LSP(out, [root])
     try:
+        # Opening a.yaml first fills the single document-pass value cache so
+        # each read-lane hover on app.yaml performs real parsing work instead
+        # of draining faster than stdin framing on fast CPUs.
+        client.open(first, wire.APP)
+        client.diag(first, 1)
         client.open(file, text)
         client.diag(file, 1)
         params = {'textDocument': {'uri': file.as_uri()}, 'position': position(text, 'project: team')}
