@@ -2,6 +2,7 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -142,9 +143,6 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 		return input, err
 	}
 	if err == nil {
-		if len(raw) > 1024*1024 {
-			return input, failure("CONFIG_INVALID", "configuration exceeds 1 MiB")
-		}
 		worktrace.Add(ctx, "configDecodes", 1)
 		if err = yaml.UnmarshalStrict(raw, &cfg); err != nil {
 			return input, failure("CONFIG_INVALID", err.Error())
@@ -153,13 +151,18 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 	if (cfg.SchemaVersion != 1 && cfg.SchemaVersion != 2) || (cfg.ReferencePolicy != "open" && cfg.ReferencePolicy != "closed") {
 		return input, failure("CONFIG_INVALID", "unsupported schemaVersion or referencePolicy")
 	}
-	var presence map[string]any
-	if err == nil {
-		worktrace.Add(ctx, "configDecodes", 1)
-		_ = yaml.UnmarshalStrict(raw, &presence)
-	}
-	if _, present := presence["renderProfiles"]; present && cfg.SchemaVersion == 1 {
-		return input, failure("CONFIG_INVALID", "renderProfiles requires schemaVersion: 2")
+	if err == nil && cfg.SchemaVersion == 1 {
+		if cfg.RenderProfiles != nil {
+			return input, failure("CONFIG_INVALID", "renderProfiles requires schemaVersion: 2")
+		}
+		if bytes.Contains(raw, []byte("renderProfiles")) {
+			var presence map[string]any
+			worktrace.Add(ctx, "configDecodes", 1)
+			_ = yaml.UnmarshalStrict(raw, &presence)
+			if _, present := presence["renderProfiles"]; present {
+				return input, failure("CONFIG_INVALID", "renderProfiles requires schemaVersion: 2")
+			}
+		}
 	}
 	if err := validateRenderProfiles(cfg.RenderProfiles); err != nil {
 		return input, failure("CONFIG_INVALID", err.Error())

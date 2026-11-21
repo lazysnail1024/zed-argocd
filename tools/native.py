@@ -57,15 +57,19 @@ def main():
    status=run(['git','status','--porcelain','--untracked-files=all'],False);dirty=commit is None or status.returncode!=0 or bool(status.stdout)
    if args.source_commit and (not re.fullmatch('[0-9a-f]{40}',args.source_commit) or args.source_commit!=commit):raise ValueError('Requested source commit must equal exact HEAD')
    if args.mode=='release' and (not args.source_commit or not commit or dirty):raise ValueError('Release requires known exact clean committed provenance')
-   paths=run(['git','ls-files','--cached','--others','--exclude-standard','-z']).stdout.decode().split('\0');sources={name:digest(content(ROOT/name)) for name in sorted(set(paths)) if name}
-   if not sources:raise ValueError('Empty source inventory')
+   paths=run(['git','ls-files','--cached','--others','--exclude-standard','-z']).stdout.decode().split('\0');names=[name for name in sorted(set(paths)) if name]
+   if not names:raise ValueError('Empty source inventory')
+   tree=None
    if args.source_commit:
     entries=run(['git','ls-tree','-rz',commit]).stdout.split(b'\0');tree={}
     for entry in entries:
      if entry:
       header,path=entry.split(b'\t',1);tree[path.decode()]=header.split()[2].decode()
-    for name in sources:
-     data=content(ROOT/name);blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+   sources={}
+   for name in names:
+    data=content(ROOT/name);sources[name]=digest(data)
+    if tree is not None:
+     blob=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
      if tree.get(name)!=blob:raise ValueError('Checkout bytes differ from requested commit: '+name)
    out.mkdir(parents=True);created=True;binary=out/('argocd-ls.exe' if ge['GOOS']=='windows' else 'argocd-ls')
    flags=f'-X {MODULE}/internal/buildinfo.ServerVersion={args.version} -X {MODULE}/internal/buildinfo.Dirty={str(dirty).lower()} -X {MODULE}/internal/buildinfo.BuildMode={args.mode}'

@@ -277,29 +277,26 @@ def main():
                                       and isinstance(control.get("report"), dict) and control["report"].get("passed") is True)
             if not row["positiveControl"]:
                 raise RuntimeError("The unmodified binary did not pass this consumer")
-            with tempfile.TemporaryDirectory(prefix="argocd-audit-mutation-") as temporary:
-                source = pathlib.Path(temporary)
-                for name in ("go.mod", "go.sum", "cmd", "internal", "vendor"):
-                    original, destination = ROOT / name, source / name
-                    shutil.copytree(original, destination) if original.is_dir() else shutil.copy2(original, destination)
-                target = source / spec["file"]
-                before = target.read_text(encoding="utf-8")
-                if before.count(spec["before"]) != 1:
-                    raise RuntimeError("Mutation anchor must match exactly once")
-                row["originalSourceSHA256"] = digest(target)
-                target.write_text(before.replace(spec["before"], spec["after"], 1), encoding="utf-8")
-                row["mutatedSourceSHA256"] = digest(target)
-                (folder / "mutated-source.txt").write_bytes(target.read_bytes())
-                mutated = folder / ("argocd-ls.exe" if os.name == "nt" else "argocd-ls")
-                row["build"] = command([go, "build", "-mod=vendor", "-buildvcs=false", "-trimpath",
-                                         "-o", str(mutated), "./cmd/argocd-ls"], folder, "build", env, source)
-                if row["build"]["exit"] != 0 or row["build"].get("cleanupError") is not None:
-                    raise RuntimeError("Fault variant did not compile")
-                row["binarySHA256"] = digest(mutated)
-                row["oracle"] = run_consumer(spec, mutated, folder, env)
-                row["detected"] = (row["oracle"]["exit"] == 1 and row["oracle"].get("cleanupError") is None
-                                   and behavior_failure(row["oracle"]["report"], spec))
-                row["passed"] = row["detected"]
+            target = ROOT / spec["file"]
+            before = target.read_text(encoding="utf-8")
+            if before.count(spec["before"]) != 1:
+                raise RuntimeError("Mutation anchor must match exactly once")
+            row["originalSourceSHA256"] = digest(target)
+            mutated_source = folder / "mutated-source.txt"
+            mutated_source.write_text(before.replace(spec["before"], spec["after"], 1), encoding="utf-8")
+            row["mutatedSourceSHA256"] = digest(mutated_source)
+            overlay = folder / "overlay.json"
+            overlay.write_text(json.dumps({"Replace": {str(target): str(mutated_source)}}), encoding="utf-8")
+            mutated = folder / ("argocd-ls.exe" if os.name == "nt" else "argocd-ls")
+            row["build"] = command([go, "build", "-mod=vendor", "-buildvcs=false", "-trimpath",
+                                     "-overlay=" + str(overlay), "-o", str(mutated), "./cmd/argocd-ls"], folder, "build", env, ROOT)
+            if row["build"]["exit"] != 0 or row["build"].get("cleanupError") is not None:
+                raise RuntimeError("Fault variant did not compile")
+            row["binarySHA256"] = digest(mutated)
+            row["oracle"] = run_consumer(spec, mutated, folder, env)
+            row["detected"] = (row["oracle"]["exit"] == 1 and row["oracle"].get("cleanupError") is None
+                               and behavior_failure(row["oracle"]["report"], spec))
+            row["passed"] = row["detected"]
         except FatalCommandError as error:
             # A command that cannot finish its I/O has lost its own lifecycle
             # proof. Abort immediately so the owning CI/supervisor boundary

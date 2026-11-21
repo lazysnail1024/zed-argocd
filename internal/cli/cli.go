@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
@@ -46,7 +47,7 @@ type Report struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		if _, err := fmt.Fprintln(out, "argocd-ls (development)\nCommands:\n  version [--json]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human]\n  explain-compatibility --file PATH [--root DIR] [--target-version VERSION]\n  render-check [--root DIR] [--file PATH] [--profile NAME] [--values PATH ...]\n  render-cache [--remove DIRECTORY]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint."); err != nil {
+		if _, err := fmt.Fprintf(out, "argocd-ls (%s)\nCommands:\n  version [--json]\n  explain-config [--root DIR] [--scope NAME] [--target-version VERSION]\n  check [--root DIR] [--scope NAME] [--file PATH] [--target-version VERSION] [--format json|human] [--warnings-as-errors]\n  explain-compatibility --file PATH [--root DIR] [--target-version VERSION]\n  render-check [--root DIR] [--file PATH] [--profile NAME] [--values PATH ...]\n  render-cache [--remove DIRECTORY]\n  serve --stdio\n\nOffline local schema and domain analysis; no cluster connection or official Argo CD lint.\n", buildinfo.BuildMode); err != nil {
 			fmt.Fprintln(errOut, err)
 			return 2
 		}
@@ -57,7 +58,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		fs := flag.NewFlagSet("version", flag.ContinueOnError)
 		fs.SetOutput(errOut)
 		asJSON := fs.Bool("json", false, "emit build identity")
-		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
+		if !parseFlags(fs, args[1:], errOut) {
 			return 2
 		}
 		if *asJSON {
@@ -66,7 +67,7 @@ func Run(args []string, out, errOut io.Writer) int {
 				return 2
 			}
 		} else {
-			if _, err := fmt.Fprintf(out, "%s %s (local editing contract; development build)\n", buildinfo.Server, buildinfo.ServerVersion); err != nil {
+			if _, err := fmt.Fprintf(out, "%s %s (local editing contract; %s build)\n", buildinfo.Server, buildinfo.ServerVersion, buildinfo.BuildMode); err != nil {
 				fmt.Fprintln(errOut, err)
 				return 2
 			}
@@ -86,7 +87,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 		fs.SetOutput(errOut)
 		stdio := fs.Bool("stdio", false, "stdio transport")
-		if err := fs.Parse(args[1:]); err != nil || fs.NArg() != 0 {
+		if !parseFlags(fs, args[1:], errOut) {
 			return 2
 		}
 		if !*stdio {
@@ -125,7 +126,7 @@ func check(args []string, out, errOut io.Writer) int {
 	file := fs.String("file", "", "file selection")
 	target := fs.String("target-version", "", "target override")
 	warningsAsErrors := fs.Bool("warnings-as-errors", false, "treat warnings as errors")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
+	if !parseFlags(fs, args, errOut) {
 		return 2
 	}
 	if *format != "json" && *format != "human" {
@@ -278,7 +279,7 @@ func writeReport(r Report, format string, out, errOut io.Writer, exit int) int {
 		}
 		for _, d := range r.Diagnostics {
 			if writeErr == nil {
-				_, writeErr = fmt.Fprintln(out, d)
+				_, writeErr = fmt.Fprintln(out, formatDiagnostic(d))
 			}
 		}
 	}
@@ -297,7 +298,7 @@ func explainConfig(args []string, out, errOut io.Writer) int {
 	root := fs.String("root", ".", "workspace root")
 	scope := fs.String("scope", "", "scope selection")
 	target := fs.String("target-version", "", "exact target override")
-	if fs.Parse(args) != nil || fs.NArg() != 0 {
+	if !parseFlags(fs, args, errOut) {
 		return 2
 	}
 	signalCtx, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -317,4 +318,26 @@ func explainConfig(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 	return 0
+}
+
+func parseFlags(fs *flag.FlagSet, args []string, errOut io.Writer) bool {
+	if err := fs.Parse(args); err != nil {
+		return false
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintf(errOut, "%s: unexpected positional argument(s): %s (run argocd-ls help)\n", fs.Name(), strings.Join(fs.Args(), " "))
+		return false
+	}
+	return true
+}
+
+func formatDiagnostic(d analysis.Diagnostic) string {
+	severity := "info"
+	switch d.Severity {
+	case 1:
+		severity = "error"
+	case 2:
+		severity = "warning"
+	}
+	return fmt.Sprintf("%s:%d:%d: %s [%s] %s", d.URI, d.Range.Start.Line+1, d.Range.Start.Character+1, severity, d.Code, d.Message)
 }

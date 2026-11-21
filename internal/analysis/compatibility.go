@@ -85,21 +85,28 @@ type CompatibilityReport struct {
 // It is safe to share between explicit requests and does not participate in the
 // background analysis/publication state machine.
 type CompatibilityAnalyzer struct {
+	cache   *SchemaCache
 	mu      sync.Mutex
 	schemas map[string]preparedSchema
 }
+
+func (a *CompatibilityAnalyzer) SetSchemaCache(cache *SchemaCache) { a.cache = cache }
 
 // Analyze is used only when no accepted full projection can be reused. Exact
 // target selection is retained in the report, while the auto schema permits
 // explaining resources that did not exist at the selected exact release.
 func (a *CompatibilityAnalyzer) Analyze(ctx context.Context, snapshot source.Snapshot) (Result, error) {
 	analyzer := new(Analyzer)
-	a.mu.Lock()
-	analyzer.schemas = make(map[string]preparedSchema, len(a.schemas))
-	for key, prepared := range a.schemas {
-		analyzer.schemas[key] = prepared
+	if a.cache != nil {
+		analyzer.SetSchemaCache(a.cache)
+	} else {
+		a.mu.Lock()
+		analyzer.schemas = make(map[string]preparedSchema, len(a.schemas))
+		for key, prepared := range a.schemas {
+			analyzer.schemas[key] = prepared
+		}
+		a.mu.Unlock()
 	}
-	a.mu.Unlock()
 	result, err := analyzer.Analyze(ctx, snapshot, "auto")
 	if err != nil {
 		return result, err
@@ -115,6 +122,17 @@ func (a *CompatibilityAnalyzer) Analyze(ctx context.Context, snapshot source.Sna
 func (a *CompatibilityAnalyzer) prepared(ctx context.Context, version, kind string, documents []Document) (preparedSchema, error) {
 	if err := ctx.Err(); err != nil {
 		return preparedSchema{}, err
+	}
+	if a.cache != nil {
+		for _, doc := range documents {
+			if doc.compact == nil && doc.Target == version && doc.Kind == kind && doc.CompiledSchema != nil {
+				prepared := preparedSchema{doc.SchemaData, doc.CompiledSchema}
+				a.cache.put(version, "argoproj.io/v1alpha1", kind, prepared)
+				worktrace.Add(ctx, "schemaReuseHits", 1)
+				return prepared, nil
+			}
+		}
+		return a.cache.get(ctx, version, "argoproj.io/v1alpha1", kind)
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -238,16 +256,21 @@ func (a *CompatibilityAnalyzer) resource(ctx context.Context, doc Document, docu
 		r.CoveredRuleIDs = append(r.CoveredRuleIDs, "static-template-patch-required-fields")
 	}
 	unknownSeen := map[Diagnostic]bool{}
+	_, hasTemplatePatch := object(doc.Value["spec"])["templatePatch"].(string)
+	needsProfileSchema := doc.Kind == "ApplicationSet" && hasTemplatePatch
 	for _, profile := range index.Profiles {
 		if err := ctx.Err(); err != nil {
 			return r, err
 		}
-		prepared, err := a.prepared(ctx, profile.Representative, doc.Kind, documents)
-		if err != nil {
-			return r, err
-		}
 		candidate := doc
-		candidate.Target, candidate.SchemaData, candidate.CompiledSchema = profile.Representative, prepared.data, prepared.compiled
+		candidate.Target = profile.Representative
+		if needsProfileSchema {
+			prepared, err := a.prepared(ctx, profile.Representative, doc.Kind, documents)
+			if err != nil {
+				return r, err
+			}
+			candidate.SchemaData, candidate.CompiledSchema = prepared.data, prepared.compiled
+		}
 		semanticWork++
 		// Complete:false withholds all checks requiring a workspace or controller
 		// scope. Domain is the existing rule implementation, not a second checker.

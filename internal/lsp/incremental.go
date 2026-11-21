@@ -89,6 +89,7 @@ type workspaceIndex struct {
 	override     string
 	rootOrder    []string
 	summaryBytes int
+	schemas      *analysis.SchemaCache
 	analyzer     analysis.Analyzer
 	closed       bool
 	running      bool // An active advance owns scanner shutdown while outside mu.
@@ -106,7 +107,10 @@ func newWorkspaceIndex() *workspaceIndex {
 	if os.Getenv("ARGOCD_LS_TRACE") == "1" {
 		queueStarted = map[source.URI]time.Time{}
 	}
-	return &workspaceIndex{queueStarted: queueStarted, documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, configEvents: map[string]uint64{}}
+	schemas := analysis.NewSchemaCache(analysis.DefaultSchemaCacheEntries)
+	idx := &workspaceIndex{queueStarted: queueStarted, documents: documents, facts: facts, queue: queue, roots: map[string]*indexedRoot{}, files: map[source.URI]*indexedFile{}, open: map[source.URI]buffer{}, schemas: schemas, configEvents: map[string]uint64{}}
+	idx.analyzer.SetSchemaCache(schemas)
+	return idx
 }
 
 func indexScope(root, scope string) index.Scope { return index.Scope(root + "\x00" + scope) }
@@ -977,7 +981,15 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 	}
 	for i := 0; i < indexBatchFiles && ctx.Err() == nil; i++ {
 		if !s.processNext(ctx, &result) {
-			break
+			s.mu.Lock()
+			more := false
+			if len(s.files) <= indexBatchFiles-(i+1) {
+				more = s.enqueueReadyDomainLocked()
+			}
+			s.mu.Unlock()
+			if !more || !s.processNext(ctx, &result) {
+				break
+			}
 		}
 		if time.Since(started) >= 40*time.Millisecond {
 			break
@@ -985,29 +997,10 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.enqueueReadyDomainLocked()
 	for path, root := range s.roots {
 		if root.catalog != nil {
 			result.inputs = append(result.inputs, root.catalog.Input)
-			if root.discovered && root.readPending == 0 && root.finalDomain {
-				root.finalDomain = false
-				for uri, file := range s.files {
-					_, opened := s.open[uri]
-					if file.root == path && (len(file.summary.Documents) > 0 || len(file.schema) > 0 || file.incomplete || opened) {
-						s.enqueue(uri, false, shared.Background)
-					}
-				}
-			}
-			for uri := range root.deferredDomain {
-				file := s.files[uri]
-				if file == nil {
-					delete(root.deferredDomain, uri)
-					continue
-				}
-				if root.scopeReads[file.target.Scope] == 0 && root.scopeReads[""] == 0 {
-					delete(root.deferredDomain, uri)
-					s.enqueue(uri, false, shared.Related)
-				}
-			}
 			if root.discovered && root.pending == 0 && root.rescan {
 				root.rescan = false
 				s.startScan(root)
@@ -1128,4 +1121,36 @@ func sortedPublications(values []publication) []publication {
 		out = append(out, last[key])
 	}
 	return out
+}
+
+func (s *workspaceIndex) enqueueReadyDomainLocked() bool {
+	enqueued := false
+	for path, root := range s.roots {
+		if root.catalog == nil {
+			continue
+		}
+		if root.discovered && root.readPending == 0 && root.finalDomain {
+			root.finalDomain = false
+			for uri, file := range s.files {
+				_, opened := s.open[uri]
+				if file.root == path && (len(file.summary.Documents) > 0 || len(file.schema) > 0 || file.incomplete || opened) {
+					s.enqueue(uri, false, shared.Background)
+					enqueued = true
+				}
+			}
+		}
+		for uri := range root.deferredDomain {
+			file := s.files[uri]
+			if file == nil {
+				delete(root.deferredDomain, uri)
+				continue
+			}
+			if root.scopeReads[file.target.Scope] == 0 && root.scopeReads[""] == 0 {
+				delete(root.deferredDomain, uri)
+				s.enqueue(uri, false, shared.Related)
+				enqueued = true
+			}
+		}
+	}
+	return enqueued
 }

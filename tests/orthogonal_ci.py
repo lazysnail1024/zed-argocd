@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Complement native platform coverage with independent Linux semantic axes."""
 import argparse
+import concurrent.futures
+import threading
 import hashlib
 import json
 import os
@@ -98,7 +100,11 @@ def main():
               'schemaVersion':2, 'workflowRun':{key:os.environ.get(key) for key in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')},
               'producerReceipt':load_json((binary.parent/'receipt.json').read_text()) if (binary.parent/'receipt.json').is_file() else None,
               'expectedCases': [case[0] for case in CASES[args.suite]], 'rows': [], 'passed': False}
-    for ident, script, arguments, report_path, timeout in CASES[args.suite]:
+    order = {case[0]: index for index, case in enumerate(CASES[args.suite])}
+    lock = threading.Lock()
+    completed_rows = {}
+    def run_case(case_spec):
+        ident, script, arguments, report_path, timeout = case_spec
         folder = out / ident
         substitutions = {'root': str(ROOT), 'output': str(out), 'binary': str(binary), 'case': str(folder),
                          'helm': str(args.helm.resolve()) if args.helm else '', 'helm4':str(args.helm4.resolve()) if args.helm4 else ''}
@@ -134,9 +140,21 @@ def main():
                 process.kill()
                 process.communicate(timeout=3)
             row['elapsedSeconds'] = time.monotonic() - started
-            report['rows'].append(row)
-            (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
-        print(json.dumps(row), flush=True)
+            with lock:
+                completed_rows[ident] = row
+                report['rows'] = [completed_rows[k] for k in sorted(completed_rows, key=order.__getitem__)]
+                (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
+            print(json.dumps(row), flush=True)
+        return row
+    serial_ids = {'schema-comment-replay', 'renderer-process-tree', 'renderer-acquisition', 'configuration-terminal', 'output-failures', 'workspace-guards'}
+    parallel_cases = [c for c in CASES[args.suite] if c[0] not in serial_ids]
+    serial_cases = [c for c in CASES[args.suite] if c[0] in serial_ids]
+    workers = min(2 if args.suite == 'mutations' else 4, os.cpu_count() or 2)
+    if parallel_cases:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            list(executor.map(run_case, parallel_cases))
+    for case_spec in serial_cases:
+        run_case(case_spec)
     report['passed'] = [row['id'] for row in report['rows']] == report['expectedCases'] and all(row['passed'] for row in report['rows'])
     (out / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False) + '\n')
     return 0 if report['passed'] else 1

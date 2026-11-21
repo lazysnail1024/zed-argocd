@@ -135,6 +135,7 @@ func (s *workspaceIndex) projectRenameRequest(ctx context.Context, m message, in
 	}
 	full := map[string][]analysis.Document{}
 	analyzer := new(analysis.Analyzer)
+	analyzer.SetSchemaCache(s.schemas)
 	analyzer.ReuseSchemas(scope.documents)
 	for _, uri := range target.URIs {
 		if err := ctx.Err(); err != nil {

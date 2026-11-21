@@ -333,7 +333,6 @@ def pack(values, destination, format_version=1):
             previous = objects.setdefault(record["sha256"], (path, metadata, record["size"]))
             if previous[2] != record["size"]:
                 raise ValueError("Content digest has conflicting byte sizes")
-    validate_inventory(manifest, check_objects=format_version == 2)
     output.mkdir(parents=True)
     archive_path = output / "evidence.tar.gz"
     with archive_path.open("xb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, compresslevel=1, mtime=0) as compressed:
