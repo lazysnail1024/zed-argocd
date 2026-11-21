@@ -398,8 +398,9 @@ func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	open := map[source.URI]buffer{}
+	resolver := workspace.NewPathResolver()
 	for uri, b := range buffers {
-		path, err := workspace.PathFromURI(uri)
+		path, err := resolver.PathFromURI(uri)
 		if err != nil || workspace.Owner(roots, path) == "" {
 			continue
 		}

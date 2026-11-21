@@ -18,6 +18,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sigs.k8s.io/yaml"
 	"sort"
 	"strings"
@@ -276,11 +277,12 @@ func load(ctx context.Context, root, selectedScope, selectedFile, override strin
 	sort.Strings(paths)
 	seen := map[string]bool{}
 	selectedOwner := ""
+	resolver := NewPathResolver()
 	for _, p := range paths {
 		if err := ctx.Err(); err != nil {
 			return input, err
 		}
-		resolved, e := filepath.EvalSymlinks(p)
+		resolved, e := resolver.EvalSymlinks(p)
 		if os.IsNotExist(e) {
 			if _, opened := buffers[p]; opened {
 				resolved = filepath.Clean(p)
@@ -579,9 +581,7 @@ func FileURI(path string) string {
 	return (&url.URL{Scheme: "file", Path: p}).String()
 }
 
-// PathFromURI normalizes local identity once for filesystem and buffer lookups.
-// It accepts unsaved files while resolving existing aliases and Windows drives.
-func PathFromURI(uri string) (string, error) {
+func parseFileURI(uri string) (string, error) {
 	u, err := url.Parse(uri)
 	if err != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") {
 		return "", fmt.Errorf("only local file URIs are supported")
@@ -593,7 +593,82 @@ func PathFromURI(uri string) (string, error) {
 	if !filepath.IsAbs(p) {
 		return "", fmt.Errorf("absolute file URI required")
 	}
+	return p, nil
+}
+
+// PathFromURI normalizes local identity once for filesystem and buffer lookups.
+// It accepts unsaved files while resolving existing aliases and Windows drives.
+func PathFromURI(uri string) (string, error) {
+	p, err := parseFileURI(uri)
+	if err != nil {
+		return "", err
+	}
 	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real, nil
+	}
+	return filepath.Clean(p), nil
+}
+
+// PathResolver memoizes canonical directory resolution within a single pass.
+// Never retain a PathResolver across epochs or filesystem invalidations.
+type PathResolver struct {
+	cache map[string]string
+}
+
+func NewPathResolver() *PathResolver {
+	return &PathResolver{cache: map[string]string{}}
+}
+
+func (r *PathResolver) EvalSymlinks(p string) (string, error) {
+	// Clean resolves ".." lexically, while EvalSymlinks resolves it after a
+	// preceding symlink. Keep the authoritative resolver for such spellings.
+	if strings.Contains(filepath.ToSlash(p), "..") {
+		return filepath.EvalSymlinks(p)
+	}
+	clean := filepath.Clean(p)
+	if real, ok := r.cache[clean]; ok {
+		return real, nil
+	}
+	if runtime.GOOS == "windows" {
+		real, err := filepath.EvalSymlinks(clean)
+		if err != nil {
+			return "", err
+		}
+		r.cache[clean] = real
+		return real, nil
+	}
+	dir := filepath.Dir(clean)
+	if dir == clean {
+		r.cache[clean] = clean
+		return clean, nil
+	}
+	realDir, err := r.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	candidate := filepath.Join(realDir, filepath.Base(clean))
+	info, err := os.Lstat(candidate)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		real, err := filepath.EvalSymlinks(clean)
+		if err != nil {
+			return "", err
+		}
+		r.cache[clean] = real
+		return real, nil
+	}
+	r.cache[clean] = candidate
+	return candidate, nil
+}
+
+func (r *PathResolver) PathFromURI(uri string) (string, error) {
+	p, err := parseFileURI(uri)
+	if err != nil {
+		return "", err
+	}
+	if real, err := r.EvalSymlinks(p); err == nil {
 		return real, nil
 	}
 	return filepath.Clean(p), nil

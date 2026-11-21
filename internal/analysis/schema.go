@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"github.com/lazysnail1024/zed-argocd/internal/assets"
-	"sync"
 	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
@@ -477,7 +477,6 @@ func locate(n yamlview.Node, parts []string) yamlview.Node {
 	}
 	return n
 }
-
 
 const DefaultSchemaCacheEntries = 16
 

@@ -63,11 +63,11 @@ type publishedDiagnostic struct {
 	input *publicationInput
 }
 type scopeResult struct {
-	checked         map[source.URI]analysis.Result
-	root, scope     string
-	files           []workspace.File
-	documents       []analysis.Document
-	options         analysis.DomainOptions
+	checked     map[source.URI]analysis.Result
+	root, scope string
+	files       []workspace.File
+	documents   []analysis.Document
+	options     analysis.DomainOptions
 }
 
 type pendingQuery struct {
@@ -1328,23 +1328,7 @@ func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers
 }
 
 func analyzeDocumentsWithCache(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentURI string, schemas *analysis.SchemaCache) completed {
-	selected := map[string]bool{}
-	selectedFile, _ := workspace.PathFromURI(documentURI)
-	for uri := range buffers {
-		file, err := workspace.PathFromURI(uri)
-		if err == nil && (documentURI == "" || file == selectedFile) {
-			if root := workspace.Owner(roots, file); root != "" {
-				selected[root] = true
-			}
-		}
-	}
-	activeRoots := []string{}
-	for _, root := range roots {
-		if selected[root] {
-			activeRoots = append(activeRoots, root)
-		}
-	}
-	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true, documentURI, schemas)
+	return analyze(ctx, epoch, roots, buffers, override, previous, true, documentURI, schemas)
 }
 
 func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool, documentURI string, schemas *analysis.SchemaCache) (result completed) {
@@ -1371,8 +1355,16 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 	var cachedDocument source.URI
 	remaining := workspace.MaxRetainedText
 	openFiles := map[string]source.Snapshot{}
-	selectedFile, _ := workspace.PathFromURI(documentURI)
-	selectedConfig := filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
+	var selectedFile string
+	resolver := workspace.NewPathResolver()
+	if documentURI != "" {
+		selectedFile, _ = resolver.PathFromURI(documentURI)
+	}
+	resolvedPaths := make(map[string]string, len(buffers))
+	var selectedRoots map[string]bool
+	if documentOnly {
+		selectedRoots = map[string]bool{}
+	}
 	for uri, b := range buffers {
 		// A selected-file query still reserves every accepted open byte before
 		// narrowing acquisition to its source and authoritative configuration.
@@ -1382,7 +1374,33 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 			result.failureURI = uri
 			return result
 		}
-		file, pathErr := workspace.PathFromURI(uri)
+		file, pathErr := resolver.PathFromURI(uri)
+		if pathErr == nil {
+			resolvedPaths[uri] = file
+			if documentOnly && (documentURI == "" || file == selectedFile) {
+				if root := workspace.Owner(roots, file); root != "" {
+					selectedRoots[root] = true
+				}
+			}
+		}
+	}
+	if documentOnly {
+		activeRoots := make([]string, 0, len(selectedRoots))
+		for _, root := range roots {
+			if selectedRoots[root] {
+				activeRoots = append(activeRoots, root)
+			}
+		}
+		roots = activeRoots
+	} else {
+		roots = append([]string(nil), roots...)
+	}
+	selectedConfig := ""
+	if documentURI != "" {
+		selectedConfig = filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
+	}
+	for uri, b := range buffers {
+		file, ok := resolvedPaths[uri]
 		if documentURI != "" && file != selectedFile && file != selectedConfig {
 			continue
 		}
@@ -1393,11 +1411,10 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
 			continue
 		}
-		if pathErr == nil {
+		if ok {
 			openFiles[file] = b.snapshot
 		}
 	}
-	roots = append([]string(nil), roots...)
 	sort.Slice(roots, func(i, j int) bool {
 		if len(roots[i]) != len(roots[j]) {
 			return len(roots[i]) > len(roots[j])
@@ -1473,8 +1490,21 @@ rootLoop:
 				}
 			}
 		}
+		var priorScopes map[string]*scopeResult
+		if reusableRoot {
+			priorScopes = make(map[string]*scopeResult, len(previous.scopes))
+			for i := range previous.scopes {
+				old := &previous.scopes[i]
+				if old.root == root {
+					priorScopes[old.scope] = old
+				}
+			}
+		}
 		scopeNames := make([]string, 0, len(scopeFiles))
-		for scope := range scopeFiles {
+		for scope, files := range scopeFiles {
+			if documentOnly && len(files) == 0 {
+				continue
+			}
 			scopeNames = append(scopeNames, scope)
 		}
 		sort.Strings(scopeNames)
@@ -1490,17 +1520,12 @@ rootLoop:
 			docs := []analysis.Document{}
 			checks := map[source.URI]analysis.Result{}
 			var priorScope *scopeResult
-			if reusableRoot {
-				for i := range previous.scopes {
-					old := &previous.scopes[i]
-					if old.root == root && old.scope == scope {
-						priorScope = old
-						break
-					}
-				}
+			if priorScopes != nil {
+				priorScope = priorScopes[scope]
 			}
-			priorFiles := map[source.URI]workspace.File{}
+			var priorFiles map[source.URI]workspace.File
 			if priorScope != nil {
+				priorFiles = make(map[source.URI]workspace.File, len(priorScope.files))
 				for _, f := range priorScope.files {
 					priorFiles[f.Snapshot.URI()] = f
 				}
@@ -1612,26 +1637,27 @@ rootLoop:
 			}
 		}
 	}
+	publishedURIs := make(map[string]bool, len(result.publications))
+	for _, p := range result.publications {
+		publishedURIs[p.uri] = true
+	}
 	// Open skipped documents still receive an explicit empty replacement.
 	for uri, b := range buffers {
-		path, err := workspace.PathFromURI(uri)
+		if publishedURIs[uri] {
+			continue
+		}
+		path, ok := resolvedPaths[uri]
+		if !ok {
+			continue
+		}
 		if documentURI != "" && path != selectedFile && path != selectedConfig {
 			continue
 		}
-		if err != nil || workspace.Owner(roots, path) == "" {
+		if workspace.Owner(roots, path) == "" {
 			continue
 		}
-		found := false
-		for _, p := range result.publications {
-			if p.uri == uri {
-				found = true
-				break
-			}
-		}
-		if !found {
-			version := b.version
-			result.publications = append(result.publications, publication{"", uri, &version, []analysis.Diagnostic{}})
-		}
+		version := b.version
+		result.publications = append(result.publications, publication{"", uri, &version, []analysis.Diagnostic{}})
 	}
 
 	if err := ctx.Err(); err != nil {
