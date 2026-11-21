@@ -5,23 +5,23 @@
   },
   {
     "path": "edit/plan.go",
-    "sha256": "92636f55c083e0ab62a1f76a75e279e204dee41793ca0706fd506cc021c40564"
+    "sha256": "725b98fffffe5dd2a56b8c7a1b77c4a2406a4aab32802d328ffdde8ee5849eb2"
   },
   {
     "path": "index/facts.go",
-    "sha256": "982066e6e7b88bd2c4f384650a95bfeed255bce7d011059b62d880d307ed579a"
+    "sha256": "349126f25947b91501e375c99cb9fbd714ddbee170cf766e6e9b28b94e4545eb"
   },
   {
     "path": "index/index.go",
-    "sha256": "d0b7838555d8aae1905951f9c247479d3b7c8e870219472ef097439602ec6bf1"
+    "sha256": "1008f1a635ebd78cd3e9a5dc7a93bb147c9f3d9486898582e50f9fd3ed4ee6db"
   },
   {
     "path": "index/query.go",
-    "sha256": "2171b3e1a0c100527a3443984d7e22843959cfa6a4fb07b70c3e1506901d2599"
+    "sha256": "113c120fbe4b9c3b0891d4287c53abbb157396e1469d522945ef671d63ebba1f"
   },
   {
     "path": "index/query_context.go",
-    "sha256": "6e809f7c86390e80af4534141a5984b9374dff4f6b3dfc829edaf97edf839381"
+    "sha256": "9914f4f378ba142a9bbb00f30ea72febcf946f61bfde7a4d0521a32c4a2020b3"
   },
   {
     "path": "index/types.go",
@@ -29,11 +29,11 @@
   },
   {
     "path": "schemaquery/query.go",
-    "sha256": "e9717126ca75c1f1e9f4402d275ee2a3eb81a6d7c392afb7b52b91440934d3a2"
+    "sha256": "92c8c4df69b2b477e88689bc440a019d7f1465bde10dbc1cdd711b410670024d"
   },
   {
     "path": "source/snapshot.go",
-    "sha256": "abb78d4cf33b3ed74f493204e7b7303c4fb0e26d63e28e97a8a626b6ee1199dd"
+    "sha256": "50b6a33fcf719563b4b51bbbaccdd583ece8df817c2e8c1dc748e512626d3942"
   },
   {
     "path": "workspace/documents.go",
@@ -49,7 +49,7 @@
   },
   {
     "path": "workspace/scanner.go",
-    "sha256": "809013656eb2c9c5a36a9950da5b16e3ff7cb9dd74783259ed15fdcb68e8492a"
+    "sha256": "4c61daf22cd313370b5bcad57eef17ee7fc18b8afb774c569a4ff8d41ca9cb3c"
   },
   {
     "path": "workspace/workqueue.go",
@@ -61,7 +61,7 @@
   },
   {
     "path": "yamlvalue/limits.go",
-    "sha256": "a88d5f82453423bab9d4dc9d9872723dc41662eb5caf35786f23b8e1de4220fb"
+    "sha256": "308829445e4ad34a6f4815b04dc2d22301135944ab37c55a3878986e3e1f18ac"
   },
   {
     "path": "yamlvalue/origin.go",
@@ -69,7 +69,7 @@
   },
   {
     "path": "yamlvalue/project.go",
-    "sha256": "90a58e5cb811e22b129b3bef9385307fc292a72a94bceade49af07ddc185ab10"
+    "sha256": "6aba296ecc4039b93c600f73578c8464ca9484f06dfa4ad6bac5311ae8dae5ed"
   },
   {
     "path": "yamlview/internal/parser/grammar/LICENSE",
@@ -81,7 +81,7 @@
   },
   {
     "path": "yamlview/internal/parser/grammar/README.md",
-    "sha256": "6d773f730e5178f3ef71b02dd5ee95dfbd66cb9be11daf4b416bdb2ccecd4710"
+    "sha256": "430d27c6f4387cb975333c24cefb5a7e8b823432775d05b36964e61c4730ec29"
   },
   {
     "path": "yamlview/internal/parser/grammar/UPSTREAM.json",
@@ -117,10 +117,10 @@
   },
   {
     "path": "yamlview/internal/parser/parser.go",
-    "sha256": "e952006529e7c7926acad535ed6f69b2777ea5536276229c417d34cb7936d8a7"
+    "sha256": "f90a7fa04321ef56e4ae276d0085aa3bd42f6d2cd21678a88c23235cccee9689"
   },
   {
     "path": "yamlview/view.go",
-    "sha256": "671687822eca0cb26da102dd1fbc10a30f4d4ab8254c6dcbd86ccf98044fdc35"
+    "sha256": "c3642ec3391742be84e7991d10829f935bc8a84bbcdf85fecd24974e4827237d"
   }
 ]

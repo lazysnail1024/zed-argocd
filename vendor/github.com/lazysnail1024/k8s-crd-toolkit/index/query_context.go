@@ -129,7 +129,7 @@ func (i *Index) symbolBatch(ctx context.Context, scope Scope, generation uint64,
 			items = append(items, Definition{file.uri, file.revision, file.data.facts.Symbols[cursor.symbol]})
 			cursor.symbol++
 		}
-		if file == nil || file.serial != 0 || cursor.symbol == len(file.data.facts.Symbols) {
+		if file.serial != 0 || cursor.symbol == len(file.data.facts.Symbols) {
 			cursor.member, cursor.symbol = cursor.member.next, -1
 		}
 	}

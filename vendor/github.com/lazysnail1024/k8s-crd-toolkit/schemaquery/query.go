@@ -126,7 +126,7 @@ func Values(ctx context.Context, root *jsonschema.Schema, path []string, value a
 	nodes, _ := w.nodes(root, path, value, 0)
 	candidates := map[string]any{}
 	for _, s := range nodes {
-		values := []any{}
+		var values []any
 		if s.Enum != nil {
 			values = append(values, s.Enum.Values...)
 		}
@@ -180,25 +180,73 @@ func AllowsKey(ctx context.Context, root *jsonschema.Schema, path []string, valu
 // Type summarizes the allowed primitive types along the active path. Intersection
 // applies to conjunctions and union to possible alternatives; a number includes
 // integer. The annotation is "unspecified" for an unconstrained schema.
+const (
+	typeArray uint8 = 1 << iota
+	typeBoolean
+	typeInteger
+	typeNull
+	typeNumber
+	typeObject
+	typeString
+	allTypes = typeArray | typeBoolean | typeInteger | typeNull | typeNumber | typeObject | typeString
+)
+
+var typeMaskNames = [...]struct {
+	bit  uint8
+	name string
+}{
+	{typeArray, "array"},
+	{typeBoolean, "boolean"},
+	{typeInteger, "integer"},
+	{typeNull, "null"},
+	{typeNumber, "number"},
+	{typeObject, "object"},
+	{typeString, "string"},
+}
+
+func typeBit(name string) uint8 {
+	switch name {
+	case "array":
+		return typeArray
+	case "boolean":
+		return typeBoolean
+	case "integer":
+		return typeInteger
+	case "null":
+		return typeNull
+	case "number":
+		return typeNumber | typeInteger
+	case "object":
+		return typeObject
+	case "string":
+		return typeString
+	default:
+		return 0
+	}
+}
+
 func Type(ctx context.Context, root *jsonschema.Schema, path []string, value any, limits Limits) (string, error) {
 	w := newWalk(ctx, limits)
-	types := w.types(root, path, value, 0)
+	mask, ok := w.types(root, path, value, 0)
 	if err := w.finish(); err != nil {
 		return "", err
 	}
-	if types == nil || len(types) == 7 {
+	if !ok || mask == allTypes {
 		return "unspecified", nil
 	}
-	if len(types) == 0 {
+	if mask == 0 {
 		return "never", nil
 	}
-	names := []string{}
-	for name := range types {
-		if name != "integer" || !types["number"] {
-			names = append(names, name)
+	names := make([]string, 0, 7)
+	for _, entry := range typeMaskNames {
+		if mask&entry.bit == 0 {
+			continue
 		}
+		if entry.bit == typeInteger && mask&typeNumber != 0 {
+			continue
+		}
+		names = append(names, entry.name)
 	}
-	sort.Strings(names)
 	return strings.Join(names, " | "), nil
 }
 
@@ -229,7 +277,7 @@ func child(schema *jsonschema.Schema, name string, value any) *jsonschema.Schema
 		if err != nil || index < 0 {
 			return nil
 		}
-		if index >= 0 && index < len(schema.PrefixItems) {
+		if index < len(schema.PrefixItems) {
 			return schema.PrefixItems[index]
 		}
 		if schema.Items2020 != nil {
@@ -298,10 +346,10 @@ func (w *walk) compatible(s *jsonschema.Schema, path []string, value any, depth 
 			if w.err != nil {
 				return false
 			}
-			if possible {
+			if w.compatible(child, path, value, depth+1) {
+				possible = true
 				break
 			}
-			possible = possible || w.compatible(child, path, value, depth+1)
 		}
 		if !possible {
 			return false
@@ -418,12 +466,12 @@ func (w *walk) allowsKey(s *jsonschema.Schema, path []string, value any, depth i
 			if w.err != nil {
 				return false
 			}
-			if possible {
-				break
-			}
 			// Invalid ordinary siblings do not forbid independent keys.
 			// Finite siblings only constrain the selection of alternatives.
-			possible = possible || w.compatible(child, path, value, depth+1) && w.allowsKey(child, path, value, depth+1)
+			if w.compatible(child, path, value, depth+1) && w.allowsKey(child, path, value, depth+1) {
+				possible = true
+				break
+			}
 		}
 		if !possible {
 			return false
@@ -479,68 +527,62 @@ func (w *walk) accepts(s *jsonschema.Schema, path []string, value, candidate any
 	return true
 }
 
-func (w *walk) types(s *jsonschema.Schema, path []string, value any, depth int) map[string]bool {
+func (w *walk) types(s *jsonschema.Schema, path []string, value any, depth int) (uint8, bool) {
 	if s == nil || !w.inspect(s, depth) {
-		return nil
+		return 0, false
 	}
-	result := map[string]bool{"null": true, "boolean": true, "number": true, "integer": true, "string": true, "array": true, "object": true}
-	intersect := func(other map[string]bool) {
-		if other != nil {
-			for name := range result {
-				if !other[name] {
-					delete(result, name)
-				}
-			}
-		}
-	}
+	result := allTypes
 	if s.Bool != nil && !*s.Bool {
-		return map[string]bool{}
+		return 0, true
 	}
 	if len(path) == 0 {
 		if s.Types != nil {
-			types := map[string]bool{}
+			var allowed uint8
 			for _, name := range s.Types.ToStrings() {
-				types[name] = true
-				if name == "number" {
-					types["integer"] = true
-				}
+				allowed |= typeBit(name)
 			}
-			intersect(types)
+			result &= allowed
 		}
 	} else if child := child(s, path[0], value); child != nil {
-		intersect(w.types(child, path[1:], member(value, path[0]), depth+1))
+		if other, ok := w.types(child, path[1:], member(value, path[0]), depth+1); ok {
+			result &= other
+		}
 	} else if s.AdditionalProperties == false {
 		// A closed release branch that has no such field contributes no types.
 		// Treating it as unconstrained would erase types from other releases.
-		return map[string]bool{}
+		return 0, true
 	}
 	if s.Ref != nil {
-		intersect(w.types(s.Ref, path, value, depth+1))
+		if other, ok := w.types(s.Ref, path, value, depth+1); ok {
+			result &= other
+		}
 	}
 	for _, child := range s.AllOf {
 		if w.err != nil {
-			return nil
+			return 0, false
 		}
-		intersect(w.types(child, path, value, depth+1))
+		if other, ok := w.types(child, path, value, depth+1); ok {
+			result &= other
+		}
 	}
 	for _, branches := range [][]*jsonschema.Schema{s.AnyOf, s.OneOf} {
 		if len(branches) == 0 {
 			continue
 		}
-		union := map[string]bool{}
+		var union uint8
 		for _, child := range branches {
 			if w.err != nil {
-				return nil
+				return 0, false
 			}
 			if w.compatible(child, path, value, depth+1) {
-				for name := range w.types(child, path, value, depth+1) {
-					union[name] = true
+				if other, ok := w.types(child, path, value, depth+1); ok {
+					union |= other
 				}
 			}
 		}
-		intersect(union)
+		result &= union
 	}
-	return result
+	return result, true
 }
 
 func (w *walk) shape(s *jsonschema.Schema, value any, active []string, depth int) bool {

@@ -117,17 +117,17 @@ func (i *Index) SymbolsWithPrefix(scope Scope, prefix Key, query string, limit i
 		return result, nil
 	}
 	candidates := &symbolHeap{&result}
-	for uri := range s.files {
-		e := i.files[uri]
+	for m := s.first; m != nil; m = m.next {
+		e := m.file
 		if e.serial == 0 {
-			i.appendSymbols(candidates, e, prefix, query, limit)
+			appendSymbols(candidates, e, prefix, query, limit)
 		}
 	}
 	sortDefinitions(result.Items)
 	return result, nil
 }
 
-func (i *Index) appendSymbols(result *symbolHeap, e *entry, prefix Key, query string, limit int) {
+func appendSymbols(result *symbolHeap, e *entry, prefix Key, query string, limit int) {
 	for _, s := range e.data.facts.Symbols {
 		if !strings.HasPrefix(string(s.Key), string(prefix)) || !strings.Contains(s.Name, query) {
 			continue

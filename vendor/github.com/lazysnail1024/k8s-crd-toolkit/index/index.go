@@ -324,7 +324,13 @@ func (i *Index) forget(e *entry) {
 }
 
 func (i *Index) affected(data *stored, result uriSet) {
-	if data == nil {
+	if data == nil || len(data.facts.Symbols) == 0 {
+		return
+	}
+	if len(data.facts.Symbols) == 1 {
+		for uri := range i.dependencies[lookup{data.scope, data.facts.Symbols[0].Key}] {
+			result[uri] = struct{}{}
+		}
 		return
 	}
 	keys := make(map[Key]struct{}, len(data.facts.Symbols))

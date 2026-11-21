@@ -57,10 +57,10 @@ its acceptance contract and inventory in the same review.
 ## Shared toolkit source dependency
 
 [contracts/toolkit.lock.json](contracts/toolkit.lock.json) records the exact
-toolkit source commit; [go.mod](go.mod) uses its immutable pseudo-version. The
-vendored packages are `source`, `yamlview`, `yamlvalue`, `schemaquery`, `edit`,
-`index` and `workspace`. This pin does not follow toolkit `main` or require a
-published toolkit release.
+toolkit release and source commit; [go.mod](go.mod) pins its immutable module
+version (`v0.0.1-alpha.2`). The vendored packages are `source`, `yamlview`,
+`yamlvalue`, `schemaquery`, `edit`, `index` and `workspace`. This pin does not
+follow toolkit `main`.
 
 [contracts/toolkit-design-6.md](contracts/toolkit-design-6.md) is the
 byte-identical API contract for that pin. Its hashes, implementation identity and
