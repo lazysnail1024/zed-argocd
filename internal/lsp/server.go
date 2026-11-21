@@ -1100,6 +1100,19 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				editable := canEdit
 				canCandidates := canExplainAction
 				go func() {
+					var res queryResult
+					sendResult := false
+					// Deliver the reply only after the slot reservation has been
+					// released so a sequential follow-up request cannot observe
+					// its own completed predecessor as busy.
+					defer func() {
+						if sendResult {
+							select {
+							case queries <- res:
+							case <-done:
+							}
+						}
+					}()
 					work.Start()
 					terminal := "finished"
 					defer func() {
@@ -1239,10 +1252,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						terminal = "cancelled"
 					}
 					work.Finish()
-					select {
-					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, candidateProof: candidateProof, candidateOpen: candidateOpen, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
-					case <-done:
-					}
+					res = queryResult{refusal: input.refusal, showExplanation: showExplanation, candidateProof: candidateProof, candidateOpen: candidateOpen, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}
+					sendResult = true
 				}()
 			case "$/cancelRequest":
 				var p struct {

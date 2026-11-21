@@ -133,23 +133,48 @@ def start_command(command,child_env,stdin=None):
   raise
 
 SERIAL_CONSUMERS={'work-observability','helm-source','parent-workspace','mixed-parent-index','persistent-workspace','navigation-editing-guards','quickfix-scaling','repository-exclusion','reconciliation','query-delivery','candidate-concurrency','lsp-regressions','publication-delivery','bounded-symbol-queries-cap','persistent-workspace-50000','mixed-parent-index-50000','incremental-performance','repository-performance','audit-regression-mutations','document-budget-ablation','parent-workspace-faults','compatibility-intersection-ablation','navigation-editing-ablation'}
-def execute_command(name,command,extra=None,timeout=180):
+def execute_command(name,command,extra=None,timeout=180,cancel=None,closers=None,lock=None):
  started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
+ if cancel is not None and cancel.is_set():
+  row={'id':name,'command':command,'exit':'cancelled','elapsedSeconds':0.0,'cleanupError':None,'passed':False}
+  return row,stdout,stderr
  print(json.dumps({'step':name,'state':'started','command':command}),flush=True)
  try:
   p,close=start_command(command,dict(env,**(extra or {})))
-  try:stdout,stderr=p.communicate(timeout=timeout);status=p.returncode
-  except subprocess.TimeoutExpired as e:
-   stdout,stderr,status=e.stdout or b'',e.stderr or b'','timeout'
+  aborted=False
+  if lock is not None:
+   with lock:
+    if cancel is not None and cancel.is_set():
+     aborted=True
+    else:
+     closers.add(close)
+  if aborted:
+   status='cancelled'
    close();close=None
    stdout,stderr=p.communicate(timeout=3)
+  else:
+   try:stdout,stderr=p.communicate(timeout=timeout);status=p.returncode
+   except subprocess.TimeoutExpired as e:
+    stdout,stderr,status=e.stdout or b'',e.stderr or b'','timeout'
+    if lock is not None:
+     with lock:
+      if close in closers:closers.remove(close)
+      else:close=None
+    if close:
+     close();close=None
+    stdout,stderr=p.communicate(timeout=3)
  except (OSError,subprocess.TimeoutExpired) as e:
   if status!='timeout':status='launch-failed'
   stderr+=('\n'+repr(e)).encode()
  finally:
   if close:
-   try:close()
-   except OSError as e:cleanupError=repr(e)
+   if lock is not None:
+    with lock:
+     if close in closers:closers.remove(close)
+     else:close=None
+   if close:
+    try:close()
+    except OSError as e:cleanupError=repr(e)
   if p is not None:
    try:
     if p.poll() is None:p.kill()
@@ -166,8 +191,22 @@ def run_batch(tasks,max_workers=4):
  if len(tasks)==1:
   name,command,extra,timeout=tasks[0]
   return run(name,command,extra,timeout)
- with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers,os.cpu_count() or 2)) as executor:
-  outcomes=list(executor.map(lambda t:execute_command(*t),tasks))
+ cancel=threading.Event();closers=set();lock=threading.Lock()
+ executor=concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers,os.cpu_count() or 2))
+ futures=[executor.submit(execute_command,*t,cancel=cancel,closers=closers,lock=lock) for t in tasks]
+ try:
+  outcomes=[future.result() for future in futures]
+ except BaseException:
+  cancel.set()
+  for future in futures:future.cancel()
+  with lock:
+   active_closers=list(closers);closers.clear()
+  for closer in active_closers:
+   try:closer()
+   except OSError:pass
+  executor.shutdown(wait=True,cancel_futures=True)
+  raise
+ executor.shutdown(wait=True)
  for row,stdout,stderr in outcomes:
   rows.append(row)
   print(json.dumps({'step':row['id'],'state':'completed','exit':row['exit'],'passed':row['passed'],'elapsedSeconds':row['elapsedSeconds']}),flush=True)
