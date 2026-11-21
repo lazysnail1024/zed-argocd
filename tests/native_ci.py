@@ -132,7 +132,7 @@ def start_command(command,child_env,stdin=None):
    p.communicate(timeout=3)
   raise
 
-SERIAL_CONSUMERS={'work-observability','helm-source','parent-workspace','mixed-parent-index','persistent-workspace','navigation-editing','navigation-editing-guards','quickfix-scaling','repository-exclusion','reconciliation','query-delivery','candidate-concurrency','lsp-regressions','publication-delivery','bounded-symbol-queries-cap','persistent-workspace-50000','mixed-parent-index-50000','incremental-performance','repository-performance','audit-regression-mutations','document-budget-ablation','parent-workspace-faults','compatibility-intersection-ablation','navigation-editing-ablation'}
+SERIAL_CONSUMERS={'incremental-equivalence','work-observability','helm-source','parent-workspace','mixed-parent-index','persistent-workspace','navigation-editing','navigation-editing-guards','bounded-symbol-queries','quickfix-scaling','repository-exclusion','reconciliation','query-delivery','candidate-concurrency','lsp-regressions','publication-delivery','bounded-symbol-queries-cap','persistent-workspace-50000','mixed-parent-index-50000','incremental-performance','repository-performance','audit-regression-mutations','document-budget-ablation','parent-workspace-faults','compatibility-intersection-ablation','navigation-editing-ablation'}
 def execute_command(name,command,extra=None,timeout=180,cancel=None,closers=None,lock=None):
  started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
  if cancel is not None and cancel.is_set():

@@ -288,8 +288,9 @@ func (s *workspaceIndex) startScan(root *indexedRoot) {
 	root.scanner, root.err = shared.NewScanner([]string{root.catalog.Input.Root}, shared.ScanOptions{Extensions: []string{".yaml", ".yml"}, ExcludeDirs: root.catalog.ScanExclusions(), MaxDirectories: indexFileLimit})
 }
 
-func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[string]buffer, override string, events workspaceEvents) []publication {
+func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[string]buffer, override string, events workspaceEvents) ([]publication, map[source.URI]publication) {
 	publications := []publication{}
+	resetClears := map[source.URI]publication{}
 	s.mu.Lock()
 	previousRoots := append([]string(nil), s.rootOrder...)
 	ownershipChanged := func(root string) bool {
@@ -382,7 +383,15 @@ func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[
 		}
 		for uri, file := range s.files {
 			if file.root == path {
-				publications = append(publications, s.remove(uri))
+				p := s.remove(uri)
+				if err != nil {
+					publications = append(publications, p)
+				} else {
+					// Defer clears for a valid root reset until after open
+					// buffers and scan discovery re-enqueue surviving files so
+					// a batch yield cannot emit a false empty workspace pass.
+					resetClears[uri] = p
+				}
 			}
 		}
 		root := &indexedRoot{catalog: catalog, err: err, issues: map[string]int{}, scopeReads: map[string]int{}, scopeInvalid: map[string]int{}, projectGeneration: map[string]uint64{}, deferredDomain: map[source.URI]bool{}, configEvent: configEvent}
@@ -479,7 +488,7 @@ func (s *workspaceIndex) apply(ctx context.Context, roots []string, buffers map[
 			root.rescan = true
 		}
 	}
-	return publications
+	return publications, resetClears
 }
 
 func pathWithin(root, path string) bool {
@@ -918,7 +927,8 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 	result.epoch, result.incremental, result.unchangedInputs = epoch, s, true
 	result.failures = map[string]error{}
 	result.stats.Scope, result.stats.Phase = "incremental", "indexing"
-	result.publications = s.apply(ctx, roots, buffers, override, events)
+	var resetClears map[source.URI]publication
+	result.publications, resetClears = s.apply(ctx, roots, buffers, override, events)
 	s.mu.Lock()
 	for path, root := range s.roots {
 		if root.passActive {
@@ -998,6 +1008,11 @@ func (s *workspaceIndex) advance(ctx context.Context, epoch uint64, roots []stri
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	for uri, clear := range resetClears {
+		if s.files[uri] == nil {
+			result.publications = append(result.publications, clear)
+		}
+	}
 	s.enqueueReadyDomainLocked()
 	for path, root := range s.roots {
 		if root.catalog != nil {
