@@ -5,6 +5,7 @@ package source
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -21,6 +22,8 @@ type Change struct {
 
 type line struct{ start, end int }
 
+var emptyLines = []line{{}}
+
 // Snapshot is immutable. Its zero value is an empty snapshot at revision zero.
 // Text, URI and revisions have no connection to mutable files or LSP versions.
 type Snapshot struct {
@@ -35,11 +38,17 @@ func New(uri URI, revision Revision, text string) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("source: text is not valid UTF-8")
 	}
 	s := Snapshot{uri: uri, revision: revision, text: text}
+	if len(text) == 0 {
+		return s, nil
+	}
+	s.lines = make([]line, 0, strings.Count(text, "\n")+1)
 	start := 0
-	for i := 0; i < len(text); i++ {
-		if text[i] != '\n' {
-			continue
+	for {
+		nl := strings.IndexByte(text[start:], '\n')
+		if nl < 0 {
+			break
 		}
+		i := start + nl
 		end := i
 		if i > start && text[i-1] == '\r' {
 			end--
@@ -57,7 +66,7 @@ func (s Snapshot) Text() string       { return s.text }
 
 func (s Snapshot) lineIndex() []line {
 	if len(s.lines) == 0 {
-		return []line{{}}
+		return emptyLines
 	}
 	return s.lines
 }

@@ -4,11 +4,11 @@
   "contractSha256": "38734de00a5a44f0c9d9bf81be7599c3f45016f9b7928d040815e7c252967aca",
   "provider": "k8s-crd-toolkit",
   "module": "github.com/lazysnail1024/k8s-crd-toolkit",
-  "implementationVersion": "v0.0.1-alpha.1.0.20261113165037-bc3a72298f10",
-  "implementationCommit": "bc3a72298f10731b46eaeb9bf7688c9ad0a52839",
+  "implementationVersion": "v0.0.1-alpha.2",
+  "implementationCommit": "2668c0767ff7fa23610306031593d2c1a272966e",
   "ready": true,
-  "implementationSource": "go-module-commit",
-  "sourceSHA256": "cffacf9cb2c8807277c6f35b5924a04c512c649b6da9fff795e8ef1723b891d3",
-  "zipSHA256": "ec128b437e566d7f99cf54d9aa9ef5cc47850f3659d7a006cf84d86cd616c8c4",
-  "published": false
+  "implementationSource": "go-module-tag",
+  "sourceSHA256": "59352866aaf2934346457244a0b0af97cf46aaaf8ea13813ae120499b5ee68f7",
+  "zipSHA256": "d57750d8f02f0d703c6170486d1e2af9c1aa28cc9a6da310d45b37c9cf265468",
+  "published": true
 }

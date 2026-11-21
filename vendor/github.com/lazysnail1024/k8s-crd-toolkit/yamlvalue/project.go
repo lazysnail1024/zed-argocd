@@ -99,12 +99,6 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 		return Result{}, err
 	}
 	syntax := doc.Root()
-	if syntax.Kind() != yamlview.Empty {
-		text, sliceErr := snapshot.Slice(syntax.Span())
-		if sliceErr != nil || text != syntax.Raw() {
-			return Result{}, fmt.Errorf("yamlvalue: document does not belong to snapshot")
-		}
-	}
 	allowance := options.MaxNodes
 	var tree yamlv3.Node
 	if err := ctx.Err(); err != nil {
@@ -146,31 +140,7 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 	if oversizedScalar(syntax) {
 		return Result{}, &Error{"INPUT_BUDGET_EXCEEDED", "scalar exceeds 1 MiB limit"}
 	}
-	nodes := map[*yamlv3.Node]yamlview.Node{}
-	shared := map[*yamlv3.Node]bool{}
-	var bind func(*yamlv3.Node, yamlview.Node)
-	bind = func(n *yamlv3.Node, s yamlview.Node) {
-		nodes[n] = s
-		if n.Kind == yamlv3.AliasNode {
-			shared[n.Alias] = true
-			return
-		}
-		if n.Kind == yamlv3.MappingNode {
-			members := s.Members()
-			for i := 0; i+1 < len(n.Content) && i/2 < len(members); i += 2 {
-				bind(n.Content[i], members[i/2].Key)
-				bind(n.Content[i+1], members[i/2].Value)
-			}
-		} else if n.Kind == yamlv3.SequenceNode {
-			elements := s.Elements()
-			for i, child := range n.Content {
-				if i < len(elements) {
-					bind(child, elements[i])
-				}
-			}
-		}
-	}
-	scalarValues := map[*yamlv3.Node]any{}
+	var scalarValues map[*yamlv3.Node]any
 	scalar := func(n *yamlv3.Node) (any, error) {
 		if value, ok := scalarValues[n]; ok {
 			return value, nil
@@ -178,6 +148,9 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 		value, err := strictScalar(n)
 		if err != nil {
 			return nil, err
+		}
+		if scalarValues == nil {
+			scalarValues = map[*yamlv3.Node]any{}
 		}
 		scalarValues[n] = value
 		return value, nil
@@ -209,7 +182,10 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 		if n.Kind == yamlv3.ScalarNode && len(n.Value) > 1024*1024 {
 			return &Error{"INPUT_BUDGET_EXCEEDED", "scalar exceeds 1 MiB limit"}
 		}
-		keys := map[string]bool{}
+		var keys map[string]bool
+		if n.Kind == yamlv3.MappingNode && len(n.Content) > 2 {
+			keys = make(map[string]bool, len(n.Content)/2)
+		}
 		for i, child := range n.Content {
 			if n.Kind == yamlv3.MappingNode && i%2 == 0 && child.Tag != "!!merge" && child.Kind != yamlv3.AliasNode {
 				if child.Kind != yamlv3.ScalarNode {
@@ -229,10 +205,12 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 						return projectionFailure("Only string mapping keys are supported")
 					}
 				}
-				if keys[name] {
-					return projectionFailure("duplicate mapping key " + name)
+				if keys != nil {
+					if keys[name] {
+						return projectionFailure("duplicate mapping key " + name)
+					}
+					keys[name] = true
 				}
-				keys[name] = true
 			}
 			if err := inspect(child); err != nil {
 				return err
@@ -258,6 +236,30 @@ func Project(ctx context.Context, snapshot source.Snapshot, doc yamlview.Documen
 			return Result{}, projectionFailure(err.Error())
 		}
 		return Result{Value: value}, ctx.Err()
+	}
+	nodes := map[*yamlv3.Node]yamlview.Node{}
+	shared := map[*yamlv3.Node]bool{}
+	var bind func(*yamlv3.Node, yamlview.Node)
+	bind = func(n *yamlv3.Node, s yamlview.Node) {
+		nodes[n] = s
+		if n.Kind == yamlv3.AliasNode {
+			shared[n.Alias] = true
+			return
+		}
+		if n.Kind == yamlv3.MappingNode {
+			members := s.Members()
+			for i := 0; i+1 < len(n.Content) && i/2 < len(members); i += 2 {
+				bind(n.Content[i], members[i/2].Key)
+				bind(n.Content[i+1], members[i/2].Value)
+			}
+		} else if n.Kind == yamlv3.SequenceNode {
+			elements := s.Elements()
+			for i, child := range n.Content {
+				if i < len(elements) {
+					bind(child, elements[i])
+				}
+			}
+		}
 	}
 	bind(tree.Content[0], syntax)
 	sharedSpans := map[source.Span]bool{}

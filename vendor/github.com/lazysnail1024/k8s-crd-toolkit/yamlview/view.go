@@ -105,30 +105,18 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 		if e != nil {
 			return View{}, e
 		}
-		var relocate func(*parser.Node)
-		relocate = func(n *parser.Node) {
-			n.Start += offset
-			n.End += offset
-			for j := range n.Children {
-				relocate(&n.Children[j])
-			}
+		if offset != 0 {
+			relocateNode(&tree, offset)
 		}
-		relocate(&tree)
-		var issues func(parser.Node)
-		issues = func(n parser.Node) {
-			if n.Kind == "ERROR" || n.Missing {
-				v.issues = append(v.issues, ParseIssue{source.Span{Start: n.Start, End: n.End}, "invalid YAML syntax"})
-			}
-			for _, c := range n.Children {
-				issues(c)
-			}
+		if tree.Damaged {
+			collectIssues(&tree, &v.issues)
 		}
-		issues(tree)
 		if tree.Kind == "ERROR" {
-			v.documents = append(v.documents, document(tree, text, false))
+			v.documents = append(v.documents, document(&tree, text, false))
 			continue
 		}
-		for _, c := range tree.Children {
+		for j := range tree.Children {
+			c := &tree.Children[j]
 			if c.Kind == "document" {
 				v.documents = append(v.documents, document(c, text, !c.Damaged))
 			} else if c.Damaged {
@@ -145,7 +133,27 @@ func Parse(ctx context.Context, s source.Snapshot) (View, error) {
 	return v, nil
 }
 
-func document(p parser.Node, text string, complete bool) Document {
+func relocateNode(n *parser.Node, offset int) {
+	n.Start += offset
+	n.End += offset
+	for j := range n.Children {
+		relocateNode(&n.Children[j], offset)
+	}
+}
+
+func collectIssues(n *parser.Node, issues *[]ParseIssue) {
+	if n.Kind == "ERROR" || n.Missing {
+		*issues = append(*issues, ParseIssue{source.Span{Start: n.Start, End: n.End}, "invalid YAML syntax"})
+	}
+	if !n.Damaged {
+		return
+	}
+	for j := range n.Children {
+		collectIssues(&n.Children[j], issues)
+	}
+}
+
+func document(p *parser.Node, text string, complete bool) Document {
 	d := Document{root: convert(p, text), span: source.Span{Start: p.Start, End: p.End}, raw: text[p.Start:p.End], contentEnd: p.End, complete: complete}
 	// Tabs can be invalid indentation even when the CST accepts them. Keep
 	// the whole document so truncation cannot turn a rejected line into EOF.
@@ -156,8 +164,8 @@ func document(p parser.Node, text string, complete bool) Document {
 	// whitespace; documents containing tabs were already excluded above.
 	// Closing punctuation, null-value colons, tags, anchors and
 	// document markers must never be removed as a side effect of this bound.
-	var trim func(parser.Node) bool
-	trim = func(n parser.Node) bool {
+	var trim func(*parser.Node) bool
+	trim = func(n *parser.Node) bool {
 		if n.Kind == "comment" {
 			if n.End > d.contentEnd || strings.Trim(text[n.End:d.contentEnd], " \t\r\n") != "" {
 				return false
@@ -174,7 +182,7 @@ func document(p parser.Node, text string, complete bool) Document {
 			return true
 		}
 		for i := len(n.Children) - 1; i >= 0; i-- {
-			if !trim(n.Children[i]) {
+			if !trim(&n.Children[i]) {
 				return false
 			}
 		}
@@ -184,7 +192,7 @@ func document(p parser.Node, text string, complete bool) Document {
 	return d
 }
 
-func convert(p parser.Node, text string) Node {
+func convert(p *parser.Node, text string) Node {
 	n := Node{span: source.Span{Start: p.Start, End: p.End}, raw: text[p.Start:p.End], damaged: p.Damaged}
 	switch p.Kind {
 	case "ERROR":
@@ -192,15 +200,19 @@ func convert(p parser.Node, text string) Node {
 		return n
 	case "block_mapping", "flow_mapping":
 		n.kind = Mapping
-		for _, c := range p.Children {
+		if len(p.Children) > 0 {
+			n.members = make([]Member, 0, len(p.Children))
+		}
+		for j := range p.Children {
+			c := &p.Children[j]
 			if c.Kind == "block_mapping_pair" || c.Kind == "flow_pair" {
 				m := Member{}
 				for i, f := range c.Fields {
 					if f == "key" {
-						m.Key = convert(c.Children[i], text)
+						m.Key = convert(&c.Children[i], text)
 					}
 					if f == "value" {
-						m.Value = convert(c.Children[i], text)
+						m.Value = convert(&c.Children[i], text)
 					}
 				}
 				n.members = append(n.members, m)
@@ -209,7 +221,11 @@ func convert(p parser.Node, text string) Node {
 		return n
 	case "block_sequence", "flow_sequence":
 		n.kind = Sequence
-		for _, c := range p.Children {
+		if len(p.Children) > 0 {
+			n.elements = make([]Node, 0, len(p.Children))
+		}
+		for j := range p.Children {
+			c := &p.Children[j]
 			if c.Kind != "comment" {
 				n.elements = append(n.elements, convert(c, text))
 			}
@@ -222,7 +238,8 @@ func convert(p parser.Node, text string) Node {
 		n.kind = Scalar
 		return n
 	case "document", "block_node", "flow_node", "block_sequence_item":
-		for _, c := range p.Children {
+		for j := range p.Children {
+			c := &p.Children[j]
 			if c.Kind == "comment" || c.Kind == "anchor" || c.Kind == "tag" || strings.HasSuffix(c.Kind, "directive") {
 				continue
 			}

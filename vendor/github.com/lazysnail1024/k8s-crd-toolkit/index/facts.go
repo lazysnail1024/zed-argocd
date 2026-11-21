@@ -97,38 +97,44 @@ func sameMeaning(a, b Facts) bool {
 	if a.SemanticDigest != b.SemanticDigest || len(a.Symbols) != len(b.Symbols) || len(a.References) != len(b.References) || len(a.Dependencies) != len(b.Dependencies) {
 		return false
 	}
-	symbols := make(map[SymbolID]Symbol, len(a.Symbols))
-	for _, s := range a.Symbols {
-		s.Span, s.Selection = source.Span{}, source.Span{}
-		symbols[s.ID] = s
-	}
-	for _, s := range b.Symbols {
-		s.Span, s.Selection = source.Span{}, source.Span{}
-		if symbols[s.ID] != s {
-			return false
+	if len(a.Symbols) > 0 {
+		symbols := make(map[SymbolID]Symbol, len(a.Symbols))
+		for _, s := range a.Symbols {
+			s.Span, s.Selection = source.Span{}, source.Span{}
+			symbols[s.ID] = s
+		}
+		for _, s := range b.Symbols {
+			s.Span, s.Selection = source.Span{}, source.Span{}
+			if symbols[s.ID] != s {
+				return false
+			}
 		}
 	}
-	refs := make(map[Reference]int, len(a.References))
-	for _, r := range a.References {
-		r.Span = source.Span{}
-		refs[r]++
-	}
-	for _, r := range b.References {
-		r.Span = source.Span{}
-		if refs[r] == 0 {
-			return false
+	if len(a.References) > 0 {
+		refs := make(map[Reference]int, len(a.References))
+		for _, r := range a.References {
+			r.Span = source.Span{}
+			refs[r]++
 		}
-		refs[r]--
-	}
-	deps := make(map[Key]int, len(a.Dependencies))
-	for _, key := range a.Dependencies {
-		deps[key]++
-	}
-	for _, key := range b.Dependencies {
-		if deps[key] == 0 {
-			return false
+		for _, r := range b.References {
+			r.Span = source.Span{}
+			if refs[r] == 0 {
+				return false
+			}
+			refs[r]--
 		}
-		deps[key]--
+	}
+	if len(a.Dependencies) > 0 {
+		deps := make(map[Key]int, len(a.Dependencies))
+		for _, key := range a.Dependencies {
+			deps[key]++
+		}
+		for _, key := range b.Dependencies {
+			if deps[key] == 0 {
+				return false
+			}
+			deps[key]--
+		}
 	}
 	return true
 }

@@ -18,7 +18,10 @@ func logicalNodes(value any) int {
 }
 
 func oversizedScalar(n yamlview.Node) bool {
-	if n.Kind() == yamlview.Scalar && len(n.Raw()) > 1024*1024 {
+	if len(n.Raw()) <= 1024*1024 {
+		return false
+	}
+	if n.Kind() == yamlview.Scalar {
 		return true
 	}
 	for _, member := range n.Members() {

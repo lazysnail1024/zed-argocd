@@ -5,6 +5,7 @@ package edit
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
@@ -27,10 +28,10 @@ type Plan struct {
 // inside a replaced range and multiple insertions at one offset are rejected.
 func Apply(base source.Snapshot, next source.Revision, p Plan) (source.Snapshot, error) {
 	if p.BaseRevision != base.Revision() {
-		return source.Snapshot{}, fmt.Errorf("edit: base revision does not match")
+		return source.Snapshot{}, fmt.Errorf("edit: base revision %d does not match snapshot revision %d", p.BaseRevision, base.Revision())
 	}
 	if next <= base.Revision() {
-		return source.Snapshot{}, fmt.Errorf("edit: next revision must increase")
+		return source.Snapshot{}, fmt.Errorf("edit: next revision %d must exceed base revision %d", next, base.Revision())
 	}
 	replacements := append([]Replacement(nil), p.Replacements...)
 	for i, r := range replacements {
@@ -55,13 +56,25 @@ func Apply(base source.Snapshot, next source.Revision, p Plan) (source.Snapshot,
 	for i := 1; i < len(replacements); i++ {
 		a, b := replacements[i-1].Span, replacements[i].Span
 		if b.Start < a.End || (a.Start == a.End && b.Start == b.End && a.Start == b.Start) {
-			return source.Snapshot{}, fmt.Errorf("edit: replacements overlap or insert at the same offset")
+			return source.Snapshot{}, fmt.Errorf("edit: replacements [%d,%d) and [%d,%d) overlap or insert at the same offset", a.Start, a.End, b.Start, b.End)
 		}
 	}
-	changes := make([]source.Change, 0, len(replacements))
-	for i := len(replacements) - 1; i >= 0; i-- {
-		r := replacements[i]
-		changes = append(changes, source.Change{Range: r.Span, Text: r.NewText})
+	text := base.Text()
+	if len(replacements) == 0 {
+		return source.New(base.URI(), next, text)
 	}
-	return base.Apply(next, changes)
+	size := len(text)
+	for _, r := range replacements {
+		size += len(r.NewText) - (r.Span.End - r.Span.Start)
+	}
+	var b strings.Builder
+	b.Grow(size)
+	cursor := 0
+	for _, r := range replacements {
+		b.WriteString(text[cursor:r.Span.Start])
+		b.WriteString(r.NewText)
+		cursor = r.Span.End
+	}
+	b.WriteString(text[cursor:])
+	return source.New(base.URI(), next, b.String())
 }

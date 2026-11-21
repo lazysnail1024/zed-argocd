@@ -26,9 +26,8 @@ cluster connection.
 
 ## Shared toolkit boundary
 
-The current dependency is source commit
-`bc3a72298f10731b46eaeb9bf7688c9ad0a52839`, represented by
-`v0.0.1-alpha.1.0.20261113165037-bc3a72298f10` in [go.mod](../go.mod).
+The current dependency is published release `v0.0.1-alpha.2` (source commit
+`2668c0767ff7fa23610306031593d2c1a272966e`) in [go.mod](../go.mod).
 [toolkit.lock.json](../contracts/toolkit.lock.json) and the hash-checked
 [API contract](../contracts/toolkit-design-6.md) identify this pin. The toolkit's
 latest `main` can differ without changing this server.

@@ -39,6 +39,10 @@ type parseResult struct {
 
 var parseJobs = make(chan parseJob)
 var startParsers sync.Once
+var (
+	yamlLanguage *sitter.Language
+	kindNames    []string
+)
 
 // A separate frame releases each job before the worker waits again. Each
 // native slice yields to other callers, including small foreground parses.
@@ -52,6 +56,12 @@ func Parse(ctx context.Context, text string) (Node, error) {
 		return Node{}, err
 	}
 	startParsers.Do(func() {
+		yamlLanguage = sitter.NewLanguage(yaml.Language())
+		kindCount := yamlLanguage.NodeKindCount()
+		kindNames = make([]string, kindCount)
+		for id := uint32(0); id < kindCount; id++ {
+			kindNames[id] = yamlLanguage.NodeKindForId(uint16(id))
+		}
 		for i := 0; i < 2; i++ {
 			go func() {
 				runtime.LockOSThread()
@@ -78,7 +88,7 @@ func Parse(ctx context.Context, text string) (Node, error) {
 		}
 		if value.tree != nil {
 			defer value.tree.Close()
-			return copyNode(ctx, value.tree.RootNode(), 0)
+			return copyNode(ctx, value.tree.RootNode(), 0, true)
 		}
 		parseJobs <- job
 	}
@@ -103,7 +113,7 @@ func (call *parseCall) slice() (*sitter.Tree, error) {
 	yaml.Begin()
 	if call.parser == nil {
 		call.parser = sitter.NewParser()
-		if err := call.parser.SetLanguage(sitter.NewLanguage(yaml.Language())); err != nil {
+		if err := call.parser.SetLanguage(yamlLanguage); err != nil {
 			call.closeParser()
 			return nil, err
 		}
@@ -130,26 +140,55 @@ func (call *parseCall) slice() (*sitter.Tree, error) {
 	}
 	return tree, nil
 }
-func copyNode(ctx context.Context, n *sitter.Node, depth int) (Node, error) {
+func nodeKind(n *sitter.Node) string {
+	if id := n.KindId(); int(id) < len(kindNames) {
+		return kindNames[id]
+	}
+	return n.Kind()
+}
+
+func copyNode(ctx context.Context, n *sitter.Node, depth int, checkDamage bool) (Node, error) {
 	if e := ctx.Err(); e != nil {
 		return Node{}, e
 	}
-	k := n.Kind()
+	k := nodeKind(n)
 	if k == "block_mapping" || k == "flow_mapping" || k == "block_sequence" || k == "flow_sequence" {
 		depth++
 	}
 	if depth > 256 {
 		return Node{}, fmt.Errorf("yamlview: depth exceeds 256")
 	}
-	r := Node{Kind: k, Start: int(n.StartByte()), End: int(n.EndByte()), Damaged: n.HasError() || n.IsError() || n.IsMissing(), Missing: n.IsMissing()}
+	var damaged, missing bool
+	if checkDamage {
+		hasErr := n.HasError()
+		missing = hasErr && n.IsMissing()
+		damaged = hasErr || k == "ERROR"
+	} else if k == "ERROR" {
+		damaged = true
+	}
+	r := Node{Kind: k, Start: int(n.StartByte()), End: int(n.EndByte()), Damaged: damaged, Missing: missing}
+	// Clean leaf scalars and aliases carry only internal token children that
+	// yamlview never reads for structure, issues, or trailing comment bounds.
+	if !damaged && (k == "plain_scalar" || k == "double_quote_scalar" || k == "single_quote_scalar" || k == "alias") {
+		return r, nil
+	}
 	namedChildren := n.NamedChildCount()
+	wantFields := k == "block_mapping_pair" || k == "flow_pair"
+	if namedChildren > 0 {
+		r.Children = make([]Node, 0, namedChildren)
+		if wantFields {
+			r.Fields = make([]string, 0, namedChildren)
+		}
+	}
 	for i := uint(0); i < namedChildren; i++ {
-		c, e := copyNode(ctx, n.NamedChild(i), depth)
+		c, e := copyNode(ctx, n.NamedChild(i), depth, damaged)
 		if e != nil {
 			return Node{}, e
 		}
 		r.Children = append(r.Children, c)
-		r.Fields = append(r.Fields, n.FieldNameForNamedChild(uint32(i)))
+		if wantFields {
+			r.Fields = append(r.Fields, n.FieldNameForNamedChild(uint32(i)))
+		}
 	}
 	// Missing punctuation is anonymous in Tree-sitter, but still represents
 	// observable syntax damage and must survive the copied tree for Issues.
@@ -160,8 +199,10 @@ func copyNode(ctx context.Context, n *sitter.Node, depth int) (Node, error) {
 		for i := uint(0); i < children; i++ {
 			child := n.Child(i)
 			if child.IsMissing() && !child.IsNamed() {
-				r.Children = append(r.Children, Node{Kind: child.Kind(), Start: int(child.StartByte()), End: int(child.EndByte()), Damaged: true, Missing: true})
-				r.Fields = append(r.Fields, "")
+				r.Children = append(r.Children, Node{Kind: nodeKind(child), Start: int(child.StartByte()), End: int(child.EndByte()), Damaged: true, Missing: true})
+				if wantFields {
+					r.Fields = append(r.Fields, "")
+				}
 			}
 		}
 	}

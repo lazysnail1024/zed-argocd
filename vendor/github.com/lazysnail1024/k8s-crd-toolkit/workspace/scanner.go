@@ -34,8 +34,9 @@ type Batch struct {
 }
 
 type directoryWork struct {
-	path     string
-	priority bool
+	path       string
+	priority   bool
+	discovered bool
 }
 
 type directoryCursor struct {
@@ -75,13 +76,13 @@ func NewScanner(roots []string, options ScanOptions) (*Scanner, error) {
 	s := &Scanner{maximum: options.MaxDirectories, seen: make(map[string]*list.Element), extensions: make(map[string]bool), excluded: make(map[string]bool)}
 	for _, extension := range options.Extensions {
 		if len(extension) < 2 || extension[0] != '.' || strings.ContainsAny(extension, `/\\`) {
-			return nil, fmt.Errorf("workspace: invalid extension")
+			return nil, fmt.Errorf("workspace: invalid extension %q (must start with '.' and contain no path separators)", extension)
 		}
 		s.extensions[strings.ToLower(extension)] = true
 	}
 	for _, name := range options.ExcludeDirs {
 		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\\`) {
-			return nil, fmt.Errorf("workspace: exclusions must be directory basenames")
+			return nil, fmt.Errorf("workspace: invalid exclusion %q (exclusions must be directory basenames)", name)
 		}
 		s.excluded[strings.Clone(name)] = true
 	}
@@ -94,7 +95,7 @@ func NewScanner(roots []string, options ScanOptions) (*Scanner, error) {
 			continue
 		}
 		s.roots = append(s.roots, path)
-		if err := s.enqueue(path, false); err != nil {
+		if err := s.enqueue(path, false, false); err != nil {
 			return nil, err
 		}
 	}
@@ -108,7 +109,7 @@ func absoluteDirectory(path string) (string, error) {
 	return filepath.Abs(path)
 }
 
-func (s *Scanner) enqueue(path string, priority bool) error {
+func (s *Scanner) enqueue(path string, priority, discovered bool) error {
 	if element, exists := s.seen[path]; exists {
 		if priority && element != nil {
 			element.Value.(*directoryWork).priority = true
@@ -120,7 +121,7 @@ func (s *Scanner) enqueue(path string, priority bool) error {
 	if len(s.seen) >= s.maximum {
 		return ErrLimit
 	}
-	work := &directoryWork{path: path, priority: priority}
+	work := &directoryWork{path: path, priority: priority, discovered: discovered}
 	var element *list.Element
 	if priority {
 		element = s.pending.PushFront(work)
@@ -158,14 +159,14 @@ func (s *Scanner) Prioritize(directory string) error {
 	}
 	_, relative, inside := s.relativeRoot(path)
 	if !inside {
-		return fmt.Errorf("workspace: priority directory is outside roots")
+		return fmt.Errorf("workspace: priority directory %q is outside configured roots", path)
 	}
 	for _, part := range strings.Split(relative, string(filepath.Separator)) {
 		if s.excluded[part] {
-			return fmt.Errorf("workspace: priority directory is excluded")
+			return fmt.Errorf("workspace: priority directory %q is excluded by %q", path, part)
 		}
 	}
-	return s.enqueue(path, true)
+	return s.enqueue(path, true, false)
 }
 
 func (s *Scanner) urgent() bool {
@@ -252,7 +253,7 @@ func (s *Scanner) activate(ctx context.Context, batch *Batch) error {
 		return nil
 	}
 	work := element.Value.(*directoryWork)
-	file, err := s.openDirectory(ctx, work.path)
+	file, err := s.openDirectory(ctx, work)
 	batch.Visited++
 	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
@@ -267,40 +268,65 @@ func (s *Scanner) activate(ctx context.Context, batch *Batch) error {
 	return nil
 }
 
-func (s *Scanner) openDirectory(ctx context.Context, path string) (*os.File, error) {
+func lstatDir(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return fmt.Errorf("workspace: expected a directory without symlinks: %s", path)
+	}
+	return nil
+}
+
+func (s *Scanner) openDirectory(ctx context.Context, work *directoryWork) (*os.File, error) {
+	path := work.path
+	if work.discovered {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if err := lstatDir(path); err != nil {
+			return nil, err
+		}
+		return os.Open(path)
+	}
 	root, relative, inside := s.relativeRoot(path)
 	if !inside {
 		return nil, fmt.Errorf("workspace: directory outside roots")
 	}
-	// Check every component below the explicit root, including priority paths
+	// Check every component from the explicit root, including priority paths
 	// that bypassed normal directory discovery. This is not a security sandbox
 	// against concurrent hostile filesystem mutations.
-	current := root
-	parts := append([]string{"."}, strings.Split(relative, string(filepath.Separator))...)
-	for _, part := range parts {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
-		if err != nil {
-			return nil, err
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			return nil, fmt.Errorf("workspace: expected a directory without symlinks: %s", current)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := lstatDir(root); err != nil {
+		return nil, err
+	}
+	if relative != "." {
+		current := root
+		for _, part := range strings.Split(relative, string(filepath.Separator)) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			current = filepath.Join(current, part)
+			if err := lstatDir(current); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return os.Open(path)
 }
 
 func (s *Scanner) inspect(entry fs.DirEntry, batch *Batch) {
-	path := filepath.Join(s.active.work.path, entry.Name())
-	if entry.Type()&os.ModeSymlink != 0 {
+	typ := entry.Type()
+	if typ&os.ModeSymlink != 0 {
 		return
 	}
-	if entry.IsDir() {
+	if typ.IsDir() {
 		if !s.excluded[entry.Name()] {
-			if err := s.enqueue(path, s.active.work.priority); err != nil {
+			path := filepath.Join(s.active.work.path, entry.Name())
+			if err := s.enqueue(path, s.active.work.priority, true); err != nil {
 				s.issue(batch, path, err)
 			}
 		}
@@ -309,13 +335,8 @@ func (s *Scanner) inspect(entry fs.DirEntry, batch *Batch) {
 	if len(s.extensions) != 0 && !s.extensions[strings.ToLower(filepath.Ext(entry.Name()))] {
 		return
 	}
-	info, err := entry.Info()
-	if err != nil {
-		s.issue(batch, path, err)
-		return
-	}
-	if info.Mode().IsRegular() {
-		batch.Files = append(batch.Files, path)
+	if typ.IsRegular() {
+		batch.Files = append(batch.Files, filepath.Join(s.active.work.path, entry.Name()))
 	}
 }
 

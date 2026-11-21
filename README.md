@@ -3,7 +3,7 @@
 Local YAML diagnostics, completion, hover, navigation and safe edits for Argo CD.
 The Go language server works independently; the Zed extension is a thin adapter.
 
-**Alpha `0.0.1-alpha.6`:** default support covers **2.0.0–3.6.1**, including stable patch releases.
+**Alpha `0.0.1-alpha.7`:** default support covers **2.0.0-3.6.1**, including stable patch releases.
 No project configuration or target version is needed. Current-file diagnostics
 remain available when a large, multi-repository workspace scan is incomplete.
 
@@ -87,7 +87,7 @@ semantics, configuration, scheduling and LSP delivery remain in this server.
 
 ## Standalone CLI / other editors
 
-Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.6),
+Download your platform archive from the [LSP alpha release](https://github.com/lazysnail1024/zed-argocd/releases/tag/v0.0.1-alpha.7),
 extract it, and run:
 
 ```sh
