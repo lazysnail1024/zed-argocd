@@ -292,6 +292,7 @@ func (s *workspaceIndex) referenceCandidates(ctx context.Context, m message, buf
 		return read, err
 	}
 	analyzer := new(analysis.Analyzer)
+	analyzer.SetSchemaCache(s.schemas)
 	checked, err := analyzer.Analyze(ctx, b.snapshot, file.Target.Version)
 	if err != nil || checked.Incomplete {
 		return read, err

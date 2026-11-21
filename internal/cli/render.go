@@ -97,7 +97,7 @@ func renderCheckContext(parent context.Context, args []string, out, errOut io.Wr
 	apis, values := stringFlags{}, stringFlags{}
 	fs.Var(&apis, "api-version", "available API version; repeat to preserve order")
 	fs.Var(&values, "values", "local values file; repeat in Helm precedence order")
-	if fs.Parse(args) != nil || fs.NArg() != 0 {
+	if !parseFlags(fs, args, errOut) {
 		return 2
 	}
 	if *format != "json" && *format != "human" {
@@ -491,7 +491,7 @@ func renderCache(args []string, out, errOut io.Writer) int {
 	flags := flag.NewFlagSet("render-cache", flag.ContinueOnError)
 	flags.SetOutput(errOut)
 	remove := flags.String("remove", "", "explicit verified default-cache directory to remove")
-	if flags.Parse(args) != nil || flags.NArg() != 0 {
+	if !parseFlags(flags, args, errOut) {
 		return 2
 	}
 	if *remove != "" {

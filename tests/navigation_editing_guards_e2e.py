@@ -127,16 +127,32 @@ def rename_guards():
 def capacity_guards():
     out, root = wire.setup('capacity')
     wire.write(root, 'project.yaml', wire.PROJECT)
+    first = wire.write(root, 'a.yaml', wire.APP)
     text = wire.APP + '  info:\n' + ''.join('    - {name: item-%d, value: value-%d}\n' % (n, n) for n in range(1800))
     file = wire.write(root, 'app.yaml', text)
     client = wire.LSP(out, [root])
     try:
+        # Opening a.yaml first fills the single document-pass value cache so
+        # each read-lane hover on app.yaml performs real parsing work instead
+        # of draining faster than stdin framing on fast CPUs.
+        client.open(first, wire.APP)
+        client.diag(first, 1)
         client.open(file, text)
         client.diag(file, 1)
         params = {'textDocument': {'uri': file.as_uri()}, 'position': position(text, 'project: team')}
         identifiers = set(range(1000, 1128))
+        frames = []
         for ident in sorted(identifiers):
-            client.send('textDocument/hover', params, ident)
+            body = json.dumps({'jsonrpc': '2.0', 'id': ident, 'method': 'textDocument/hover', 'params': params}, ensure_ascii=False).encode()
+            frames.append(f'Content-Length: {len(body)}\r\n\r\n'.encode() + body)
+        burst = b''.join(frames)
+        with client.write_lock:
+            client.sent_bytes += len(burst)
+            if client.sent_bytes > client.transcript_limit:
+                raise ValueError('stdin transcript quota exceeded')
+            client.sent.extend(frames)
+            client.proc.stdin.write(burst)
+            client.proc.stdin.flush()
         seen = {}
         while len(seen) != len(identifiers):
             response = client.wait(lambda row: row.get('id') in identifiers, timeout=20)

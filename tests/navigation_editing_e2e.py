@@ -128,18 +128,35 @@ def navigation():
 def bounded_requests():
     out, root = client.setup('bounded-requests')
     client.write(root, 'project.yaml', client.PROJECT)
+    first = client.write(root, 'a.yaml', client.APP)
     # Input analysis is deliberately nontrivial, while each request uses the
     # production entry point and default concurrency limits.
     text = client.APP + '  info:\n' + ''.join(f'    - {{name: item-{n}, value: value-{n}}}\n' for n in range(1800))
     file = client.write(root, 'app.yaml', text)
     c = client.LSP(out, [root])
     try:
+        # Opening a.yaml first fills the single document-pass value cache so
+        # each read-lane hover on app.yaml performs real parsing work instead
+        # of draining faster than stdin framing on fast CPUs.
+        c.open(first, client.APP)
+        c.diag(first, 1)
         c.open(file, text)
         c.diag(file, 1)
         ids = list(range(10000, 10128))
-        started = time.monotonic()
+        params = {'textDocument': {'uri': file.as_uri()}, 'position': position(text, 'project: team')}
+        frames = []
         for ident in ids:
-            c.send('textDocument/hover', {'textDocument': {'uri': file.as_uri()}, 'position': position(text, 'project: team')}, ident)
+            body = json.dumps({'jsonrpc': '2.0', 'id': ident, 'method': 'textDocument/hover', 'params': params}, ensure_ascii=False).encode()
+            frames.append(f'Content-Length: {len(body)}\r\n\r\n'.encode() + body)
+        burst = b''.join(frames)
+        started = time.monotonic()
+        with c.write_lock:
+            c.sent_bytes += len(burst)
+            if c.sent_bytes > c.transcript_limit:
+                raise ValueError('stdin transcript quota exceeded')
+            c.sent.extend(frames)
+            c.proc.stdin.write(burst)
+            c.proc.stdin.flush()
         received = {}
         while len(received) < len(ids):
             answer = c.wait(lambda m: m.get('id') in ids, timeout=20)

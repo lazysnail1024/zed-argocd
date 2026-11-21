@@ -136,9 +136,6 @@ func ResolveRenderRequest(ctx context.Context, options RenderOptions) (RenderReq
 		if err != nil {
 			return request, err
 		}
-		if len(options.Roots) > 0 && Owner(options.Roots, request.File) != request.Root {
-			return request, fmt.Errorf("selected source belongs to another workspace root")
-		}
 	}
 	profile := RenderProfile{Chart: options.Chart, Values: options.Values, ReleaseName: options.ReleaseName, Namespace: options.Namespace, KubeVersion: options.KubeVersion, APIVersions: options.APIVersions}
 	if options.Profile != "" {

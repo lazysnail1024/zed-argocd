@@ -79,7 +79,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 				emit([]string{"spec", "project"}, "CD_PROJECT_AMBIGUOUS", 2, "Multiple AppProject declarations with this name exist in the configured control-plane namespace. Resolve duplicate declarations within this scope before project policy or reverse references can be established.")
 			} else if len(candidates) == 0 {
 				severity := 3
-				if options.ReferencePolicy == "closed" && options.Complete {
+				if options.ReferencePolicy == "closed" {
 					severity = 1
 				}
 				emit([]string{"spec", "project"}, "CD_PROJECT_UNRESOLVED", severity, "Project is not resolved in this local control-plane scope")
@@ -112,13 +112,15 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 				refs[ref]++
 			}
 		}
+		sourceListCount := len(objectSlice(spec["sources"]))
+		hasSourceList := hasSources && sourceListCount > 0
 		for i, value := range sources {
 			if ctx.Err() != nil {
 				return diagnostics
 			}
 			src := object(value)
 			parts := []string{"spec", "source"}
-			if hasSources && len(objectSlice(spec["sources"])) > 0 {
+			if hasSourceList {
 				parts = []string{"spec", "sources", fmt.Sprint(i)}
 			}
 
@@ -135,7 +137,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 			if refs[ref] > 1 && ref != "" {
 				emit(appendPath(parts, "ref"), "CD_SOURCE_REF_DUPLICATE", 1, "Source ref is duplicated within this Application")
 			}
-			if sourceRefsActive(doc.Target, len(objectSlice(spec["sources"]))) && ref != "" && (literal(src["chart"]) != "" || !sourceRefName.MatchString(ref)) {
+			if sourceRefsActive(doc.Target, sourceListCount) && ref != "" && (literal(src["chart"]) != "" || !sourceRefName.MatchString(ref)) {
 				emit(appendPath(parts, "ref"), "CD_VALUES_REF_INVALID", 1, "Source ref cannot contain a path or be combined with chart")
 			}
 			count := 0
@@ -155,7 +157,7 @@ func Domain(documents []Document, options DomainOptions) []Diagnostic {
 					continue
 				}
 				field := appendPath(parts, append([]string{"helm"}, valueFile.path...)...)
-				if hasSources && len(objectSlice(spec["sources"])) > 0 && strings.HasPrefix(file, "$") {
+				if hasSourceList && strings.HasPrefix(file, "$") {
 					key := strings.SplitN(file[1:], "/", 2)[0]
 					if len(sources) == 1 && refs[key] > 0 && !assets.SingleSourceRefs(doc.Target) {
 						emit(field, "CD_VERSION_FEATURE", 1, "This target cannot resolve a ref from a sole sources entry; support starts in Argo CD 3.5")

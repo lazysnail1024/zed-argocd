@@ -78,7 +78,11 @@ func pinRequest(ctx context.Context, m message, latest completed, buffers map[st
 			copied[uri] = value
 		}
 		copied[uri] = buffer{snapshot: next, version: b.version, revision: next.Revision()}
-		after := analyzeRoots(ctx, epoch, roots, copied, override)
+		var schemas *analysis.SchemaCache
+		if latest.incremental != nil {
+			schemas = latest.incremental.schemas
+		}
+		after := analyzeRoots(ctx, epoch, roots, copied, override, schemas)
 		if ctx.Err() != nil || after.err != nil || !pinSafe(latest, after, uri, pin) {
 			continue
 		}
@@ -140,8 +144,7 @@ func pinSafe(before, after completed, uri string, pin workspace.Pin) bool {
 		}
 	}
 	for _, input := range after.inputs {
-		config, _ := workspace.PathFromURI(uri)
-		if input.Root != filepath.Dir(config) {
+		if input.Root != root {
 			continue
 		}
 		if pin.Root {

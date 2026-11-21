@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Native CI entry: retain each real-process outcome, including failures."""
-import argparse,hashlib,json,os,pathlib,re,subprocess,sys,signal,time,shutil
+import argparse,concurrent.futures,hashlib,json,os,pathlib,re,subprocess,sys,signal,threading,time,shutil
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 BUILD_ROLES={'consumers':'ordinary','provenance':'provenance','compiler-environment':'compiler-isolation','all':'ordinary'}
 SUITES=('consumers','provenance','compiler-environment')
@@ -132,6 +132,88 @@ def start_command(command,child_env,stdin=None):
    p.communicate(timeout=3)
   raise
 
+SERIAL_CONSUMERS={'incremental-equivalence','work-observability','helm-source','parent-workspace','mixed-parent-index','persistent-workspace','navigation-editing','navigation-editing-guards','bounded-symbol-queries','quickfix-scaling','repository-exclusion','reconciliation','query-delivery','candidate-concurrency','lsp-regressions','publication-delivery','bounded-symbol-queries-cap','persistent-workspace-50000','mixed-parent-index-50000','incremental-performance','repository-performance','audit-regression-mutations','document-budget-ablation','parent-workspace-faults','compatibility-intersection-ablation','navigation-editing-ablation'}
+def execute_command(name,command,extra=None,timeout=180,cancel=None,closers=None,lock=None):
+ started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
+ if cancel is not None and cancel.is_set():
+  row={'id':name,'command':command,'exit':'cancelled','elapsedSeconds':0.0,'cleanupError':None,'passed':False}
+  return row,stdout,stderr
+ print(json.dumps({'step':name,'state':'started','command':command}),flush=True)
+ try:
+  p,close=start_command(command,dict(env,**(extra or {})))
+  aborted=False
+  if lock is not None:
+   with lock:
+    if cancel is not None and cancel.is_set():
+     aborted=True
+    else:
+     closers.add(close)
+  if aborted:
+   status='cancelled'
+   close();close=None
+   stdout,stderr=p.communicate(timeout=3)
+  else:
+   try:stdout,stderr=p.communicate(timeout=timeout);status=p.returncode
+   except subprocess.TimeoutExpired as e:
+    stdout,stderr,status=e.stdout or b'',e.stderr or b'','timeout'
+    if lock is not None:
+     with lock:
+      if close in closers:closers.remove(close)
+      else:close=None
+    if close:
+     close();close=None
+    stdout,stderr=p.communicate(timeout=3)
+ except (OSError,subprocess.TimeoutExpired) as e:
+  if status!='timeout':status='launch-failed'
+  stderr+=('\n'+repr(e)).encode()
+ finally:
+  if close:
+   if lock is not None:
+    with lock:
+     if close in closers:closers.remove(close)
+     else:close=None
+   if close:
+    try:close()
+    except OSError as e:cleanupError=repr(e)
+  if p is not None:
+   try:
+    if p.poll() is None:p.kill()
+    p.wait(timeout=3)
+   except (OSError,subprocess.TimeoutExpired) as e:cleanupError=repr(e)
+   if p.stdout:p.stdout.close()
+   if p.stderr:p.stderr.close()
+   if os.name=='nt':p._handle.Close()
+  (out/(name+'.stdout')).write_bytes(stdout);(out/(name+'.stderr')).write_bytes(stderr)
+  row={'id':name,'command':command,'exit':status,'elapsedSeconds':time.monotonic()-started,'cleanupError':cleanupError,'passed':status==0 and cleanupError is None}
+ return row,stdout,stderr
+def run_batch(tasks,max_workers=4):
+ if not tasks:return True
+ if len(tasks)==1:
+  name,command,extra,timeout=tasks[0]
+  return run(name,command,extra,timeout)
+ cancel=threading.Event();closers=set();lock=threading.Lock()
+ executor=concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers,os.cpu_count() or 2))
+ futures=[executor.submit(execute_command,*t,cancel=cancel,closers=closers,lock=lock) for t in tasks]
+ try:
+  outcomes=[future.result() for future in futures]
+ except BaseException:
+  cancel.set()
+  for future in futures:future.cancel()
+  with lock:
+   active_closers=list(closers);closers.clear()
+  for closer in active_closers:
+   try:closer()
+   except OSError:pass
+  executor.shutdown(wait=True,cancel_futures=True)
+  raise
+ executor.shutdown(wait=True)
+ for row,stdout,stderr in outcomes:
+  rows.append(row)
+  print(json.dumps({'step':row['id'],'state':'completed','exit':row['exit'],'passed':row['passed'],'elapsedSeconds':row['elapsedSeconds']}),flush=True)
+  if not row['passed']:
+   print(json.dumps({'step':row['id'],'failureOutput':{'stdout':stdout[-4000:].decode(errors='replace'),'stderr':stderr[-4000:].decode(errors='replace')}}),flush=True)
+ save()
+ return all(row['passed'] for row,_,_ in outcomes)
 def run(name,command,extra=None,timeout=180):
  global active
  active={'id':name,'command':command,'timeoutSeconds':timeout};save();started=time.monotonic();p=None;close=None;stdout=stderr=b'';status='launch-failed';cleanupError=None
@@ -232,26 +314,43 @@ def main():
   builds.append(build_evidence(out/'build/manifest.json'))
   run('package',[sys.executable,str(ROOT/'tools/native.py'),'package','--manifest',str(out/'build/manifest.json'),'--output',str(out/'package')])
   run('ci-process-boundary',[sys.executable,str(ROOT/'tests/native_ci_process_e2e.py'),str(out/'ci-process-boundary'),'--platform',a.platform],timeout=45)
-  run('ci-evidence',[sys.executable,str(ROOT/'tests/ci_evidence_e2e.py'),'--output',str(out/'ci-evidence')],timeout=90)
-  run('ci-evidence-cas',[sys.executable,str(ROOT/'tests/ci_evidence_cas_e2e.py'),'--output',str(out/'ci-evidence-cas')],timeout=180)
-  run('ci-shard-gate',[sys.executable,str(ROOT/'tests/ci_shards_e2e.py'),'--output',str(out/'ci-shard-gate')],timeout=90)
+  run_batch([
+   ('ci-evidence',[sys.executable,str(ROOT/'tests/ci_evidence_e2e.py'),'--output',str(out/'ci-evidence')],None,90),
+   ('ci-evidence-cas',[sys.executable,str(ROOT/'tests/ci_evidence_cas_e2e.py'),'--output',str(out/'ci-evidence-cas')],None,180),
+   ('ci-shard-gate',[sys.executable,str(ROOT/'tests/ci_shards_e2e.py'),'--output',str(out/'ci-shard-gate')],None,90),
+  ])
   if a.suite=='all':
    security_suite('provenance');security_suite('compiler-environment')
-  run('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')])
-  run('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')])
-  run('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode',mode])
-  run('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')])
-  run('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'])
-  run('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')])
-  run('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')])
-  run('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')])
+  run_batch([
+   ('cli',[sys.executable,str(ROOT/'tests/cli_e2e.py'),str(binary),str(out/'cli')],None,180),
+   ('targets',[sys.executable,str(ROOT/'tests/target_e2e.py'),str(binary),str(out/'targets')],None,180),
+   ('readiness',[sys.executable,str(ROOT/'tests/readiness_e2e.py'),str(binary),str(out/'readiness'),'--expected-source-commit',commit or 'none','--expected-dirty',str(expected['dirty']).lower(),'--expected-build-mode',mode],None,180),
+   ('config-uris',[sys.executable,str(ROOT/'tests/config_uri_e2e.py'),str(binary),str(out/'config-uris')],None,180),
+   ('save-actions',[sys.executable,str(ROOT/'tests/save_action_e2e.py'),str(binary),str(out/'save-actions'),'--skip-periodic'],None,180),
+   ('schema-queries',[sys.executable,str(ROOT/'tests/schema_queries_e2e.py'),str(binary),str(out/'queries')],None,180),
+   ('projection',[sys.executable,str(ROOT/'tests/alias_projection_cli_e2e.py'),str(binary),str(out/'projection')],None,180),
+   ('publication',[sys.executable,str(ROOT/'tests/publication_e2e.py'),str(binary),str(out/'publication')],None,180),
+  ])
   helper=out/('native-helper.exe' if a.platform.startswith('windows/') else 'native-helper')
   if run('helper-build',[go,'build','-mod=vendor','-buildvcs=false','-trimpath','-o',str(helper),'./tests/native_helper']):run('native-processes',[sys.executable,str(ROOT/'tests/native_process_e2e.py'),str(binary),str(helper),str(out/'processes')],timeout=90)
+  batch=[]
   for name,script,options,timeout in audit_consumers(a.platform):
-   run(name,[sys.executable,str(ROOT/'tests'/script),str(binary),str(out/name),*options],timeout=timeout)
+   cmd=[sys.executable,str(ROOT/'tests'/script),str(binary),str(out/name),*options]
+   if name in SERIAL_CONSUMERS:
+    run_batch(batch);batch=[]
+    run(name,cmd,timeout=timeout)
+   else:
+    batch.append((name,cmd,None,timeout))
+  run_batch(batch);batch=[]
   if a.platform=='linux/amd64':
    for name,script,timeout in SOURCE_ABLATIONS:
-    run(name,[sys.executable,str(ROOT/'tests'/script),str(out/name)],timeout=timeout)
+    cmd=[sys.executable,str(ROOT/'tests'/script),str(out/name)]
+    if name in SERIAL_CONSUMERS:
+     run_batch(batch,max_workers=2);batch=[]
+     run(name,cmd,timeout=timeout)
+    else:
+     batch.append((name,cmd,None,timeout))
+   run_batch(batch,max_workers=2)
   collect_children();completed=True
  except Exception as e:rows.append({'id':'runner','passed':False,'error':repr(e)})
  finally:save()

@@ -96,7 +96,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 		uri = params.Data.URI
 	}
 	localInput := func() completed {
-		result := analyzeDocuments(ctx, epoch, roots, buffers, override, local, uri)
+		result := analyzeDocumentsWithCache(ctx, epoch, roots, buffers, override, local, uri, s.schemas)
 		result.editGeneration = latest.editGeneration
 		return result
 	}
@@ -224,6 +224,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	}
 	if !reused {
 		analyzer := new(analysis.Analyzer)
+		analyzer.SetSchemaCache(s.schemas)
 		for _, scope := range local.scopes {
 			analyzer.ReuseSchemas(scope.documents)
 		}
@@ -244,6 +245,27 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 				checked.Documents = append(append([]analysis.Document(nil), checked.Documents...), *recovered)
 			}
 		}
+	}
+	if m.Method == "textDocument/hover" || m.Method == "textDocument/documentSymbol" {
+		if err := s.queryReadLock(ctx); err != nil {
+			result.err = err
+			return result
+		}
+		root := s.roots[catalog.Input.Root]
+		if root == nil || root.catalog != catalog {
+			s.mu.RUnlock()
+			result.err = index.ErrQueryChanged
+			return result
+		}
+		s.mu.RUnlock()
+		proof := &readProof{engine: s, catalog: catalog, scope: indexScope(catalog.Input.Root, file.Target.Scope), scopeName: file.Target.Scope, localOnly: true, hashes: map[source.URI][32]byte{}}
+		if !opened {
+			proof.hashes[source.URI(workspace.FileURI(path))] = sha256.Sum256([]byte(snapshot.Text()))
+		}
+		result.queryProof = proof
+		result.scopes = []scopeResult{{root: catalog.Input.Root, scope: file.Target.Scope, files: []workspace.File{file}, documents: checked.Documents, checked: map[source.URI]analysis.Result{snapshot.URI(): checked}, options: analysis.DomainOptions{Context: ctx, ControlPlaneNamespace: catalog.Input.Config.ControlPlaneNamespace, ReferencePolicy: catalog.Input.Config.ReferencePolicy}}}
+		result.inputs = []workspace.Input{catalog.Input}
+		return result
 	}
 	summary := analysis.Summarize(checked.Documents, catalog.Input.Config.ControlPlaneNamespace)
 	selected := &indexedFile{uri: source.URI(workspace.FileURI(path)), path: path, spelling: string(snapshot.URI()), root: catalog.Input.Root, target: file.Target, hash: sha256.Sum256([]byte(snapshot.Text())), summary: summary}
@@ -299,9 +321,7 @@ func (s *workspaceIndex) query(ctx context.Context, m message, latest, local com
 	result.candidatesTruncated = !candidatesComplete
 	complete = complete && candidatesComplete
 	proof := &readProof{engine: s, catalog: catalog, scope: indexScope(selected.root, selected.target.Scope), scopeName: selected.target.Scope, complete: complete, hashes: map[source.URI][32]byte{}, candidates: map[index.Key][]index.Definition{}, uses: map[index.Key][]index.Use{}, allProjects: allProjects}
-	if root := s.roots[selected.root]; root != nil {
-		proof.projectGeneration = root.projectGeneration[selected.target.Scope]
-	}
+	proof.projectGeneration = root.projectGeneration[selected.target.Scope]
 	if !opened {
 		proof.hashes[selected.uri] = selected.hash
 	}

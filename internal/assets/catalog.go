@@ -19,33 +19,62 @@ type schemaEntry struct {
 	Hash       string `json:"sha256"`
 	SourceURL  string `json:"sourceURL,omitempty"`
 }
+
+type versionRecord struct {
+	UpstreamCommit string        `json:"upstreamCommit"`
+	Version        string        `json:"version"`
+	Verified       bool          `json:"semanticsVerified"`
+	Schemas        []schemaEntry `json:"schemas"`
+	LocalRules     struct {
+		SingleSourceRefs bool `json:"singleSourceRefs"`
+	} `json:"localRules"`
+}
+
 type catalog struct {
-	DefaultVersion  string        `json:"defaultVersion"`
-	LatestVersion   string        `json:"latestVersion"`
-	SupportedMajors []int         `json:"supportedMajors"`
-	AutoSchemas     []schemaEntry `json:"autoSchemas"`
-	Ready           bool          `json:"ready"`
-	Versions        []struct {
-		UpstreamCommit string        `json:"upstreamCommit"`
-		Version        string        `json:"version"`
-		Verified       bool          `json:"semanticsVerified"`
-		Schemas        []schemaEntry `json:"schemas"`
-		LocalRules     struct {
-			SingleSourceRefs bool `json:"singleSourceRefs"`
-		} `json:"localRules"`
-	} `json:"versions"`
+	DefaultVersion  string          `json:"defaultVersion"`
+	LatestVersion   string          `json:"latestVersion"`
+	SupportedMajors []int           `json:"supportedMajors"`
+	AutoSchemas     []schemaEntry   `json:"autoSchemas"`
+	Ready           bool            `json:"ready"`
+	Versions        []versionRecord `json:"versions"`
 }
 
 var catalogOnce sync.Once
 var decodedCatalog catalog
+var catalogByVersion map[string]*versionRecord
+var catalogAnySingleSourceRefs bool
 var catalogError error
 
+var catalogHashOnce sync.Once
+var cachedCatalogHash string
+
+var bundleHashCache sync.Map
+
 func catalogData() (catalog, error) {
-	catalogOnce.Do(func() { catalogError = json.Unmarshal(catalogBytes, &decodedCatalog) })
+	catalogOnce.Do(func() {
+		catalogError = json.Unmarshal(catalogBytes, &decodedCatalog)
+		if catalogError != nil {
+			return
+		}
+		catalogByVersion = make(map[string]*versionRecord, len(decodedCatalog.Versions))
+		for i := range decodedCatalog.Versions {
+			rec := &decodedCatalog.Versions[i]
+			catalogByVersion[rec.Version] = rec
+			if rec.LocalRules.SingleSourceRefs {
+				catalogAnySingleSourceRefs = true
+			}
+		}
+	})
 	return decodedCatalog, catalogError
 }
 
-func CatalogHash() string { h := sha256.Sum256(catalogBytes); return hex.EncodeToString(h[:]) }
+func CatalogHash() string {
+	catalogHashOnce.Do(func() {
+		h := sha256.Sum256(catalogBytes)
+		cachedCatalogHash = hex.EncodeToString(h[:])
+	})
+	return cachedCatalogHash
+}
 
 // Known accepts auto or an exact collected stable version; it never guesses a patch.
 func Known(version string) bool {
@@ -56,12 +85,8 @@ func Known(version string) bool {
 	if version == "auto" {
 		return len(c.AutoSchemas) > 0
 	}
-	for _, v := range c.Versions {
-		if v.Version == version {
-			return true
-		}
-	}
-	return false
+	_, ok := catalogByVersion[version]
+	return ok
 }
 
 func schemaEntries(version string) []schemaEntry {
@@ -72,36 +97,49 @@ func schemaEntries(version string) []schemaEntry {
 	if version == "auto" {
 		return c.AutoSchemas
 	}
-	for _, v := range c.Versions {
-		if v.Version == version {
-			return v.Schemas
-		}
+	if rec, ok := catalogByVersion[version]; ok {
+		return rec.Schemas
 	}
 	return nil
 }
 
+// SchemaHash returns the embedded schema content digest for version/apiVersion/kind,
+// allowing releases sharing an identical normalized schema to reuse one compiled instance.
+func SchemaHash(version, apiVersion, kind string) string {
+	for _, entry := range schemaEntries(version) {
+		if entry.APIVersion == apiVersion && entry.Kind == kind {
+			return entry.Hash
+		}
+	}
+	return ""
+}
+
 func BundleHash(version string) string {
+	if cached, ok := bundleHashCache.Load(version); ok {
+		return cached.(string)
+	}
 	entries := schemaEntries(version)
 	if len(entries) == 0 {
 		return ""
 	}
 	b, _ := json.Marshal(entries)
 	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
+	sum := hex.EncodeToString(h[:])
+	bundleHashCache.Store(version, sum)
+	return sum
 }
 
 // SingleSourceRefs follows the selected release, or any covered release in auto.
 func SingleSourceRefs(version string) bool {
-	c, err := catalogData()
+	_, err := catalogData()
 	if err != nil {
 		return false
 	}
-	for _, target := range c.Versions {
-		if target.Version == version || version == "auto" {
-			if target.LocalRules.SingleSourceRefs {
-				return true
-			}
-		}
+	if version == "auto" {
+		return catalogAnySingleSourceRefs
+	}
+	if rec, ok := catalogByVersion[version]; ok {
+		return rec.LocalRules.SingleSourceRefs
 	}
 	return false
 }
@@ -116,19 +154,17 @@ func SchemaSource(version, kind string) string {
 	if name == "" {
 		return ""
 	}
-	c, err := catalogData()
+	_, err := catalogData()
 	if err != nil {
 		return ""
 	}
-	for _, v := range c.Versions {
-		if v.Version == version {
-			for _, entry := range v.Schemas {
-				if entry.Kind == kind && entry.SourceURL != "" {
-					return entry.SourceURL
-				}
+	if rec, ok := catalogByVersion[version]; ok {
+		for _, entry := range rec.Schemas {
+			if entry.Kind == kind && entry.SourceURL != "" {
+				return entry.SourceURL
 			}
-			return "https://raw.githubusercontent.com/argoproj/argo-cd/" + v.UpstreamCommit + "/manifests/crds/" + name + "-crd.yaml"
 		}
+		return "https://raw.githubusercontent.com/argoproj/argo-cd/" + rec.UpstreamCommit + "/manifests/crds/" + name + "-crd.yaml"
 	}
 	return ""
 }
@@ -151,10 +187,8 @@ func Verified(version string) bool {
 	if version == "auto" {
 		return c.Ready
 	}
-	for _, target := range c.Versions {
-		if target.Version == version {
-			return target.Verified
-		}
+	if rec, ok := catalogByVersion[version]; ok {
+		return rec.Verified
 	}
 	return false
 }

@@ -24,7 +24,7 @@ func explainCompatibility(args []string, out, errOut io.Writer) int {
 	root := fs.String("root", ".", "workspace root")
 	file := fs.String("file", "", "one YAML file to explain")
 	target := fs.String("target-version", "", "selected target override")
-	if fs.Parse(args) != nil || fs.NArg() != 0 {
+	if !parseFlags(fs, args, errOut) {
 		return 2
 	}
 	if *file == "" {

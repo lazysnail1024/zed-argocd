@@ -48,7 +48,7 @@ func recoverReferencePrefix(ctx context.Context, snapshot source.Snapshot, targe
 	}
 	for _, document := range view.Documents() {
 		root := document.Root()
-		if !document.Complete() || offset < root.Span().Start || offset > root.Span().End || root.Span().Start < damaged.Span().Start || root.Span().End > damaged.Span().End || oversizedScalar(root) {
+		if !document.Complete() || offset < root.Span().Start || offset > root.Span().End || root.Span().Start < damaged.Span().Start || root.Span().End > damaged.Span().End {
 			continue
 		}
 		projected, err := projectValues(ctx, prefix, document)

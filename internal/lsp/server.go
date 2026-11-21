@@ -63,12 +63,11 @@ type publishedDiagnostic struct {
 	input *publicationInput
 }
 type scopeResult struct {
-	checked         map[source.URI]analysis.Result
-	projectionStart int
-	root, scope     string
-	files           []workspace.File
-	documents       []analysis.Document
-	options         analysis.DomainOptions
+	checked     map[source.URI]analysis.Result
+	root, scope string
+	files       []workspace.File
+	documents   []analysis.Document
+	options     analysis.DomainOptions
 }
 
 type pendingQuery struct {
@@ -190,6 +189,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 	buffers := map[string]buffer{}
 	workspaceState := newWorkspaceIndex()
 	compatibility := new(analysis.CompatibilityAnalyzer)
+	compatibility.SetSchemaCache(workspaceState.schemas)
 	defer workspaceState.close()
 	workEvents := workspaceEvents{files: map[string]bool{}, reset: map[string]bool{}, reconcile: map[string]bool{}}
 	diskGenerations := map[string]uint64{}
@@ -355,7 +355,7 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 			go func() {
 				defer stop()
 				work.Start()
-				local := analyzeDocuments(ctx, current, copyRoots, copyBuffers, selected, previous, "")
+				local := analyzeDocumentsWithCache(ctx, current, copyRoots, copyBuffers, selected, previous, "", workspaceState.schemas)
 				local.work = work
 				work.Finish()
 				if ctx.Err() != nil {
@@ -1100,6 +1100,19 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 				editable := canEdit
 				canCandidates := canExplainAction
 				go func() {
+					var res queryResult
+					sendResult := false
+					// Deliver the reply only after the slot reservation has been
+					// released so a sequential follow-up request cannot observe
+					// its own completed predecessor as busy.
+					defer func() {
+						if sendResult {
+							select {
+							case queries <- res:
+							case <-done:
+							}
+						}
+					}()
 					work.Start()
 					terminal := "finished"
 					defer func() {
@@ -1239,10 +1252,8 @@ func Run(in io.Reader, out, errOut io.Writer, renderers ...Renderer) int {
 						terminal = "cancelled"
 					}
 					work.Finish()
-					select {
-					case queries <- queryResult{refusal: input.refusal, showExplanation: showExplanation, candidateProof: candidateProof, candidateOpen: candidateOpen, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}:
-					case <-done:
-					}
+					res = queryResult{refusal: input.refusal, showExplanation: showExplanation, candidateProof: candidateProof, candidateOpen: candidateOpen, proof: proof, symbolProof: symbolProof, editGeneration: editProof, trace: trace.String(), ctx: ctx, id: m.ID, epoch: current, answer: answer, code: code, why: why}
+					sendResult = true
 				}()
 			case "$/cancelRequest":
 				var p struct {
@@ -1315,31 +1326,23 @@ func recoverDocumentPublications(result, documents completed, roots []string, bu
 	return publications
 }
 
-func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string) completed {
-	return analyze(ctx, epoch, roots, buffers, override, completed{}, false, "")
+func analyzeRoots(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, schemas ...*analysis.SchemaCache) completed {
+	var cache *analysis.SchemaCache
+	if len(schemas) > 0 {
+		cache = schemas[0]
+	}
+	return analyze(ctx, epoch, roots, buffers, override, completed{}, false, "", cache)
 }
 
 func analyzeDocuments(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentURI string) completed {
-	selected := map[string]bool{}
-	selectedFile, _ := workspace.PathFromURI(documentURI)
-	for uri := range buffers {
-		file, err := workspace.PathFromURI(uri)
-		if err == nil && (documentURI == "" || file == selectedFile) {
-			if root := workspace.Owner(roots, file); root != "" {
-				selected[root] = true
-			}
-		}
-	}
-	activeRoots := []string{}
-	for _, root := range roots {
-		if selected[root] {
-			activeRoots = append(activeRoots, root)
-		}
-	}
-	return analyze(ctx, epoch, activeRoots, buffers, override, previous, true, documentURI)
+	return analyzeDocumentsWithCache(ctx, epoch, roots, buffers, override, previous, documentURI, nil)
 }
 
-func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool, documentURI string) (result completed) {
+func analyzeDocumentsWithCache(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentURI string, schemas *analysis.SchemaCache) completed {
+	return analyze(ctx, epoch, roots, buffers, override, previous, true, documentURI, schemas)
+}
+
+func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[string]buffer, override string, previous completed, documentOnly bool, documentURI string, schemas *analysis.SchemaCache) (result completed) {
 	started := time.Now()
 	defer func() { result.stats.ElapsedMilliseconds = time.Since(started).Milliseconds() }()
 	result = completed{epoch: epoch, failures: map[string]error{}, documentOnly: documentOnly}
@@ -1359,12 +1362,20 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 		}
 	}
 	seen := map[string]bool{}
-	analyzer := retainedAnalyzer(previous, nil)
+	analyzer := retainedAnalyzer(previous, nil, schemas)
 	var cachedDocument source.URI
 	remaining := workspace.MaxRetainedText
 	openFiles := map[string]source.Snapshot{}
-	selectedFile, _ := workspace.PathFromURI(documentURI)
-	selectedConfig := filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
+	var selectedFile string
+	resolver := workspace.NewPathResolver()
+	if documentURI != "" {
+		selectedFile, _ = resolver.PathFromURI(documentURI)
+	}
+	resolvedPaths := make(map[string]string, len(buffers))
+	var selectedRoots map[string]bool
+	if documentOnly {
+		selectedRoots = map[string]bool{}
+	}
 	for uri, b := range buffers {
 		// A selected-file query still reserves every accepted open byte before
 		// narrowing acquisition to its source and authoritative configuration.
@@ -1374,7 +1385,33 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 			result.failureURI = uri
 			return result
 		}
-		file, pathErr := workspace.PathFromURI(uri)
+		file, pathErr := resolver.PathFromURI(uri)
+		if pathErr == nil {
+			resolvedPaths[uri] = file
+			if documentOnly && (documentURI == "" || file == selectedFile) {
+				if root := workspace.Owner(roots, file); root != "" {
+					selectedRoots[root] = true
+				}
+			}
+		}
+	}
+	if documentOnly {
+		activeRoots := make([]string, 0, len(selectedRoots))
+		for _, root := range roots {
+			if selectedRoots[root] {
+				activeRoots = append(activeRoots, root)
+			}
+		}
+		roots = activeRoots
+	} else {
+		roots = append([]string(nil), roots...)
+	}
+	selectedConfig := ""
+	if documentURI != "" {
+		selectedConfig = filepath.Join(workspace.Owner(roots, selectedFile), ".argocd-ls.yaml")
+	}
+	for uri, b := range buffers {
+		file, ok := resolvedPaths[uri]
 		if documentURI != "" && file != selectedFile && file != selectedConfig {
 			continue
 		}
@@ -1385,11 +1422,10 @@ func analyze(ctx context.Context, epoch uint64, roots []string, buffers map[stri
 			result.publications = append(result.publications, publication{"", uri, &v, []analysis.Diagnostic{{URI: uri, Code: "INPUT_BUDGET_EXCEEDED", Source: "argocd-ls", Severity: 1, Message: b.unavailable}}})
 			continue
 		}
-		if pathErr == nil {
+		if ok {
 			openFiles[file] = b.snapshot
 		}
 	}
-	roots = append([]string(nil), roots...)
 	sort.Slice(roots, func(i, j int) bool {
 		if len(roots[i]) != len(roots[j]) {
 			return len(roots[i]) > len(roots[j])
@@ -1445,11 +1481,6 @@ rootLoop:
 			}
 		}
 
-		fileIndices := map[source.URI]int{}
-		for i, f := range input.Files {
-			fileIndices[f.Snapshot.URI()] = i
-		}
-
 		scopeFiles := map[string][]workspace.File{}
 		for _, target := range input.Targets {
 			scopeFiles[target.Scope] = nil
@@ -1470,8 +1501,21 @@ rootLoop:
 				}
 			}
 		}
+		var priorScopes map[string]*scopeResult
+		if reusableRoot {
+			priorScopes = make(map[string]*scopeResult, len(previous.scopes))
+			for i := range previous.scopes {
+				old := &previous.scopes[i]
+				if old.root == root {
+					priorScopes[old.scope] = old
+				}
+			}
+		}
 		scopeNames := make([]string, 0, len(scopeFiles))
-		for scope := range scopeFiles {
+		for scope, files := range scopeFiles {
+			if documentOnly && len(files) == 0 {
+				continue
+			}
 			scopeNames = append(scopeNames, scope)
 		}
 		sort.Strings(scopeNames)
@@ -1479,61 +1523,20 @@ rootLoop:
 			result.stats.Phase = "schema"
 			currentFiles := scopeFiles[scope]
 			sort.Slice(currentFiles, func(i, j int) bool { return currentFiles[i].Snapshot.URI() < currentFiles[j].Snapshot.URI() })
-			projectionStart := analyzer.ProjectionNodes()
 			if ctx.Err() != nil {
 				result.err = ctx.Err()
 				result.failureURI = configURI
 				return result
 			}
-			reused := false
-			if reusableRoot && !documentOnly {
-				for _, old := range previous.scopes {
-					if old.root == input.Root && old.scope == scope && old.projectionStart == projectionStart && sameScopeFiles(old.files, currentFiles) && analyzer.ReuseProjections(old.documents) {
-						// This is the single latest-result cache. Fresh acquisition
-						// proved identical authority; no disk metadata shortcut.
-						// old is a value copy: keep earlier readers immutable while
-						// sharing this acquisition's equal whole-root path facts.
-						old.options.LocalPaths = input.LocalPaths
-						result.scopes = append(result.scopes, old)
-						worktrace.Add(ctx, "factsRestored", int64(len(old.documents)))
-						worktrace.Add(ctx, "resultCacheHits", 1)
-						// Keep the completed input and reused documents on the same
-						// immutable snapshots after exact fresh-text comparison.
-						for _, f := range old.files {
-							input.Files[fileIndices[f.Snapshot.URI()]].Snapshot = f.Snapshot
-						}
-						for _, f := range currentFiles {
-							uri := string(f.Snapshot.URI())
-							p := oldPublications[uri]
-							p.version = nil
-							if b, ok := buffers[uri]; ok {
-								v := b.version
-								p.version = &v
-							}
-							result.publications = append(result.publications, p)
-						}
-						reused = true
-						break
-					}
-				}
-			}
-			if reused {
-				continue
-			}
 			docs := []analysis.Document{}
 			checks := map[source.URI]analysis.Result{}
 			var priorScope *scopeResult
-			if reusableRoot {
-				for i := range previous.scopes {
-					old := &previous.scopes[i]
-					if old.root == root && old.scope == scope {
-						priorScope = old
-						break
-					}
-				}
+			if priorScopes != nil {
+				priorScope = priorScopes[scope]
 			}
-			priorFiles := map[source.URI]workspace.File{}
+			var priorFiles map[source.URI]workspace.File
 			if priorScope != nil {
+				priorFiles = make(map[source.URI]workspace.File, len(priorScope.files))
 				for _, f := range priorScope.files {
 					priorFiles[f.Snapshot.URI()] = f
 				}
@@ -1591,7 +1594,7 @@ rootLoop:
 					for _, f := range input.Files {
 						delete(seen, string(f.Snapshot.URI()))
 					}
-					analyzer = retainedAnalyzer(previous, result.scopes)
+					analyzer = retainedAnalyzer(previous, result.scopes, schemas)
 					continue rootLoop
 				}
 				diagnostics := checked.Diagnostics
@@ -1622,7 +1625,7 @@ rootLoop:
 				result.publications = append(result.publications, publication{"", uri, version, diagnostics})
 			}
 			options := analysis.DomainOptions{LocalPaths: input.LocalPaths, ControlPlaneNamespace: input.Config.ControlPlaneNamespace, ReferencePolicy: input.Config.ReferencePolicy, Complete: input.Complete && !incomplete && !strings.HasPrefix(scope, "isolated:")}
-			result.scopes = append(result.scopes, scopeResult{checked: checks, projectionStart: projectionStart, root: input.Root, scope: scope, files: currentFiles, documents: docs, options: options})
+			result.scopes = append(result.scopes, scopeResult{checked: checks, root: input.Root, scope: scope, files: currentFiles, documents: docs, options: options})
 			if documentOnly {
 				continue // No reference or repository claims from a partial index.
 			}
@@ -1645,41 +1648,33 @@ rootLoop:
 			}
 		}
 	}
+	publishedURIs := make(map[string]bool, len(result.publications))
+	for _, p := range result.publications {
+		publishedURIs[p.uri] = true
+	}
 	// Open skipped documents still receive an explicit empty replacement.
 	for uri, b := range buffers {
-		path, err := workspace.PathFromURI(uri)
+		if publishedURIs[uri] {
+			continue
+		}
+		path, ok := resolvedPaths[uri]
+		if !ok {
+			continue
+		}
 		if documentURI != "" && path != selectedFile && path != selectedConfig {
 			continue
 		}
-		if err != nil || workspace.Owner(roots, path) == "" {
+		if workspace.Owner(roots, path) == "" {
 			continue
 		}
-		found := false
-		for _, p := range result.publications {
-			if p.uri == uri {
-				found = true
-				break
-			}
-		}
-		if !found {
-			version := b.version
-			result.publications = append(result.publications, publication{"", uri, &version, []analysis.Diagnostic{}})
-		}
+		version := b.version
+		result.publications = append(result.publications, publication{"", uri, &version, []analysis.Diagnostic{}})
 	}
 
-	// Reconciliation may replace the worker epoch without changing edit inputs.
-	// Compare existing immutable acquisition facts in the worker, not the owner.
 	if err := ctx.Err(); err != nil {
 		result.err = err
 		return result
 	}
-	complete := previous.err == nil && len(previous.failures) == 0 && len(result.failures) == 0
-	for _, scopes := range [][]scopeResult{previous.scopes, result.scopes} {
-		for _, scope := range scopes {
-			complete = complete && scope.options.Complete
-		}
-	}
-	result.unchangedInputs = complete && reflect.DeepEqual(previous.inputs, result.inputs)
 	return result
 }
 
@@ -1709,8 +1704,9 @@ func (result *completed) failRoot(checkpoint rootCheckpoint, root, uri string, b
 
 // Rebuild budget accounting only after a root is rolled back. Schema preparation
 // remains reusable, while projections belonging to discarded roots are released.
-func retainedAnalyzer(previous completed, retained []scopeResult) *analysis.Analyzer {
+func retainedAnalyzer(previous completed, retained []scopeResult, schemas *analysis.SchemaCache) *analysis.Analyzer {
 	analyzer := new(analysis.Analyzer)
+	analyzer.SetSchemaCache(schemas)
 	if previous.err == nil {
 		for _, scope := range previous.scopes {
 			analyzer.ReuseSchemas(scope.documents)
@@ -1721,19 +1717,6 @@ func retainedAnalyzer(previous completed, retained []scopeResult) *analysis.Anal
 		analyzer.ReuseProjections(scope.documents)
 	}
 	return analyzer
-}
-
-func sameScopeFiles(before, after []workspace.File) bool {
-	if len(before) != len(after) {
-		return false
-	}
-	// Both slices come from analyzeRoots' URI-sorted scope membership.
-	for i := range before {
-		if !sameFile(before[i], after[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func sameFile(before, after workspace.File) bool {
@@ -1801,11 +1784,7 @@ func replacementEdit(snapshot source.Snapshot, span source.Span, text string) an
 	return analysis.TextEdit{Range: analysis.Range{Start: analysis.Position{Line: a.Line, Character: a.UTF16Column}, End: analysis.Position{Line: b.Line, Character: b.UTF16Column}}, NewText: text}
 }
 
-func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string, eventMaps ...map[string]uint64) (any, int, string) {
-	events := map[string]uint64{}
-	if len(eventMaps) > 0 {
-		events = eventMaps[0]
-	}
+func fixRequest(ctx context.Context, m message, latest completed, buffers map[string]buffer, epoch uint64, canEdit bool, roots []string, override string, events map[string]uint64) (any, int, string) {
 	if m.Method == "codeAction/resolve" {
 		var action struct {
 			Command struct {
@@ -1998,7 +1977,11 @@ func readRequest(ctx context.Context, m message, latest completed, epoch uint64,
 			}
 			for _, f := range scope.files {
 				if string(f.Snapshot.URI()) == p.TextDocument.URI {
-					if items := analysis.FieldCompletions(ctx, f.Snapshot, f.Target.Version, scope.documents, p.Position); len(items) > 0 {
+					var schemas *analysis.SchemaCache
+					if latest.incremental != nil {
+						schemas = latest.incremental.schemas
+					}
+					if items := analysis.FieldCompletions(ctx, f.Snapshot, f.Target.Version, scope.documents, p.Position, schemas); len(items) > 0 {
 						answer, localAnswer = items, true
 					} else if latest.documentOnly {
 						// An empty field result can be a reference-value request.
@@ -2043,10 +2026,6 @@ func traceReadRequest(out io.Writer, m message, input completed, proof *readProo
 	if os.Getenv("ARGOCD_LS_TRACE") != "1" {
 		return
 	}
-	if input.stats.Scope == "query-acquisition" {
-		payload, _ := json.Marshal(input.stats)
-		fmt.Fprintln(out, "argocd-query-acquisition", string(payload))
-	}
 	if proof == nil {
 		return
 	}
@@ -2072,6 +2051,7 @@ func newReadProof(m message, input completed, buffers map[string]buffer, roots [
 		proof.hashes, proof.candidates = input.queryProof.hashes, input.queryProof.candidates
 		proof.uses, proof.allProjects, proof.projectGeneration = input.queryProof.uses, input.queryProof.allProjects, input.queryProof.projectGeneration
 		proof.allScope, proof.scopeGeneration = input.queryProof.allScope, input.queryProof.scopeGeneration
+		proof.localOnly = input.queryProof.localOnly
 	}
 	found := false
 	for _, scope := range input.scopes {

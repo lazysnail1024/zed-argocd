@@ -84,7 +84,7 @@ func fieldCompletions(ctx context.Context, doc Document, parent []string, prefix
 
 // FieldCompletions only repairs a single blank or partial block-key line for a
 // read-only query. The repaired tree never enters analysis, indexes or edit fixes.
-func FieldCompletions(ctx context.Context, s source.Snapshot, target string, documents []Document, p Position) []Completion {
+func FieldCompletions(ctx context.Context, s source.Snapshot, target string, documents []Document, p Position, caches ...*SchemaCache) []Completion {
 	for _, doc := range documents {
 		if doc.Snapshot.URI() == s.URI() {
 			if items := Complete(ctx, doc, p); len(items) > 0 {
@@ -153,9 +153,6 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 			continue
 		}
 		root := d.Root()
-		if oversizedScalar(root) {
-			continue
-		}
 		projected, e := projectValues(ctx, snapshot, d)
 		if e != nil {
 			continue
@@ -183,14 +180,17 @@ func FieldCompletions(ctx context.Context, s source.Snapshot, target string, doc
 			}
 		}
 		if compiled == nil {
-			data, e := assets.SchemaDataContext(ctx, target, api, kind)
+			var prepared preparedSchema
+			var e error
+			if len(caches) > 0 && caches[0] != nil {
+				prepared, e = caches[0].get(ctx, target, api, kind)
+			} else {
+				prepared, e = loadAndCompileSchema(ctx, target, api, kind)
+			}
 			if e != nil {
 				return nil
 			}
-			compiled, e = assets.CompileSchemaContext(ctx, data)
-			if e != nil {
-				return nil
-			}
+			compiled = prepared.compiled
 		}
 		doc := Document{Snapshot: snapshot, Root: root, Value: value, Origin: projected.Origin, Kind: kind, Target: target, CompiledSchema: compiled}
 		begin, e := s.Position(start + indent)

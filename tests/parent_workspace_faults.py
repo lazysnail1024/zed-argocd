@@ -96,36 +96,34 @@ def worker(args):
             row = {'id': ident, 'passed': False, 'mutations': []}
             report['rows'].append(row)
             save()
-            with tempfile.TemporaryDirectory(prefix='argocd-parent-fault-') as temporary:
-                source = pathlib.Path(temporary)
-                for name in ('go.mod', 'go.sum', 'cmd', 'internal', 'vendor'):
-                    original, destination = ROOT / name, source / name
-                    shutil.copytree(original, destination) if original.is_dir() else shutil.copy2(original, destination)
-                target = source / 'internal/lsp/server.go'
-                text = target.read_text(encoding='utf-8')
-                row['sourceSHA256'] = digest(target)
-                for anchor, replacement in (DEADLINE, RECOVERY) if remove_recovery else (DEADLINE,):
-                    if text.count(anchor) != 1:
-                        raise RuntimeError(ident + ': mutation anchor must occur exactly once: ' + anchor)
-                    text = text.replace(anchor, replacement, 1)
-                    row['mutations'].append({'file': 'internal/lsp/server.go', 'anchor': anchor,
-                                             'replacement': replacement})
-                target.write_text(text, encoding='utf-8')
-                row['variantSourceSHA256'] = digest(target)
-                candidate = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-                row['build'] = command([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath',
-                                        '-o', str(candidate), './cmd/argocd-ls'], folder, 'build', env, source)
-                if row['build']['exit'] != 0:
-                    raise RuntimeError(ident + ': fault variant did not compile')
-                row['binarySHA256'] = digest(candidate)
-                row['oracle'] = consumer(candidate, folder, env, timeout=True)
-                if not remove_recovery:
-                    row['passed'] = (row['oracle']['exit'] == 0
-                                     and row['oracle']['report'].get('passed') is True
-                                     and row['oracle']['report'].get('timeoutBuildRequired') is True)
-                else:
-                    row['detected'] = detected_loss(row['oracle'])
-                    row['passed'] = row['detected']
+            target = ROOT / 'internal/lsp/server.go'
+            text = target.read_text(encoding='utf-8')
+            row['sourceSHA256'] = digest(target)
+            for anchor, replacement in (DEADLINE, RECOVERY) if remove_recovery else (DEADLINE,):
+                if text.count(anchor) != 1:
+                    raise RuntimeError(ident + ': mutation anchor must occur exactly once: ' + anchor)
+                text = text.replace(anchor, replacement, 1)
+                row['mutations'].append({'file': 'internal/lsp/server.go', 'anchor': anchor,
+                                         'replacement': replacement})
+            mutated_source = folder / 'mutated-source.txt'
+            mutated_source.write_text(text, encoding='utf-8')
+            row['variantSourceSHA256'] = digest(mutated_source)
+            overlay = folder / 'overlay.json'
+            overlay.write_text(json.dumps({'Replace': {str(target): str(mutated_source)}}), encoding='utf-8')
+            candidate = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
+            row['build'] = command([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath',
+                                    '-overlay=' + str(overlay), '-o', str(candidate), './cmd/argocd-ls'], folder, 'build', env, ROOT)
+            if row['build']['exit'] != 0:
+                raise RuntimeError(ident + ': fault variant did not compile')
+            row['binarySHA256'] = digest(candidate)
+            row['oracle'] = consumer(candidate, folder, env, timeout=True)
+            if not remove_recovery:
+                row['passed'] = (row['oracle']['exit'] == 0
+                                 and row['oracle']['report'].get('passed') is True
+                                 and row['oracle']['report'].get('timeoutBuildRequired') is True)
+            else:
+                row['detected'] = detected_loss(row['oracle'])
+                row['passed'] = row['detected']
             save()
             print(json.dumps({'id': ident, 'passed': row['passed']}), flush=True)
         report['completed'] = True

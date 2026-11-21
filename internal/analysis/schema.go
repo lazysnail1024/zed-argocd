@@ -2,14 +2,17 @@
 package analysis
 
 import (
+	"container/list"
 	"context"
+	"errors"
+	"github.com/lazysnail1024/zed-argocd/internal/assets"
 	"github.com/lazysnail1024/zed-argocd/internal/worktrace"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/lazysnail1024/k8s-crd-toolkit/source"
 	"github.com/lazysnail1024/k8s-crd-toolkit/yamlview"
-	"github.com/lazysnail1024/zed-argocd/internal/assets"
 	schema "github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"sigs.k8s.io/yaml"
@@ -63,6 +66,7 @@ type preparedSchema struct {
 
 // Analyzer owns immutable schema preparation and graph accounting for one result.
 type Analyzer struct {
+	cache             *SchemaCache
 	schemas           map[string]preparedSchema
 	projectionNodes   int
 	projections       map[*valueOrigin]bool
@@ -77,6 +81,9 @@ type applicationSetIdentity struct {
 	revision source.Revision
 	span     source.Span
 }
+
+// SetSchemaCache attaches a bounded session-wide compiled schema cache.
+func (a *Analyzer) SetSchemaCache(cache *SchemaCache) { a.cache = cache }
 
 // ProjectionNodes includes retained YAML graphs and admitted ApplicationSet work.
 func (a *Analyzer) ProjectionNodes() int { return a.projectionNodes }
@@ -260,15 +267,15 @@ func (a *Analyzer) AnalyzeParsed(ctx context.Context, parsed ParsedFile, target 
 			worktrace.Add(ctx, "schemaReuseHits", 1)
 		}
 		if !ok {
-			data, e := assets.SchemaDataContext(ctx, target, api, resourceKind)
+			var e error
+			if a.cache != nil {
+				prepared, e = a.cache.get(ctx, target, api, resourceKind)
+			} else {
+				prepared, e = loadAndCompileSchema(ctx, target, api, resourceKind)
+			}
 			if e != nil {
 				return result, e
 			}
-			compiled, e := assets.CompileSchemaContext(ctx, data)
-			if e != nil {
-				return result, e
-			}
-			prepared = preparedSchema{data, compiled}
 			if a.schemas == nil {
 				a.schemas = map[string]preparedSchema{}
 			}
@@ -471,19 +478,138 @@ func locate(n yamlview.Node, parts []string) yamlview.Node {
 	return n
 }
 
-func oversizedScalar(n yamlview.Node) bool {
-	if n.Kind() == yamlview.Scalar && len(n.Raw()) > 1024*1024 {
-		return true
+const DefaultSchemaCacheEntries = 16
+
+type schemaFlight struct {
+	done     chan struct{}
+	prepared preparedSchema
+	err      error
+}
+
+type schemaCacheEntry struct {
+	key      string
+	prepared preparedSchema
+}
+
+// SchemaCache bounds immutable compiled schemas shared across one session and
+// coalesces concurrent cold compiles for identical schema content. It retains
+// neither documents, source snapshots, nor caller contexts.
+type SchemaCache struct {
+	maxEntries int
+	mu         sync.Mutex
+	entries    map[string]*list.Element
+	order      *list.List
+	inflight   map[string]*schemaFlight
+}
+
+func NewSchemaCache(maxEntries int) *SchemaCache {
+	if maxEntries <= 0 {
+		maxEntries = DefaultSchemaCacheEntries
 	}
-	for _, m := range n.Members() {
-		if oversizedScalar(m.Key) || oversizedScalar(m.Value) {
-			return true
+	return &SchemaCache{
+		maxEntries: maxEntries,
+		entries:    map[string]*list.Element{},
+		order:      list.New(),
+		inflight:   map[string]*schemaFlight{},
+	}
+}
+
+func schemaCacheKey(target, apiVersion, kind string) string {
+	if hash := assets.SchemaHash(target, apiVersion, kind); hash != "" {
+		return hash
+	}
+	return target + "\x00" + apiVersion + "\x00" + kind
+}
+
+func (c *SchemaCache) get(ctx context.Context, target, apiVersion, kind string) (preparedSchema, error) {
+	if err := ctx.Err(); err != nil {
+		return preparedSchema{}, err
+	}
+	key := schemaCacheKey(target, apiVersion, kind)
+	for {
+		c.mu.Lock()
+		if elem, ok := c.entries[key]; ok {
+			c.order.MoveToFront(elem)
+			prepared := elem.Value.(*schemaCacheEntry).prepared
+			c.mu.Unlock()
+			worktrace.Add(ctx, "schemaReuseHits", 1)
+			return prepared, nil
 		}
-	}
-	for _, child := range n.Elements() {
-		if oversizedScalar(child) {
-			return true
+		if flight, ok := c.inflight[key]; ok {
+			c.mu.Unlock()
+			select {
+			case <-flight.done:
+				if flight.err == nil {
+					worktrace.Add(ctx, "schemaReuseHits", 1)
+					return flight.prepared, nil
+				}
+				if ctx.Err() != nil {
+					return preparedSchema{}, ctx.Err()
+				}
+				if errors.Is(flight.err, context.Canceled) || errors.Is(flight.err, context.DeadlineExceeded) {
+					continue
+				}
+				return preparedSchema{}, flight.err
+			case <-ctx.Done():
+				return preparedSchema{}, ctx.Err()
+			}
 		}
+		flight := &schemaFlight{done: make(chan struct{})}
+		c.inflight[key] = flight
+		c.mu.Unlock()
+
+		prepared, err := loadAndCompileSchema(ctx, target, apiVersion, kind)
+
+		c.mu.Lock()
+		flight.prepared, flight.err = prepared, err
+		delete(c.inflight, key)
+		if err == nil {
+			c.insertLocked(key, prepared)
+		}
+		close(flight.done)
+		c.mu.Unlock()
+		if err != nil {
+			return preparedSchema{}, err
+		}
+		if err := ctx.Err(); err != nil {
+			return preparedSchema{}, err
+		}
+		return prepared, nil
 	}
-	return false
+}
+
+func (c *SchemaCache) put(target, apiVersion, kind string, prepared preparedSchema) {
+	if c == nil || prepared.compiled == nil {
+		return
+	}
+	key := schemaCacheKey(target, apiVersion, kind)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.insertLocked(key, prepared)
+}
+
+func (c *SchemaCache) insertLocked(key string, prepared preparedSchema) {
+	if elem, ok := c.entries[key]; ok {
+		c.order.MoveToFront(elem)
+		return
+	}
+	elem := c.order.PushFront(&schemaCacheEntry{key: key, prepared: prepared})
+	c.entries[key] = elem
+	for c.order.Len() > c.maxEntries {
+		oldest := c.order.Back()
+		c.order.Remove(oldest)
+		delete(c.entries, oldest.Value.(*schemaCacheEntry).key)
+	}
+}
+
+func loadAndCompileSchema(ctx context.Context, target, apiVersion, kind string) (preparedSchema, error) {
+	data, err := assets.SchemaDataContext(ctx, target, apiVersion, kind)
+	if err != nil {
+		return preparedSchema{}, err
+	}
+	compiled, err := assets.CompileSchemaContext(ctx, data)
+	if err != nil {
+		return preparedSchema{}, err
+	}
+	return preparedSchema{data: data, compiled: compiled}, nil
 }

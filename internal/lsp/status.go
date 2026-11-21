@@ -271,7 +271,11 @@ func (s analysisStatus) message() string {
 	}
 	for _, op := range s.Operations {
 		if op.Allowed {
-			lines = append(lines, op.Operation+": available for this input and selection")
+			if op.ResultCount != nil {
+				lines = append(lines, fmt.Sprintf("%s: available for this input and selection (%d locations)", op.Operation, *op.ResultCount))
+			} else {
+				lines = append(lines, op.Operation+": available for this input and selection")
+			}
 		} else if op.Refusal != nil {
 			lines = append(lines, op.Operation+": "+op.ReasonCode+" — "+op.Message+" "+op.NextStep)
 			for _, location := range op.RelatedLocations {

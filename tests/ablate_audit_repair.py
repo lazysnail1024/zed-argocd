@@ -57,10 +57,13 @@ def run(command, folder, name, cwd=root, environment=env):
     return {'command': command, 'exit': result.returncode}
 
 
-def build(tree, folder):
+def build(tree, folder, overlay=None):
     binary = folder / ('argocd-ls.exe' if os.name == 'nt' else 'argocd-ls')
-    result = run([go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', '-o', str(binary),
-                  './cmd/argocd-ls'], folder, 'build', cwd=tree)
+    cmd = [go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath']
+    if overlay is not None:
+        cmd.append('-overlay=' + str(overlay))
+    cmd += ['-o', str(binary), './cmd/argocd-ls']
+    result = run(cmd, folder, 'build', cwd=tree)
     if result['exit'] != 0:
         raise RuntimeError('Variant did not compile: ' + str(folder))
     return binary, result
@@ -93,29 +96,26 @@ try:
         folder.mkdir()
         row = {'variant': name, 'mutation': {'file': file, 'from': old, 'to': new}, 'detected': False}
         report['cases'].append(row)
-        with tempfile.TemporaryDirectory(prefix='cd-repair-') as temporary:
-            tree = pathlib.Path(temporary)
-            for part in ('go.mod', 'go.sum', 'cmd', 'internal', 'vendor'):
-                source = root / part
-                shutil.copytree(source, tree / part) if source.is_dir() else shutil.copy2(source, tree / part)
-            target = tree / file
-            text = target.read_text()
-            if text.count(old) != 1:
-                raise RuntimeError(name + ': mutation anchor must occur exactly once')
-            target.write_text(text.replace(old, new, 1))
-            (folder / 'mutated-source.txt').write_bytes(target.read_bytes())
-            binary, row['build'] = build(tree, folder)
-            row['binarySHA256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
-            row['mutatedSourceSHA256'] = hashlib.sha256(target.read_bytes()).hexdigest()
-            row['oracle'] = oracle(binary, folder, mode)
-            cases = row['oracle']['report']['cases']
-            row['expectedFailures'] = sorted(failures[name])
-            row['observedFailures'] = [case['id'] for case in cases if not case['passed']]
-            row['detected'] = (row['oracle']['exit'] == 1
-                               and [case['id'] for case in cases] == [case['id'] for case in report['controls'][mode]['report']['cases']]
-                               and set(row['observedFailures']) == failures[name]
-                               and not any(case['observed'].get('exception') and case['observed'].get('exceptionType') != 'AssertionError' for case in cases))
-            print(name, row['detected'], flush=True)
+        target = root / file
+        text = target.read_text(encoding='utf-8')
+        if text.count(old) != 1:
+            raise RuntimeError(name + ': mutation anchor must occur exactly once')
+        mutated_source = folder / 'mutated-source.txt'
+        mutated_source.write_text(text.replace(old, new, 1), encoding='utf-8')
+        overlay = folder / 'overlay.json'
+        overlay.write_text(json.dumps({'Replace': {str(target): str(mutated_source)}}), encoding='utf-8')
+        binary, row['build'] = build(root, folder, overlay)
+        row['binarySHA256'] = hashlib.sha256(binary.read_bytes()).hexdigest()
+        row['mutatedSourceSHA256'] = hashlib.sha256(mutated_source.read_bytes()).hexdigest()
+        row['oracle'] = oracle(binary, folder, mode)
+        cases = row['oracle']['report']['cases']
+        row['expectedFailures'] = sorted(failures[name])
+        row['observedFailures'] = [case['id'] for case in cases if not case['passed']]
+        row['detected'] = (row['oracle']['exit'] == 1
+                           and [case['id'] for case in cases] == [case['id'] for case in report['controls'][mode]['report']['cases']]
+                           and set(row['observedFailures']) == failures[name]
+                           and not any(case['observed'].get('exception') and case['observed'].get('exceptionType') != 'AssertionError' for case in cases))
+        print(name, row['detected'], flush=True)
     report['passed'] = len(report['cases']) == len(selected) and all(row['detected'] for row in report['cases'])
 except Exception as error:
     report['error'] = repr(error)

@@ -45,13 +45,11 @@ func RepositoryReferences(ctx context.Context, snapshot source.Snapshot, value m
 			continue
 		}
 		spec := object(effective.Value["spec"])
-		sources := objectSlice(spec["sources"])
-		if len(sources) == 0 {
-			sources = []any{spec["source"]}
-		}
+		sources := effectiveSources(spec)
+		hasSourceList := len(objectSlice(spec["sources"])) > 0
 		for i, value := range sources {
 			parts := []string{"spec", "source"}
-			if len(objectSlice(spec["sources"])) > 0 {
+			if hasSourceList {
 				parts = []string{"spec", "sources", strconv.Itoa(i)}
 			}
 			if ref, known := staticRepositoryReference(effective, object(value), parts); known {

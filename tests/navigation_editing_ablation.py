@@ -58,46 +58,42 @@ reports = []
 for name, filename, before, after, suite, expected_case, expected_assertion in variants:
     dest = output / name
     dest.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='cd-navigation-ablation-') as directory:
-        copy = Path(directory)
-        for folder in ['cmd', 'compat', 'internal', 'vendor']:
-            shutil.copytree(ROOT / folder, copy / folder)
-        for file in ['go.mod', 'go.sum']:
-            shutil.copy2(ROOT / file, copy / file)
-        source = copy / filename
-        original = source.read_text()
-        if original.count(before) != 1:
-            raise AssertionError((name, 'mutation must match once', original.count(before)))
-        source.write_text(original.replace(before, after))
-        shutil.copy2(source, dest / 'mutation.go.txt')
-        binary = dest / ('server.exe' if os.name == 'nt' else 'server')
-        build_command = [go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', '-o', binary, './cmd/argocd-ls']
-        build = subprocess.run([str(a) for a in build_command], cwd=copy, env=env, capture_output=True, timeout=240)
-        (dest / 'build.stdout').write_bytes(build.stdout)
-        (dest / 'build.stderr').write_bytes(build.stderr)
-        row = {'variant': name, 'buildExitCode': build.returncode, 'expectedCase': expected_case, 'expectedAssertion': expected_assertion, 'detected': False}
-        if build.returncode != 0:
-            reports.append(row)
-            (output / 'report.json').write_text(json.dumps(reports, indent=2) + '\n')
-            raise AssertionError('compile failure is not ablation evidence')
-        if suite == 'proof':
-            command = [go, 'test', '-mod=vendor', '-count=1', '-run', '^' + expected_case + '$', './internal/lsp']
-        else:
-            command = [sys.executable, ROOT / 'tests/navigation_editing_guards_e2e.py', binary, dest / 'run', '--cases', suite]
-        tested = subprocess.run([str(a) for a in command], cwd=copy if suite == 'proof' else ROOT, env=env, capture_output=True, timeout=120)
-        (dest / 'test.stdout').write_bytes(tested.stdout)
-        (dest / 'test.stderr').write_bytes(tested.stderr)
-        if suite == 'proof':
-            observed = tested.stdout.decode(errors='replace')
-            detected = tested.returncode == 1 and '--- FAIL: ' + expected_case in observed and expected_assertion in observed
-            failed = [expected_case] if detected else []
-        else:
-            results = json.loads((dest / 'run/results.json').read_text())
-            failed = [result['id'] for result in results['cases'] if not result['passed']]
-            matched = next((result for result in results['cases'] if result['id'] == expected_case), {})
-            detected = tested.returncode == 1 and 'runner-error' not in failed and matched.get('assertions', {}).get(expected_assertion) is False
-        row.update(testExitCode=tested.returncode, binarySHA256=hashlib.sha256(binary.read_bytes()).hexdigest(), command=[str(a) for a in command], failedCases=failed, detected=detected)
+    source = ROOT / filename
+    original = source.read_text(encoding='utf-8')
+    if original.count(before) != 1:
+        raise AssertionError((name, 'mutation must match once', original.count(before)))
+    mutated = dest / 'mutation.go.txt'
+    mutated.write_text(original.replace(before, after, 1), encoding='utf-8')
+    overlay = dest / 'overlay.json'
+    overlay.write_text(json.dumps({'Replace': {str(source): str(mutated)}}), encoding='utf-8')
+    binary = dest / ('server.exe' if os.name == 'nt' else 'server')
+    build_command = [go, 'build', '-mod=vendor', '-buildvcs=false', '-trimpath', f'-overlay={overlay}', '-o', binary, './cmd/argocd-ls']
+    build = subprocess.run([str(a) for a in build_command], cwd=ROOT, env=env, capture_output=True, timeout=240)
+    (dest / 'build.stdout').write_bytes(build.stdout)
+    (dest / 'build.stderr').write_bytes(build.stderr)
+    row = {'variant': name, 'buildExitCode': build.returncode, 'expectedCase': expected_case, 'expectedAssertion': expected_assertion, 'detected': False}
+    if build.returncode != 0:
         reports.append(row)
         (output / 'report.json').write_text(json.dumps(reports, indent=2) + '\n')
-        print(name, 'DETECTED' if row['detected'] else 'NOT DETECTED', flush=True)
+        raise AssertionError('compile failure is not ablation evidence')
+    if suite == 'proof':
+        command = [go, 'test', '-mod=vendor', '-count=1', f'-overlay={overlay}', '-run', '^' + expected_case + '$', './internal/lsp']
+    else:
+        command = [sys.executable, ROOT / 'tests/navigation_editing_guards_e2e.py', binary, dest / 'run', '--cases', suite]
+    tested = subprocess.run([str(a) for a in command], cwd=ROOT, env=env, capture_output=True, timeout=120)
+    (dest / 'test.stdout').write_bytes(tested.stdout)
+    (dest / 'test.stderr').write_bytes(tested.stderr)
+    if suite == 'proof':
+        observed = tested.stdout.decode(errors='replace')
+        detected = tested.returncode == 1 and '--- FAIL: ' + expected_case in observed and expected_assertion in observed
+        failed = [expected_case] if detected else []
+    else:
+        results = json.loads((dest / 'run/results.json').read_text())
+        failed = [result['id'] for result in results['cases'] if not result['passed']]
+        matched = next((result for result in results['cases'] if result['id'] == expected_case), {})
+        detected = tested.returncode == 1 and 'runner-error' not in failed and matched.get('assertions', {}).get(expected_assertion) is False
+    row.update(testExitCode=tested.returncode, binarySHA256=hashlib.sha256(binary.read_bytes()).hexdigest(), command=[str(a) for a in command], failedCases=failed, detected=detected)
+    reports.append(row)
+    (output / 'report.json').write_text(json.dumps(reports, indent=2) + '\n')
+    print(name, 'DETECTED' if row['detected'] else 'NOT DETECTED', flush=True)
 sys.exit(0 if len(reports) == len(variants) and all(row['detected'] for row in reports) else 1)
